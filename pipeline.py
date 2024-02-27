@@ -20,6 +20,18 @@ comm = MPI.COMM_WORLD
 cpu_ind = comm.Get_rank()
 n_cpu = comm.Get_size()
 
+def print_banner():
+    banner = """\n\033[94m
+	███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
+	██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
+	█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
+	██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
+	███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
+	╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝                                         
+    \033[00m\n"""
+    print(banner)
+    return None
+
 def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fstar':0.1,'Tmin_vir':1e4},Z_eval=None,path=''):
 
 	model = 0
@@ -62,51 +74,55 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 		os.mkdir(path)
                 
 	if model==0:
-		if type(Z_eval)==np.ndarray or type(Z_eval)==list:
-			Z_eval=np.array(Z_eval)
-			if Z_eval[1]>Z_eval[0]:
-				Z_eval = Z_eval[::-1]
-		elif Z_eval==None:
-			Z_eval = np.linspace(1501,6,2000)
-		else:
-			print('Nonsense value given for Z_eval!')
-			sys.exit()
-		
-		st = time.process_time()
-		
-		print('Obtaining the thermal and ionisation history ...')
-		sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,1501,6,Z_eval)
-		
-		print('Computing the 21-cm signal ...')
-		T21 = twentyone_cm(Z_eval,sol.xe,sol.Tk, Ho,Om_m, Om_b,Tcmbo, Yp, falp,fstar,Tmin_vir)
-		
-		print('Done.')
-		
-		T21_save_name = path+'T21'
-		z_save_name = path+'z'
-		
-		np.save(T21_save_name,T21)
-		np.save(z_save_name,Z_eval)
-		
-		print('Your T21s have been saved into file:',T21_save_name)
-		
-		et = time.process_time()
-		# get the execution time
-		elapsed_time = et - st
-		print('\nExecution time: %.2f seconds' %elapsed_time)
-		
-		return T21
+	#Cosmological and astrophysical parameters are fixed.
+		if cpu_ind==0:
+			
+			print_banner()
+			
+			if type(Z_eval)==np.ndarray or type(Z_eval)==list:
+				Z_eval=np.array(Z_eval)
+				if Z_eval[1]>Z_eval[0]:
+					Z_eval = Z_eval[::-1]
+			elif Z_eval==None:
+				Z_eval = np.linspace(1501,6,1500)
+			else:
+				print('\033[31mError! Z_eval not recognised!\033[00m')
+				sys.exit()
+			
+			st = time.process_time()
+			
+			print('Obtaining the thermal and ionisation history ...')
+			sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,1501,6,Z_eval)
+			
+			print('Computing the 21-cm signal ...')
+			T21 = twentyone_cm(Z_eval,sol.xe,sol.Tk, Ho,Om_m, Om_b,Tcmbo, Yp, falp,fstar,Tmin_vir)
+			
+			print('Done.')
+			
+			T21_save_name = path+'T21'
+			z_save_name = path+'z'
+			
+			np.save(T21_save_name,T21)
+			np.save(z_save_name,Z_eval)
+			
+			print('\033[32mYour T21s have been saved into file:',T21_save_name,'\033[00m')
+			
+			et = time.process_time()
+			# get the execution time
+			elapsed_time = et - st
+			print('\nExecution time: %.2f seconds' %elapsed_time)
+			print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
+			return None
 		
 	elif model==1:
 	#Cosmological parameters are fixed so dark ages is solved only once.
-	
-		if(n_cpu==1):
-			print('Error: you want to generate global signals for multiple parameter values.')
-			print("Run as, say, 'mpirun -n 4 python3 %s', where 4 specifies the number of CPUs." %(sys.argv[0]))
-			sys.exit()
-
+		if cpu_ind==0: print_banner()
 		
-		Z_da = np.linspace(1501,Zstar,2000)
+		if(n_cpu==1):
+			print("\033[91mBetter to parallelise. Eg. 'mpirun -np 4 python3 %s', where 4 specifies the number of tasks.\033[00m" %(sys.argv[0]))
+
+		if cpu_ind==0: print('Generating once the thermal and ionisation history up to dark ages ...')
+		Z_da = np.linspace(1501,Zstar,1400)
 		sol_da = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp[0],fX[0],fstar[0],Tmin_vir[0],Z_start=1501,Z_end=Zstar, Z_eval=Z_da)
 		xe_da = sol_da.xe
 		Tk_da = sol_da.Tk
@@ -119,7 +135,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 				print('Error: first value should be below or equal to Zstar (= 60)')
 				sys.exit()
 		elif Z_eval==None:
-			Z_eval = np.linspace(Zstar,6,2000)
+			Z_eval = np.linspace(Zstar,6,200)
 
 		n_values=len(Z_eval)
 		
@@ -128,7 +144,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 		arr = np.reshape(arr,[np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir)])
 		T21 = np.zeros((np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),n_values))
 		
-		if cpu_ind==0: print('Generating',n_mod,'models ...\n')
+		if cpu_ind==0: print('Done.\nGenerating',n_mod,'21-cm global signals ...\n')
 		st = time.process_time()
 		for i in range(n_mod):
 			if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
@@ -150,14 +166,18 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			
 			np.save(T21_save_name,T21)
 			np.save(z_save_name,Z_eval)
-			print('Your T21s have been saved into file:',T21_save_name)
+			print('\033[32m\nYour T21s have been saved into file:',T21_save_name,'\033[00m')
 			
 			et = time.process_time()
 			# get the execution time
 			elapsed_time = et - st
 			print('\nProcessing time: %.2f seconds' %elapsed_time)
+			print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
 
 	elif model==3:
+		
+		if cpu_ind==0: print_banner()
+		
 		if type(Z_eval)==np.ndarray or type(Z_eval)==list:
 			Z_eval=np.array(Z_eval)
 			if Z_eval[1]>Z_eval[0]:
@@ -191,6 +211,8 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 				falp[ind[5][0]],fX[ind[6][0]],fstar[ind[7][0]],Tmin_vir[ind[8][0]],Z_start=1501,Z_end=6,Z_eval=Z_eval)
 				T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
 				[ind[6][0]],[ind[7][0]],[ind[8][0]]:] = twentyone_cm(Z_eval,sol_cd.xe,sol_cd.Tk,Ho[ind[0][0]],Om_m[ind[1][0]],Om_b[ind[2][0]],Tcmbo[ind[3][0]],Yp[ind[4][0]],falp[ind[5][0]],fstar[ind[7][0]],Tmin_vir[ind[8][0]])
+		
+		comm.Barrier()
 		if cpu_ind!=0:
 			comm.send(T21, dest=0)
 		else:
@@ -206,7 +228,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			# get the execution time
 			elapsed_time = et - st
 			print('\nProcessing time: %.2f seconds' %elapsed_time)
-			
-			
-#End of code.
+			print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
+				
+#End of function glob_sig.
 

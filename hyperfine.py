@@ -87,13 +87,13 @@ def twentyone_cm(Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,fal
 	'''
 	The global (sky-averaged) 21-cm signal in mK.
 	'''
-	if cosmo!=None and astro!=None:
+	if cosmo!=None:
 		Ho = cosmo['Ho']
 		Om_m = cosmo['Om_m']
 		Om_b = cosmo['Om_b']
 		Tcmbo = cosmo['Tcmbo']
 		Yp = cosmo['Yp']
-		
+	if astro!=None:
 		falp = astro['falp']
 		fstar = astro['fstar']
 		Tmin_vir = astro['Tmin_vir']

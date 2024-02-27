@@ -18,12 +18,16 @@ sigT=6.65e-29 #Thomson scattering cross-section, m^2
 #-------------------------------------------------------------
 #Cosmology related 
 Mpc2km = 3.0857e19
+Msolar = 1.989e30 #Mass of sun in kg
+
+Msolar_by_Mpc3_to_kg_by_m3 = Msolar*(1000*Mpc2km)**-3
+
 fnu = 0.68 #neutrino contribution to energy density in relativistic species; 3 massless nu's 
 Zstar = 60 #redshift of the beginning of star formation
 
 Z_start = 1501
 Z_end = 6
-Ngrid = 2000
+Ngrid = 1500
 Z_default = np.linspace(Z_start,Z_end,Ngrid)
 
 #-------------------------------------------------------------
