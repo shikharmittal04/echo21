@@ -95,25 +95,40 @@ def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0
 		
 	loc=0
 	flag=False
+	integ=0
 	if type(Z)==float or type(Z)==int:
 		if Z>Zstar:
 			return 0
+		Zmax = 32/27*Z
+		temp = np.linspace(Z,Zmax,10)
+		integ = scint.trapz(_eps_alpha_beta(temp,10.2*temp/Z, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
+		for ni in np.arange(4,24):
+			Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
+			temp = np.linspace(Z,Zmax,5)
+			integ = integ+Pn[ni-4]*scint.trapz(_eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
+	
 	elif type(Z)==np.ndarray or type(Z)==list:
 		if Z[0]>Zstar:
 			flag=True
 			loc = np.where(Z<Zstar)[0][0]
 			Z=Z[loc:]
+		
+		counter=0
+		numofZ = len(Z)
+		integ=np.zeros(numofZ)
+		for Z_value in Z:
+			Zmax = 32/27*Z_value
+			temp = np.linspace(Z_value,Zmax,10)
+			integ[counter] = scint.trapz(_eps_alpha_beta(temp,10.2*temp/Z_value, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
 
-	Zmax = 32/27*Z
-	temp = np.linspace(Z,Zmax,10)
+			for ni in np.arange(4,24):
+				Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z_value
+				temp = np.linspace(Z_value,Zmax,5)
+				integ[counter] = integ[counter]+Pn[ni-4]*scint.trapz(_eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
+			
+			counter=counter+1
 	
-	integ = scint.trapz(_eps_alpha_beta(temp,10.2*temp/Z, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp,axis=0)
-	
-	for ni in np.arange(4,24):
-		Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
-		temp = np.linspace(Z,Zmax,5)
-		integ = integ+Pn[ni-4]*scint.trapz(_eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp,axis=0)
-	
+
 	J_temp = falp*cE/(4*np.pi)*Z**2*integ
 	if flag == True:
 		J_before_CD = np.zeros(loc)
