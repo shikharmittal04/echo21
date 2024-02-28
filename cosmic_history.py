@@ -26,18 +26,21 @@ def _eqns(Z,V,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir):
 	'''
 	xe = V[0]
 	Tk = V[1]
-	
+	Tx = V[2]
+	v_bdm= V[3]
 	#eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS
 	eq1 = 1/H(Z,Ho,Om_m, Tcmbo)*Peebles_C(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp)*(xe**2*nH(Z,Ho,Om_b,Yp)*alpha(Tk)-beta(Tk)*(1-xe)*np.exp(-Ea/(kB*Tk)))
 	
 	#eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
 	
 	if Z>Zstar:
-		eq2 = 2*Tk-Tk*eq1/(1+xHe(Yp)+xe)-Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)
+		eq2 = 2*Tk-Tk*eq1/(1+xHe(Yp)+xe)-Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)-Ex2b(Z,xe,Tk,Tx,v_bdm,fdm,mx,epsilon)
 	else:
-		eq2 = 2*Tk-Tk*eq1/(1+xHe(Yp)+xe)-Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)-Ex(Z,xe,Ho,Om_m,Om_b,Tcmbo,fX,fstar,Tmin_vir)-Elya(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fstar,Tmin_vir)
+		eq2 = 2*Tk-Tk*eq1/(1+xHe(Yp)+xe)-Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)-Ex(Z,xe,Ho,Om_m,Om_b,Tcmbo,fX,fstar,Tmin_vir)-Elya(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fstar,Tmin_vir)-Ex2b(Z,xe,Tk,Tx,v_bdm,fdm,mx,epsilon)
 	
-	return np.array([eq1,eq2])
+	eq3 = 2*Tx-Eb2x(Z,xe,Tk,Tx,v_bdm,fdm,mx,epsilon)
+	eq4 = (v_bdm/3e8+D(Z,xe,Tk,Tx,v_bdm,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)/H)*3e8
+	return np.array([eq1,eq2,eq3,eq4])
 
 def run_solver(Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,fstar=0.1,Tmin_vir=1e4,Z_start=1501,Z_end=6,Z_eval=Z_default, xe_init=None,Tk_init=None,cosmo=None, astro=None):
 	

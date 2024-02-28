@@ -2,7 +2,7 @@
 Shikhar Mittal
 General comments:
 
-All the heating/cooling terms in units of temperature, i.e., 1/H*d(Tk)/dt.
+All the heating/cooling terms in units of temperature, i.e., -1/H*d(Tk)/dt.
 This in turn can be written as 2q/(3n_b.K_B.H(z)), where q is the volumetric heating rate.
 
 'Z' is 1+z, where z is the redshift.
@@ -100,4 +100,60 @@ def Ex(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=
 	
 	return 5e5*fX*fstar*fXh(xe)*Z*np.abs(dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir))
 
+#------------------------------------------------------------------------------------
+def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm,mx,sigma45):
+	'''
+	This corresponds to the heat that flows into the baryonic system from the DM.
+	fdm is the fraction of DM that is Coloumb like. Dimensionless
+	mx is the mass of DM particle in kg
+	v_bx is the relative baryon and DM velocity in m/s
+	T's are in K
+	'''
+	sigma0 = sigma45*1e-45
+	
+	rho_x = fdm*rho_crit(Ho)*(Om_m-Om_b)*Z**3
+	rho_b = rho_crit(Ho)*Om_b*Z**3
+	
+	#nH = rho_b/mp        #Not relevant for Columb like models
+	#rho_e = xe*me*nH     #Not relevant for Columb like models
+	#rho_p = xe*mp*nH     #Not relevant for Columb like models
+	nx = rho_x/mx
+	#f_He = 0.08
+	#part3 = nx*xe/(1+f_He)             #Not relevant for Columb like models
+	#re = r_t(v,Tb,Tx,mx,epsilon, 'e')  #Not relevant for Columb like models
+	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx,'p')
+	#ue = u_t(Tb, Tx,mx,epsilon, 'e')   #Not relevant for Columb like models
+	up = u_t(xe,Tk,Tx, Yp,mx,'p')
+	part4 = 2*mu(xe,Yp)*mP*kB*rho_x*sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
+	part5 = rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
+	
+	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(part4*3e8+part5)
+
+def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm, mx,epsilon):
+	'''
+	This corresponds to the heat that flows into the DM from the baryonic system.
+	fdm is the fraction of DM that is Coloumb like. Dimensionless
+	mx is the mass of DM particle in kg
+	v_bx is the relative baryon and DM velocity in m/s
+	T's are in K
+	'''
+	sigma0 = sigma41*1e-45
+	
+	rho_x = fdm*rho_crit(Ho)*(Om_m-Om_b)*Z**3
+	rho_b = rho_crit(Ho)*Om_b*Z**3
+
+	#         nH = rho_b/mp #Doubt
+	#         rho_e = xe*me*nH
+	#         rho_p = xe*mp*nH
+	nx = rho_x/mx
+	#         f_He = 0.08
+	#         part3 = nx*xe/(1+f_He)
+	#re = r_t(v,Tb,Tx,mx,epsilon, 'e')
+	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx,epsilon, 'p')
+	#ue = u_t(Tb, Tx,mx,epsilon, 'e')
+	up = u_t(xe,Tk,Tx, Yp,mx,epsilon, 'p')
+	part4 = 2*mx*rho_b*sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
+	part5 = rho_b/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
+
+	return 2/(3*H(Z,Ho,Om_m, Tcmbo))*(part4*3e8+part5)*(1/FAC_K_MEV) #Final result in K/s
 
