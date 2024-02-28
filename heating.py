@@ -101,7 +101,7 @@ def Ex(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=
 	return 5e5*fX*fstar*fXh(xe)*Z*np.abs(dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir))
 
 #------------------------------------------------------------------------------------
-def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm,mx,sigma45):
+def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm,mx=1.77e-28,sigma45):
 	'''
 	This corresponds to the heat that flows into the baryonic system from the DM.
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
@@ -124,12 +124,12 @@ def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm,mx,sigma4
 	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx,'p')
 	#ue = u_t(Tb, Tx,mx,epsilon, 'e')   #Not relevant for Columb like models
 	up = u_t(xe,Tk,Tx, Yp,mx,'p')
-	part4 = 2*mu(xe,Yp)*mP*kB*rho_x*sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
-	part5 = rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
+	part4 = cE**4*2*mu(xe,Yp)*mP*rho_x*sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
+	part5 = 1/kB*rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
 	
-	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(part4*3e8+part5)
+	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(part4+part5)  # Units (K)
 
-def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm, mx,epsilon):
+def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm, mx=1.77e-28,epsilon):
 	'''
 	This corresponds to the heat that flows into the DM from the baryonic system.
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
@@ -152,8 +152,8 @@ def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm, mx,epsilon):
 	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx,epsilon, 'p')
 	#ue = u_t(Tb, Tx,mx,epsilon, 'e')
 	up = u_t(xe,Tk,Tx, Yp,mx,epsilon, 'p')
-	part4 = 2*mx*rho_b*sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
-	part5 = rho_b/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
+	part4 = cE**4*2*mx*rho_b*sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
+	part5 = 1/kB*rho_b/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
 
-	return 2/(3*H(Z,Ho,Om_m, Tcmbo))*(part4*3e8+part5)*(1/FAC_K_MEV) #Final result in K/s
+	return 2/(3*H(Z,Ho,Om_m, Tcmbo))*(part4+part5) # Units (K)
 

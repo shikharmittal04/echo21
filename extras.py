@@ -142,7 +142,7 @@ def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0
 #--------------------------------------------------------------------------------------------
 # The following functions are relevant to electromagnetically charged DM particles.
  
-def u_t(xe,Tk,Tx, Yp=0.245,mx=e-28,target='p'):
+def u_t(xe,Tk,Tx, Yp=0.245,mx=1.77e-28,target='p'):
     '''
     Output: thermal velocity in m/s
     Input: 1. mx should be in kg
@@ -153,7 +153,7 @@ def u_t(xe,Tk,Tx, Yp=0.245,mx=e-28,target='p'):
 	if (target == 'p'):
 		return np.sqrt(kB*Tk/(mu(xe,Yp)*mP)+kB*Tx/mx)
 
-def r_t(xe,Tk,Tx,v_bx, Yp=0.245,mx, target='p'):
+def r_t(xe,Tk,Tx,v_bx, Yp=0.245,mx=1.77e-28, target='p'):
     '''
     Output: ratio of relative velocity of DM and baryons with the thermal velocity (dimensionless)
     Input: 1. T's should be in K
@@ -169,7 +169,7 @@ def F(r):
 	return out
 
 
-def D(Z,xe,Tk,Tx,v_bx, Ho=67.4,Om_m=0.315,Om_b=0.049,Yp=0.245,fdm=1,mx,sigma45=1):
+def D(Z,xe,Tk,Tx,v_bx, Ho=67.4,Om_m=0.315,Om_b=0.049,Yp=0.245,fdm=1,mx=1.77e-28,sigma45=1):
 	'''
 	This is the drag term. Final result in m.s^-2
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
@@ -184,7 +184,7 @@ def D(Z,xe,Tk,Tx,v_bx, Ho=67.4,Om_m=0.315,Om_b=0.049,Yp=0.245,fdm=1,mx,sigma45=1
 	part1 = cE**4*sigma0*(rho_x+rho_b)/(mx+mu(xe,Yp)*mP) * F(r_t(xe,Tk,Tx,v_bx,Yp,mx,'p'))/v_bx**2
 	return part1
 	
-def mu_bx(xe,Yp=0.245,mx):
+def mu_bx(xe,Yp=0.245,mx=1.77e-28):
 	'''
 	xe is electron fraction (dimensionless)
 	mx should be in kg
