@@ -101,7 +101,7 @@ def Ex(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=
 	return 5e5*fX*fstar*fXh(xe)*Z*np.abs(dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir))
 
 #------------------------------------------------------------------------------------
-def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm=1,mx=1.77e-28,sigma45=1):
+def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,Yp=0.245, fdm=1,mx=1.77e-28,sigma45=1):
 	'''
 	This corresponds to the heat that flows into the baryonic system from the DM.
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
@@ -130,7 +130,7 @@ def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm=1,mx=1.77
 	
 	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(part4+part5)
 	
-def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm=1, mx=1.77e-28, sigma45=1):
+def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,fdm=1, mx=1.77e-28, sigma45=1):
 	'''
 	This corresponds to the heat that flows into the DM from the baryonic system.
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
