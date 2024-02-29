@@ -101,18 +101,19 @@ def Ex(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=
 	return 5e5*fX*fstar*fXh(xe)*Z*np.abs(dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir))
 
 #------------------------------------------------------------------------------------
-def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm,mx=1.77e-28,sigma45):
+def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm=1,mx=1.77e-28,sigma45=1):
 	'''
 	This corresponds to the heat that flows into the baryonic system from the DM.
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
 	mx is the mass of DM particle in kg
 	v_bx is the relative baryon and DM velocity in m/s
 	T's are in K
+	Output in K
 	'''
 	sigma0 = sigma45*1e-45
 	
-	rho_x = fdm*rho_crit(Ho)*(Om_m-Om_b)*Z**3
-	rho_b = rho_crit(Ho)*Om_b*Z**3
+	rho_x = fdm*rho_crit(Ho)*(Om_m-Om_b)*Z**3	# fraction of DM which is coloumb-like (in kg/m^3 proper)
+	rho_b = rho_crit(Ho)*Om_b*Z**3 #mass density of baryons only (in kg/m^3 proper)
 	
 	#nH = rho_b/mp        #Not relevant for Columb like models
 	#rho_e = xe*me*nH     #Not relevant for Columb like models
@@ -121,26 +122,27 @@ def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,Yp=0.245, fdm,mx=1.77e-
 	#f_He = 0.08
 	#part3 = nx*xe/(1+f_He)             #Not relevant for Columb like models
 	#re = r_t(v,Tb,Tx,mx,epsilon, 'e')  #Not relevant for Columb like models
-	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx,'p')
+	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx,'p') #Dimensionless
 	#ue = u_t(Tb, Tx,mx,epsilon, 'e')   #Not relevant for Columb like models
 	up = u_t(xe,Tk,Tx, Yp,mx,'p')
 	part4 = cE**4*2*mu(xe,Yp)*mP*rho_x*sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
-	part5 = 1/kB*rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
+	part5 = 1/kB*rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx)
 	
-	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(part4+part5)  # Units (K)
-
-def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm, mx=1.77e-28,epsilon):
+	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(part4+part5)
+	
+def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm=1, mx=1.77e-28, sigma45=1):
 	'''
 	This corresponds to the heat that flows into the DM from the baryonic system.
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
 	mx is the mass of DM particle in kg
 	v_bx is the relative baryon and DM velocity in m/s
 	T's are in K
+	Output in K
 	'''
-	sigma0 = sigma41*1e-45
+	sigma0 = sigma45*1e-45
 	
-	rho_x = fdm*rho_crit(Ho)*(Om_m-Om_b)*Z**3
-	rho_b = rho_crit(Ho)*Om_b*Z**3
+	rho_x = fdm*rho_crit(Ho)*(Om_m-Om_b)*Z**3	# fraction of DM which is coloumb-like (in kg/m^3 proper)
+	rho_b = rho_crit(Ho)*Om_b*Z**3 #mass density of baryons only (in kg/m^3 proper)
 
 	#         nH = rho_b/mp #Doubt
 	#         rho_e = xe*me*nH
@@ -149,11 +151,11 @@ def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315, Tcmbo=2.725,fdm, mx=1.77e-28,epsilo
 	#         f_He = 0.08
 	#         part3 = nx*xe/(1+f_He)
 	#re = r_t(v,Tb,Tx,mx,epsilon, 'e')
-	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx,epsilon, 'p')
+	rp = r_t(xe,Tk,Tx,v_bx, Yp,mx, 'p')
 	#ue = u_t(Tb, Tx,mx,epsilon, 'e')
-	up = u_t(xe,Tk,Tx, Yp,mx,epsilon, 'p')
+	up = u_t(xe,Tk,Tx, Yp,mx, 'p')
 	part4 = cE**4*2*mx*rho_b*sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
-	part5 = 1/kB*rho_b/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx,epsilon)
+	part5 = 1/kB*rho_b/(rho_x+rho_b)*mu_bx(xe,Yp,mx)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx)
 
-	return 2/(3*H(Z,Ho,Om_m, Tcmbo))*(part4+part5) # Units (K)
+	return 2/(3*H(Z,Ho,Om_m, Tcmbo))*(part4+part5)
 
