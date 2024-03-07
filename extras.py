@@ -1,7 +1,7 @@
 from .const import *
 import numpy as np
 from .hmf import SFRD
-from .basic_cosmo import mu, nH, H
+from .basic_cosmo import *
 import scipy.integrate as scint
 import scipy.special as scsp
 
@@ -142,54 +142,59 @@ def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0
 #--------------------------------------------------------------------------------------------
 # The following functions are relevant to electromagnetically charged DM particles.
  
-def u_t(xe,Tk,Tx, Yp=0.245,mx=1.77e-28,target='p'):
-    '''
-    Output: thermal velocity in m/s
-    Input: 1. mx should be in kg
+def u_t(xe,Tk,Tx, Yp=0.245,mx_gev=1,target='p'):
+	'''
+	Output: thermal velocity in m/s
+	Input: 1. mx_gev should be in GeV
     	   2. T's should be in K
-    '''
+	'''
+	mx = mx_gev*GeV2kg
 	if (target == 'e'):
 		return np.sqrt(kB*Tk/me+kB*Tx/mx)
 	if (target == 'p'):
 		return np.sqrt(kB*Tk/(mu(xe,Yp)*mP)+kB*Tx/mx)
 
-def r_t(xe,Tk,Tx,v_bx, Yp=0.245,mx=1.77e-28, target='p'):
-    '''
+def r_t(xe,Tk,Tx,v_bx, Yp=0.245,mx_gev=1, target='p'):
+	'''
     Output: ratio of relative velocity of DM and baryons with the thermal velocity (dimensionless)
     Input: 1. T's should be in K
     	   2. v_bx should be in m/s
-    '''
+    	   3. mx_gev should be in GeV
+	'''
 	if (target == 'e'):
-		return v_bx/u_t(xe,Tk,Tx, Yp,mx,'e')
+		return v_bx/u_t(xe,Tk,Tx, Yp,mx_gev,'e')
 	if (target == 'p'):
-		return v_bx/u_t(xe,Tk,Tx, Yp,mx,'p')
+		return v_bx/u_t(xe,Tk,Tx, Yp,mx_gev,'p')
 
 def F(r):
-	out = scsp.erf(r/np.sqrt(2))- np.sqrt(2/pi)*r*np.exp(-r**2/2)
+	out = scsp.erf(r/np.sqrt(2))- np.sqrt(2/np.pi)*r*np.exp(-r**2/2)
 	return out
 
 
-def D(Z,xe,Tk,Tx,v_bx, Ho=67.4,Om_m=0.315,Om_b=0.049,Yp=0.245,fdm=1,mx=1.77e-28,sigma45=1):
+def D(Z,xe,Tk,Tx,v_bx, Ho=67.4,Om_m=0.315,Om_b=0.049,Yp=0.245,fdm=1,mx_gev=1,sigma45=1):
 	'''
 	This is the drag term. Final result in m.s^-2
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
-	mx is the mass of DM particle in kg
+	mx is the mass of DM particle in GeV
 	v_bx is the relative baryon and DM velocity in m/s
 	T's are in K
 	'''
-	sigma0 = sigma45*1e-45   #in m^2
+	sigma0 = sigma45*sig_ten45m2   #in m^2
+	mx = mx_gev*GeV2kg
+	
 	rho_b = Z**3*rho_crit(Ho)*Om_b
 	rho_x = Z**3*fdm*rho_crit(Ho)*(Om_m-Om_b)
 	#nH = rho_b/mp #Doubt #1/m^3
-	part1 = cE**4*sigma0*(rho_x+rho_b)/(mx+mu(xe,Yp)*mP) * F(r_t(xe,Tk,Tx,v_bx,Yp,mx,'p'))/v_bx**2
+	part1 = cE**4*sigma0*(rho_x+rho_b)/(mx+mu(xe,Yp)*mP) * F(r_t(xe,Tk,Tx,v_bx,Yp,mx_gev,'p'))/v_bx**2
 	return part1
 	
-def mu_bx(xe,Yp=0.245,mx=1.77e-28):
+def mu_bx(xe,Yp=0.245,mx_gev=1):
 	'''
 	xe is electron fraction (dimensionless)
-	mx should be in kg
+	mx_gev should be in GeV
 	output is reduced mass in kg
 	'''
+	mx = mx_gev*GeV2kg
 	return mu(xe,Yp)*mP*mx/(mu(xe,Yp)*mP+mx)
 	
 	

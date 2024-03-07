@@ -47,3 +47,10 @@ Tstar = 0.068 #Hyperfine energy difference in temperature (K)
 A10 = 2.85e-15 # Einstein's spontaneous emission rate, sec^-1
 Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.3524,0.3535,0.3543,0.355,0.3556,
     0.3561,0.3565,0.3569,0.3572,0.3575,0.3578])
+    
+#-------------------------------------------------------------
+#Interacting dark matter related
+sig_ten45m2 = 1e-45 #m^2
+GeV2kg = 1.77e-27 # 1 GeV is this much kg
+
+

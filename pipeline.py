@@ -32,7 +32,7 @@ def print_banner():
     print(banner)
     return None
 
-def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fstar':0.1,'Tmin_vir':1e4},Z_eval=None,path=''):
+def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fstar':0.1,'Tmin_vir':1e4,'fdm':1,'mx_gev':1,'sigma45':1},Z_eval=None,path=''):
 
 	model = 0
 	for keys in astro.keys():
@@ -68,7 +68,10 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 	fX = astro['fX']
 	fstar = astro['fstar']
 	Tmin_vir = astro['Tmin_vir']
-	
+	fdm = astro['fdm']
+	mx_gev = astro['mx_gev']
+	sigma45= astro['sigma45']
+		
 	if os.path.isdir(path)==False:
 		print('The requested directory does not exist. Creating one ...')
 		os.mkdir(path)
@@ -92,7 +95,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			st = time.process_time()
 			
 			print('Obtaining the thermal and ionisation history ...')
-			sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,1501,6,Z_eval)
+			sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45,1501,6,Z_eval)
 			
 			print('Computing the 21-cm signal ...')
 			T21 = twentyone_cm(Z_eval,sol.xe,sol.Tk, Ho,Om_m, Om_b,Tcmbo, Yp, falp,fstar,Tmin_vir)
@@ -115,43 +118,41 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			return None
 		
 	elif model==1:
-	#Cosmological parameters are fixed so dark ages is solved only once.
 		if cpu_ind==0: print_banner()
-		
+
 		if(n_cpu==1):
 			print("\033[91mBetter to parallelise. Eg. 'mpirun -np 4 python3 %s', where 4 specifies the number of tasks.\033[00m" %(sys.argv[0]))
-
-		if cpu_ind==0: print('Generating once the thermal and ionisation history up to dark ages ...')
-		Z_da = np.linspace(1501,Zstar,1400)
-		sol_da = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp[0],fX[0],fstar[0],Tmin_vir[0],Z_start=1501,Z_end=Zstar, Z_eval=Z_da)
-		xe_da = sol_da.xe
-		Tk_da = sol_da.Tk
 
 		if type(Z_eval)==np.ndarray or type(Z_eval)==list:
 			Z_eval=np.array(Z_eval)
 			if Z_eval[1]>Z_eval[0]:
 				Z_eval = Z_eval[::-1]
-			if Z_eval[0]>Zstar:
-				print('Error: first value should be below or equal to Zstar (= 60)')
+			if Z_eval[0]>1501 or Z_eval[-1]<6:
+				print('Error: redshift values not within the range')
 				sys.exit()
 		elif Z_eval==None:
-			Z_eval = np.linspace(Zstar,6,200)
-
+			Z_eval = np.linspace(1501,6,2000)
+		
 		n_values=len(Z_eval)
 		
 		n_mod = no_of_mdls(astro)
 		arr = np.arange(n_mod)
-		arr = np.reshape(arr,[np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir)])
-		T21 = np.zeros((np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),n_values))
+		arr = np.reshape(arr,[np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),np.size(fdm),np.size(mx_gev),np.size(sigma45)])
+		T21 = np.zeros((np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),np.size(fdm),np.size(mx_gev),np.size(sigma45),n_values))
 		
-		if cpu_ind==0: print('Done.\nGenerating',n_mod,'21-cm global signals ...\n')
+		if cpu_ind==0: print('Generating',n_mod,'models ...')
 		st = time.process_time()
+		
 		for i in range(n_mod):
 			if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
 				ind=np.where(arr==i)
-				sol_cd = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp[ind[0][0]],fX[ind[1][0]],fstar[ind[2][0]],
-				Tmin_vir[ind[3][0]],Zstar,6,Z_eval,xe_da[-1],Tk_da[-1])
-				T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= twentyone_cm(Z_eval,sol_cd.xe,sol_cd.Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp[ind[0][0]],fstar[ind[2][0]],Tmin_vir[ind[3][0]])
+				
+				sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,
+				falp[ind[0][0]],fX[ind[1][0]],fstar[ind[2][0]],Tmin_vir[ind[3][0]],fdm[ind[4][0]],mx_gev[ind[5][0]],sigma45[ind[6][0]],
+				Z_start=1501,Z_end=6,Z_eval=Z_eval)
+				
+				T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
+				[ind[6][0]],:] = twentyone_cm(Z_eval,sol.xe,sol.Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp[ind[0][0]],fstar[ind[2][0]],Tmin_vir[ind[3][0]])
 		
 		comm.Barrier()
 		if cpu_ind!=0:
@@ -160,13 +161,10 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			print('Done.')
 			for j in range(1,n_cpu):
 				T21 = T21 + comm.recv(source=j)
+			save_name = path+'T21_'+str(np.size(falp))+str(np.size(fX))+str(np.size(fstar))+str(np.size(Tmin_vir))+str(np.size(fdm))+str(np.size(mx_gev))+str(np.size(sigma45))+'.npy'
+			np.save(save_name,T21)
 			
-			T21_save_name = path+'T21_'+str(np.size(falp))+str(np.size(fX))+str(np.size(fstar))+str(np.size(Tmin_vir))
-			z_save_name = path+'z'
-			
-			np.save(T21_save_name,T21)
-			np.save(z_save_name,Z_eval)
-			print('\033[32m\nYour T21s have been saved into file:',T21_save_name,'\033[00m')
+			print('Your T21s have been saved into file:',save_name)
 			
 			et = time.process_time()
 			# get the execution time
@@ -210,7 +208,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 				sol = run_solver(Ho[ind[0][0]],Om_m[ind[1][0]],Om_b[ind[2][0]],Tcmbo[ind[3][0]],Yp[ind[4][0]],
 				falp[ind[5][0]],fX[ind[6][0]],fstar[ind[7][0]],Tmin_vir[ind[8][0]],Z_start=1501,Z_end=6,Z_eval=Z_eval)
 				T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
-				[ind[6][0]],[ind[7][0]],[ind[8][0]]:] = twentyone_cm(Z_eval,sol_cd.xe,sol_cd.Tk,Ho[ind[0][0]],Om_m[ind[1][0]],Om_b[ind[2][0]],Tcmbo[ind[3][0]],Yp[ind[4][0]],falp[ind[5][0]],fstar[ind[7][0]],Tmin_vir[ind[8][0]])
+				[ind[6][0]],[ind[7][0]],[ind[8][0]],:] = twentyone_cm(Z_eval,sol.xe,sol.Tk,Ho[ind[0][0]],Om_m[ind[1][0]],Om_b[ind[2][0]],Tcmbo[ind[3][0]],Yp[ind[4][0]],falp[ind[5][0]],fstar[ind[7][0]],Tmin_vir[ind[8][0]])
 		
 		comm.Barrier()
 		if cpu_ind!=0:
