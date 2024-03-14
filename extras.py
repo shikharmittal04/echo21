@@ -152,7 +152,7 @@ def u_t(xe,Tk,Tx, Yp=0.245,mx_gev=1,target='p'):
 	if (target == 'e'):
 		return np.sqrt(kB*Tk/me+kB*Tx/mx)
 	if (target == 'p'):
-		return np.sqrt(kB*Tk/(mu(xe,Yp)*mP)+kB*Tx/mx)
+		return np.sqrt(kB*Tk/mu_bx(xe,Yp,mx_gev))
 
 def r_t(xe,Tk,Tx,v_bx, Yp=0.245,mx_gev=1, target='p'):
 	'''
@@ -167,8 +167,8 @@ def r_t(xe,Tk,Tx,v_bx, Yp=0.245,mx_gev=1, target='p'):
 		return v_bx/u_t(xe,Tk,Tx, Yp,mx_gev,'p')
 
 def F(r):
-	out = scsp.erf(r/np.sqrt(2))- np.sqrt(2/np.pi)*r*np.exp(-r**2/2)
-	return out
+	return scsp.erf(r/np.sqrt(2))- np.sqrt(2/np.pi)*r*np.exp(-r**2/2)
+
 
 
 def D(Z,xe,Tk,Tx,v_bx, Ho=67.4,Om_m=0.315,Om_b=0.049,Yp=0.245,fdm=1,mx_gev=1,sigma45=1):
@@ -185,8 +185,7 @@ def D(Z,xe,Tk,Tx,v_bx, Ho=67.4,Om_m=0.315,Om_b=0.049,Yp=0.245,fdm=1,mx_gev=1,sig
 	rho_b = Z**3*rho_crit(Ho)*Om_b
 	rho_x = Z**3*fdm*rho_crit(Ho)*(Om_m-Om_b)
 	#nH = rho_b/mp #Doubt #1/m^3
-	part1 = cE**4*sigma0*(rho_x+rho_b)/(mx+mu(xe,Yp)*mP) * F(r_t(xe,Tk,Tx,v_bx,Yp,mx_gev,'p'))/v_bx**2
-	return part1
+	return cE**4*sigma0*(rho_x+rho_b)/(mx+mu(xe,Yp)*mP) * F(r_t(xe,Tk,Tx,v_bx,Yp,mx_gev,'p'))/v_bx**2
 	
 def mu_bx(xe,Yp=0.245,mx_gev=1):
 	'''
