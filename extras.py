@@ -152,7 +152,7 @@ def u_t(xe,Tk,Tx, Yp=0.245,mx_gev=1,target='p'):
 	if (target == 'e'):
 		return np.sqrt(kB*Tk/me+kB*Tx/mx)
 	if (target == 'p'):
-		return np.sqrt(kB*Tk/mu_bx(xe,Yp,mx_gev))
+		return np.sqrt(kB*Tk/(mu(xe,Yp)*mP)+kB*Tx/mx)
 
 def r_t(xe,Tk,Tx,v_bx, Yp=0.245,mx_gev=1, target='p'):
 	'''
