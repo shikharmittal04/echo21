@@ -127,8 +127,8 @@ def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,Yp=0.245, fd
 	#ue = u_t(Tb, Tx,mx,epsilon, 'e')   #Not relevant for Columb like models
 	up = u_t(xe,Tk,Tx, Yp,mx_gev,'p')
 	term1 = cE**4*2*mu(xe,Yp)*mP*rho_x*sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
-	term2 = 1/kB*rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx_gev)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx_gev,sigma0)
-	
+	term2 = 1/kB*rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx_gev)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx_gev,sigma45)
+	print('term 2 =',2/(3*H(Z,Ho,Om_m, Tcmbo))*term2)
 	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(term1+term2)
 	
 def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,Yp=0.245,fdm=1, mx_gev=1, sigma45=1):
@@ -157,7 +157,7 @@ def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,Yp=0.245,fdm
 	#ue = u_t(Tb, Tx,mx,epsilon, 'e')
 	up = u_t(xe,Tk,Tx, Yp,mx_gev, 'p')
 	term1 = cE**4*2*mx*rho_b*sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
-	term2 = 1/kB*rho_b/(rho_x+rho_b)*mu_bx(xe,Yp,mx_gev)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx_gev,sigma0)
-
+	term2 = 1/kB*rho_b/(rho_x+rho_b)*mu_bx(xe,Yp,mx_gev)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx_gev,sigma45)
+	print('term 2 =',2/(3*H(Z,Ho,Om_m, Tcmbo))*term2)
 	return 2/(3*H(Z,Ho,Om_m, Tcmbo))*(term1+term2)
 
