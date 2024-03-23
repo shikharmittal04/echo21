@@ -104,11 +104,11 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			
 			print('All done.')
 			
-			output = np.array([sol.Zs, sol.xe, sol.Tk, Ts, sol.Tx, sol.v_bx])
-			op_save_name = path+'ZxTTTv'
+			output = np.array([sol.Zs, sol.xe, sol.Tk, Ts, sol.Tx, sol.v_bx, T21])
+			op_save_name = path+'ZxTTTvT'
 			
 			np.save(op_save_name,output)
-			
+				
 			print('\033[32mYour solution has been saved into file:',op_save_name,'\033[00m')
 			
 			et = time.process_time()
