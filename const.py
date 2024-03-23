@@ -21,7 +21,7 @@ Mpc2km = 3.0857e19
 Msolar = 1.989e30 #Mass of sun in kg
 
 Msolar_by_Mpc3_to_kg_by_m3 = Msolar*(1000*Mpc2km)**-3
-
+SI2Msun_by_Mpc3_by_yr = 4.63e44
 fnu = 0.68 #neutrino contribution to energy density in relativistic species; 3 massless nu's 
 Zstar = 60 #redshift of the beginning of star formation
 

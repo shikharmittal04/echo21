@@ -3,7 +3,6 @@ Shikhar Mittal
 The is the main code which does two main tasks:
 1) First it solves the ODEs to get xe and Tk,
 2) Second it will use these to compute the global cosmological 21-cm signal. 
-Here 
 '''
 
 from mpi4py import MPI
@@ -13,7 +12,7 @@ import time
 import os
 from .cosmic_history import run_solver
 from .extras import to_array, to_float, no_of_mdls
-from .hyperfine import twentyone_cm
+from .hyperfine import twentyone_cm, spin_temp
 from .const import Zstar
 
 comm = MPI.COMM_WORLD
@@ -97,18 +96,20 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			print('Obtaining the thermal and ionisation history ...')
 			sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45,1501,6,Z_eval)
 			
+			print('Obtaining the spin temperature ...')			
+			Ts = spin_temp(sol.Zs,sol.xe,sol.Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fstar,Tmin_vir)
+			
 			print('Computing the 21-cm signal ...')
-			T21 = twentyone_cm(Z_eval,sol.xe,sol.Tk, Ho,Om_m, Om_b,Tcmbo, Yp, falp,fstar,Tmin_vir)
+			T21 = twentyone_cm(sol.Zs,sol.xe,sol.Tk, Ho,Om_m, Om_b,Tcmbo, Yp, falp,fstar,Tmin_vir)
 			
-			print('Done.')
+			print('All done.')
 			
-			T21_save_name = path+'T21'
-			z_save_name = path+'z'
+			output = np.array([sol.Zs, sol.xe, sol.Tk, Ts, sol.Tx, sol.v_bx])
+			op_save_name = path+'ZxTTTv'
 			
-			np.save(T21_save_name,T21)
-			np.save(z_save_name,Z_eval)
+			np.save(op_save_name,output)
 			
-			print('\033[32mYour T21s have been saved into file:',T21_save_name,'\033[00m')
+			print('\033[32mYour solution has been saved into file:',op_save_name,'\033[00m')
 			
 			et = time.process_time()
 			# get the execution time

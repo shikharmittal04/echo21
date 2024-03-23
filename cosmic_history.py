@@ -14,10 +14,13 @@ import numpy as np
 import scipy.integrate as scint 
 
 
-class xe_Tk():
-	def __init__(self,xe,Tk):
+class dep_var():
+	def __init__(self,Zs,xe,Tk,Tx,v_bx):
+		self.Zs=Zs
 		self.xe=xe
 		self.Tk=Tk
+		self.Tx=Tx
+		self.v_bx=v_bx
 
 #The following function has the differential equations governing the ionisation and thermal history.
 def _eqns(Z,V,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45):
@@ -73,11 +76,12 @@ def run_solver(Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,
 	Sol = scint.solve_ivp(lambda a, Var: -_eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45)/a, t_span=[1/Z_start, 1/Z_end],y0=[xe_init,Tk_init,0,29000],method='Radau',t_eval=1/Z_eval) 
 	
 	#Obtaining the solutions ...
+	Zs=1/Sol.t
 	xe=Sol.y[0]
 	Tk=Sol.y[1]
 	Tx=Sol.y[2]
 	v_bx=Sol.y[3]
 	
-	return xe_Tk(xe,Tk)
+	return dep_var(Zs,xe,Tk,Tx,v_bx)
 
 
