@@ -14,6 +14,7 @@ from .const import *
 from .basic_cosmo import *
 from .hmf import dfcoll_dz
 from .extras import *
+from .hyperfine import spin_temp, cmb_coup
 import numpy as np
 import scipy.special as scsp
 import scipy.integrate as scint
@@ -46,7 +47,23 @@ def Elya(Z,xe,Tk,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar
 	J = lya_spec_inten(Z,xe,Ho,Om_m,Om_b,Tcmbo,falp,fstar,Tmin_vir)
 	nbary = (1+xHe(Yp))*nH(Z,Ho,Om_b,Yp)
 	return 8*np.pi/3 * hP/(kB*lam_alpha) * J*dopp(Tk)/nbary * (Ic+Ii)
-   
+
+
+def Ecmb(Z,xe,Tk,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+	if cosmo!=None:
+		Ho = cosmo['Ho']
+		Om_m = cosmo['Om_m']
+		Om_b = cosmo['Om_b']
+		Tcmbo = cosmo['Tcmbo']
+	
+	if astro!=None:
+		falp = astro['falp']
+		fstar = astro['fstar']
+		Tmin_vir = astro['Tmin_vir']
+	
+	Ts = spin_temp(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp,falp,fstar,Tmin_vir)  
+	return (1-xe)/(1+xHe(Yp)+xe)*A10*(0.5/H(Z,Ho,Om_m,Tcmbo))*(Tcmb(Z,Tcmbo)/Ts-1)*Tstar*cmb_coup(Z,xe,Ts,Ho,Om_m,Om_b,Tcmbo,Yp)
+
 '''
 def tau(E,Z,Z1,x_HI):     #X-ray optical depth
         Z2=np.linspace(Z,Z1[1:,],20)
@@ -129,12 +146,12 @@ def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,Yp=0.245, fd
 	term1 = cE**4*2*mu(xe,Yp)*mP*rho_x*sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((mx+mu(xe,Yp)*mP)**2*np.sqrt(2*np.pi)*up**3)
 	term2 = 1/(2*np.pi*kB)*rho_x/(rho_x+rho_b)*mu_bx(xe,Yp,mx_gev)*v_bx*D(Z,xe,Tk,Tx,v_bx,Ho,Om_m,Om_b,Yp,fdm,mx_gev,sigma45)
 	return 2/(3*H(Z, Ho,Om_m,Tcmbo))*(term1+term2)
-	
+
 def Eb2x(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,Yp=0.245,fdm=1, mx_gev=1, sigma45=1):
 	'''
 	This corresponds to the heat that flows into the DM from the baryonic system.
 	fdm is the fraction of DM that is Coloumb like. Dimensionless
-	mx is the mass of DM particle in kg
+	mx_gev is the mass of DM particle in GeV
 	v_bx is the relative baryon and DM velocity in m/s
 	T's are in K
 	Output in K

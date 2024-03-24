@@ -40,11 +40,12 @@ nu_alpha = cE/lam_alpha #Frequency in Hz
 B2 = 3.4*eC #Bind energy of level 2 in J
 B1 = 13.6*eC #Bind energy of level 1 in J
 Ea = B1-B2  #Energy of Lya photon in J
-A_alpha = 6.25e8 #Spontaneous emission coeffecient in Hz
+A_alpha = 6.25e8 #Einstein's spontaneous emission coeffecient for Lya transition in Hz
 #-------------------------------------------------------------
 #Others
+lam_21 = 0.21 #Wavelength of 21-cm photon in m
 Tstar = 0.068 #Hyperfine energy difference in temperature (K)
-A10 = 2.85e-15 # Einstein's spontaneous emission rate, sec^-1
+A10 = 2.85e-15 # Einstein's spontaneous emission rate for hyperfine transition in Hz
 Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.3524,0.3535,0.3543,0.355,0.3556,
     0.3561,0.3565,0.3569,0.3572,0.3575,0.3578])
     

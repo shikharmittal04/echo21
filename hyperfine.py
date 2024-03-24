@@ -15,6 +15,12 @@ from .extras import lya_spec_inten, scatter_corr
 import scipy.integrate as scint
 import numpy as np
 
+
+def tau21(Z,xe,Ts,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725, Yp=0.245):
+	'''21-cm optical depth'''
+	
+	return 3/(32*np.pi)*lam_21**3*nH(Z,Ho,Om_b,Yp)*(1-xe)/H(Z,Ho,Om_m, Tcmbo)*A10*Tstar/Ts
+
 def kHH(Tk):
 	'''
 	Volumetric spin flip rate for H-H collision; m^3/s
@@ -27,6 +33,10 @@ def keH(Tk):
 	Volumetric spin flip rate for e-H collision; m^3/s
 	'''
 	return np.where(Tk<10**4,10**(-15.607+0.5*np.log10(Tk)*np.exp(-(np.abs(np.log10(Tk)))**4.5/1800) ),10**(-14.102))
+
+def cmb_coup(Z,xe,Ts,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245):
+	t21 = tau21(Z,xe,Ts,Ho,Om_m,Om_b,Tcmbo,Yp)
+	return (1-np.exp(-t21))/t21
 
 def col_coup(Z,xe,Tk, Ho=67.4,Om_b=0.049,Tcmbo=2.725,Yp=0.245,cosmo=None):
 	'''
@@ -74,10 +84,15 @@ def spin_temp(Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1
 		falp = astro['falp']
 		fstar = astro['fstar']
 		Tmin_vir = astro['Tmin_vir']
-
+	
+	xg = 1
 	xa = lya_coup(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp, falp,fstar,Tmin_vir)
 	xk = col_coup(Z,xe,Tk, Ho,Om_b,Tcmbo,Yp)
-	Ts = ( 1  + xa + xk)/(1/Tcmb(Z, Tcmbo) +  (xk+xa)/Tk )	#We assume the colour temperature is same as Tk.
+
+	for i in range(3):
+		Ts = ( xg  + xa + xk)/(xg/Tcmb(Z, Tcmbo) +  (xk+xa)/Tk )	#We assume the colour temperature is same as Tk.
+		xg = cmb_coup(Z,xe,Ts,Ho,Om_m,Om_b,Tcmbo,Yp)	
+	
 	return Ts
 
 def Terb(Z,Tcmbo,zeta_erb): #Net background temperature (includes CMB)
