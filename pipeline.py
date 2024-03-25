@@ -13,7 +13,7 @@ import os
 from .cosmic_history import run_solver
 from .extras import to_array, to_float, no_of_mdls
 from .hyperfine import twentyone_cm, spin_temp
-from .const import Zstar
+from .const import *
 
 comm = MPI.COMM_WORLD
 cpu_ind = comm.Get_rank()
@@ -86,7 +86,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 				if Z_eval[1]>Z_eval[0]:
 					Z_eval = Z_eval[::-1]
 			elif Z_eval==None:
-				Z_eval = np.linspace(1501,6,1500)
+				Z_eval = Z_eval0
 			else:
 				print('\033[31mError! Z_eval not recognised!\033[00m')
 				sys.exit()
@@ -94,7 +94,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 			st = time.process_time()
 			
 			print('Obtaining the thermal and ionisation history ...')
-			sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45,1501,6,Z_eval)
+			sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45,Z_eval=Z_eval)
 			
 			print('Obtaining the spin temperature ...')			
 			Ts = spin_temp(sol.Zs,sol.xe,sol.Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fstar,Tmin_vir)

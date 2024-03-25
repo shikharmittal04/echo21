@@ -25,10 +25,10 @@ SI2Msun_by_Mpc3_by_yr = 4.63e44
 fnu = 0.68 #neutrino contribution to energy density in relativistic species; 3 massless nu's 
 Zstar = 60 #redshift of the beginning of star formation
 
-Z_start = 1501
-Z_end = 6
+Z_start0 = 1501
+Z_end0 = 6
 Ngrid = 1500
-Z_default = np.linspace(Z_start,Z_end,Ngrid)
+Z_eval0 = np.linspace(Z_start0,Z_end0,Ngrid)
 
 #-------------------------------------------------------------
 #Recombination related

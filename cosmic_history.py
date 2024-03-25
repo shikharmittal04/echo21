@@ -50,7 +50,7 @@ def _eqns(Z,V,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45):
 	
 	return np.array([eq1,eq2,eq3,eq4])
 
-def run_solver(Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,fstar=0.1,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1, Z_start=1501,Z_end=6,Z_eval=Z_default, xe_init=None,Tk_init=None,cosmo=None, astro=None):
+def run_solver(Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,fstar=0.1,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1, Z_start=Z_start0,Z_end=Z_end0,Z_eval=Z_eval0, xe_init=None,Tk_init=None,cosmo=None, astro=None):
 	
 	if cosmo!=None:
 		Ho = cosmo['Ho']
@@ -67,13 +67,13 @@ def run_solver(Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,
 		mx_gev = astro['mx_gev']
 		sigma45= astro['sigma45']
 	
-	if Z_start==1501:
-		Tk_init = Tcmb(Z_start,Tcmbo)
-		xe_init = Saha_xe(Z_start,Tk_init, Ho,Om_b,Yp)
+	if Z_start==Z_start0:
+		Tk_init = Tcmb(Z_start0,Tcmbo)
+		xe_init = Saha_xe(Z_start0,Tk_init, Ho,Om_b,Yp)
 	elif xe_init==None and Tk_init==None:
 		raise Exception('Initial conditions missing.')
 		
-	Sol = scint.solve_ivp(lambda a, Var: -_eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45)/a, t_span=[1/Z_start, 1/Z_end],y0=[xe_init,Tk_init,0,29000],method='Radau',t_eval=1/Z_eval) 
+	Sol = scint.solve_ivp(lambda a, Var: -_eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45)/a, t_span=[1/Z_start, 1/Z_end],y0=[xe_init,Tk_init,0,43000],method='Radau',t_eval=1/Z_eval) 
 	
 	#Obtaining the solutions ...
 	
