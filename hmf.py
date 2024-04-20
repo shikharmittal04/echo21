@@ -11,6 +11,8 @@ import scipy.special as scsp
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
+from .hmf_Mz_function import hmf_Mz, hmf_Mz_2d
+from scipy.interpolate import RectBivariateSpline
 import numpy as np
 
 
@@ -39,7 +41,7 @@ def dndlnM(M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None
 	cosmology.setCosmology('my_cosmo', my_cosmo)
 	h100=Ho/100
 	M_by_h = M*h100 #M in units of solar mass/h
-	return h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', model = hmf_model)
+	return h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM',  mdef = '500c',model = hmf_model)
 
 def dndM(M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None):
 	'''
@@ -66,10 +68,22 @@ def m_min(Z,Om_m=0.315,Tmin_vir=1e4):
 	'''
 	return 1e8*Om_m**(-0.5)*(10/Z*0.6/1.22*Tmin_vir/1.98e4)**1.5
 
-def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,astro=None):
-	'''
-	Collapse fraction: fraction of total matter that collapsed into the haloes
-	'''
+
+'''
+Extracting the hmf values from CLASS and Galacticus 
+To use these value the parameter 'tinker08_galacticus' should be specified as sfr model
+hdf_file_path should contain the address of the hdf file which contains the corresponding data
+'''
+hdf_file_path = '/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5'
+redshifts, halo_mass, halo_mass_functions = hmf_Mz_2d(hdf_file_path)
+spline = RectBivariateSpline(redshifts, halo_mass, halo_mass_functions)
+
+
+def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):
+	
+	#Collapse fraction: fraction of total matter that collapsed into the haloes
+	
+	
 	if cosmo!=None:
 		Ho = cosmo['Ho']
 		Om_m = cosmo['Om_m']
@@ -82,6 +96,13 @@ def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,a
 		my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
 		cosmology.setCosmology('my_cosmo', my_cosmo)
 		return scsp.erfc(peaks.peakHeight(m_min(Z,Om_m,Tmin_vir),Z-1)/np.sqrt(2))
+		
+	elif hmf_model == 'tinker08_galacticus':
+		h = Ho/100
+		M_halo = m_min(Z,Om_m,Tmin_vir)/h
+		#print(Z,M_halo)
+		return spline.ev(Z-1,M_halo)
+	
 	else:
 		h100=Ho/100
 		numofZ = np.size(Z)
@@ -90,6 +111,7 @@ def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,a
 			if type(Z)==np.ndarray: Z=Z[0]
 			M_space = np.logspace(np.log10(m_min(Z,Om_m,Tmin_vir)/h100),18,1500)	#These masses are in solar mass. 
 			hmf_space = dndlnM(M=M_space,Z=Z,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo,Tmin_vir=Tmin_vir)	#Corresponding HMF values are in cMpc^-3 
+			#print("frac",np.trapz(hmf_space,M_space))
 			rho_halo = Msolar_by_Mpc3_to_kg_by_m3*np.trapz(hmf_space,M_space)	#matter density collapsed as haloes (in kg/m^3, comoving)
 		else:	
 			rho_halo = np.zeros(numofZ)
@@ -98,19 +120,33 @@ def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,a
 				M_space = np.logspace(np.log10(m_min(i,Om_m,Tmin_vir)/h100),18,1500)	#These masses are in solar mass. 
 				hmf_space = dndlnM(M=M_space,Z=i,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo,Tmin_vir=Tmin_vir)	#Corresponding HMF values are in cMpc^-3 
 				rho_halo[counter] = Msolar_by_Mpc3_to_kg_by_m3*np.trapz(hmf_space,M_space)	#matter density collapsed as haloes (in kg/m^3, comoving)
+				#print("frac",np.trapz(hmf_space,M_space))
 				counter=counter+1
 		return rho_halo/(Om_m*rho_crit(Ho))
 	
 
+'''
+redshifts, halo_mass, halo_mass_functions = hmf_Mz_2d('/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5')
+spline = RectBivariateSpline(redshifts, halo_mass, halo_mass_functions)
 
-def dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir):
+def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):
+	h = Ho/100
+	M_halo = m_min(Z,Om_m,Tmin_vir)/h
+	#print(Z,M_halo)
+	return spline.ev(Z-1,M_halo)
+'''	
+
+
+
+
+def dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45):
 	'''
 	Derivative of the collapse fraction
 	'''
-	return (f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir)-f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir))*1e3
+	return (f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45)-f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45))*1e3
 
  
-def SFRD(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+def SFRD(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fstar=0.1,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):
 	'''
 	This function returns the comoving star formation rate density in units of kg/s/m^3
 	'''
@@ -123,4 +159,4 @@ def SFRD(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fstar=0.1,Tmin_vir=1e4,cosm
 		fstar = astro['fstar']
 		Tmin_vir = astro['Tmin_vir']
 	
-	return -Z*fstar*Om_b*rho_crit(Ho)*dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)*H(Z, Ho,Om_m, Tcmbo)
+	return -Z*fstar*Om_b*rho_crit(Ho)*dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir,fdm,mx_gev,sigma45)*H(Z, Ho,Om_m, Tcmbo)

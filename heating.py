@@ -98,7 +98,7 @@ def Gam_and_Ex(Z,x_e):      #Photoheating
         return np.array([Gam_x,Ex])
 '''
 
-def Ex(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+def Ex(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):
 	'''
 	See eq. (11) from Furlanetto (2006)
 	'''
@@ -115,7 +115,7 @@ def Ex(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=
 		fstar = astro['fstar']
 		Tmin_vir = astro['Tmin_vir']
 	
-	return 5e5*fX*fstar*fXh(xe)*Z*np.abs(dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir))
+	return 5e5*fX*fstar*fXh(xe)*Z*np.abs(dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45))
 
 #------------------------------------------------------------------------------------
 def Ex2b(Z,xe,Tk,Tx,v_bx,Ho=67.4,Om_m=0.315,Om_b=0.049, Tcmbo=2.725,Yp=0.245, fdm=1,mx_gev=1,sigma45=1):
