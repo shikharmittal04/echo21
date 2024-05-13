@@ -73,7 +73,7 @@ def run_solver(Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,
 	elif xe_init==None and Tk_init==None:
 		raise Exception('Initial conditions missing.')
 		
-	Sol = scint.solve_ivp(lambda a, Var: -_eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45)/a, t_span=[1/Z_start, 1/Z_end],y0=[xe_init,Tk_init,0,43000],method='Radau',t_eval=1/Z_eval) 
+	Sol = scint.solve_ivp(lambda a, Var: -_eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45)/a, t_span=[1/Z_start, 1/Z_end],y0=[xe_init,Tk_init,0,43500],method='Radau',t_eval=1/Z_eval) 
 	
 	#Obtaining the solutions ...
 	

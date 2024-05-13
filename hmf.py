@@ -66,7 +66,7 @@ def m_min(Z,Om_m=0.315,Tmin_vir=1e4):
 	The mass returned is in units of solar mass/h
 	Optional parameters are relative matter density & miminum virial temperature (Tmin_vir in K)
 	'''
-	return 1e8*Om_m**(-0.5)*(10/Z*0.6/1.22*Tmin_vir/1.98e4)**1.5
+	return 1e8*Om_m**(-0.5)*(10/Z*0.6/0.59*Tmin_vir/1.98e4)**1.5
 
 
 '''
@@ -74,9 +74,13 @@ Extracting the hmf values from CLASS and Galacticus
 To use these value the parameter 'tinker08_galacticus' should be specified as sfr model
 hdf_file_path should contain the address of the hdf file which contains the corresponding data
 '''
-hdf_file_path = '/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5'
-redshifts, halo_mass, halo_mass_functions = hmf_Mz_2d(hdf_file_path)
-spline = RectBivariateSpline(redshifts, halo_mass, halo_mass_functions)
+
+hdf_file_path1 = '/home/prakharb16/galacticus-master/haloMassFunction_main_CDM.hdf5'
+hdf_file_path2 = '/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5'
+redshifts1, halo_mass1, halo_mass_functions1 = hmf_Mz_2d(hdf_file_path1)
+redshifts2, halo_mass2, halo_mass_functions2 = hmf_Mz_2d(hdf_file_path2)
+spline1 = RectBivariateSpline(redshifts1, halo_mass1, halo_mass_functions1)
+spline2 = RectBivariateSpline(redshifts2, halo_mass2, halo_mass_functions2)
 
 
 def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):
@@ -97,11 +101,15 @@ def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,fdm=1,mx_gev
 		cosmology.setCosmology('my_cosmo', my_cosmo)
 		return scsp.erfc(peaks.peakHeight(m_min(Z,Om_m,Tmin_vir),Z-1)/np.sqrt(2))
 		
-	elif hmf_model == 'tinker08_galacticus':
+	elif hmf_model == 'tinker08_galacticus_CDM' or hmf_model == 'tinker08_galacticus_IDM':
 		h = Ho/100
 		M_halo = m_min(Z,Om_m,Tmin_vir)/h
 		#print(Z,M_halo)
-		return spline.ev(Z-1,M_halo)
+		if hmf_model == 'tinker08_galacticus_CDM':
+			return spline1.ev(Z-1,M_halo)
+		elif hmf_model == 'tinker08_galacticus_IDM':
+			return spline2.ev(Z-1,M_halo)
+			
 	
 	else:
 		h100=Ho/100
