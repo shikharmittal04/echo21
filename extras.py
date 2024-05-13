@@ -67,19 +67,19 @@ def scatter_corr(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp):
 	'''
 	return np.exp(-1.69*zeta(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)**0.667)
     
-def _eps_alpha_beta(Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir):
+def _eps_alpha_beta(Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45):
 	phi = hP/eC*2902.91*(E/13.6)**-0.86
-	return 1/(1.22*mP)*phi*SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)
+	return 1/(1.22*mP)*phi*SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)
 
-def _eps_above_beta(Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir):
+def _eps_above_beta(Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45):
 	'''
 	Comoving emissivity in units of number per unit time per unit frequency per unit volume (s^-1.m^-3.Hz^-1)
 	Valid only for photons of energy above Ly beta, i.e., E > 12.089 eV
 	'''
 	phi = hP/eC*1303.34*(E/13.6)**-7.658 #this is the SED in units of number per baryon per unit frequency (Hz^-1)
-	return 1/(1.22*mP)*phi*SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)
+	return 1/(1.22*mP)*phi*SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)
 
-def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0.1,Tmin_vir=1e4,,fdm=1,mx_gev=1,sigma45=1, cosmo=None,astro=None):
 	'''
 	Specific intensity of Ly-alpha photons in terms of number per unit time per unit area per unit frequency per unit solid angle
 	(m^-2.s^-1.Hz^-1.sr^-1)
@@ -102,11 +102,11 @@ def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0
 			return 0
 		Zmax = 32/27*Z
 		temp = np.linspace(Z,Zmax,10)
-		integ = scint.trapz(_eps_alpha_beta(temp,10.2*temp/Z, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
+		integ = scint.trapz(_eps_alpha_beta(temp,10.2*temp/Z, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)/H(temp, Ho, Om_m,Tcmbo),temp)
 		for ni in np.arange(4,24):
 			Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
 			temp = np.linspace(Z,Zmax,5)
-			integ = integ+Pn[ni-4]*scint.trapz(_eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
+			integ = integ+Pn[ni-4]*scint.trapz(_eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)/H(temp, Ho, Om_m,Tcmbo),temp)
 	
 	elif type(Z)==np.ndarray or type(Z)==list:
 		if Z[0]>Zstar:
@@ -120,12 +120,12 @@ def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0
 		for Z_value in Z:
 			Zmax = 32/27*Z_value
 			temp = np.linspace(Z_value,Zmax,10)
-			integ[counter] = scint.trapz(_eps_alpha_beta(temp,10.2*temp/Z_value, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
+			integ[counter] = scint.trapz(_eps_alpha_beta(temp,10.2*temp/Z_value, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)/H(temp, Ho, Om_m,Tcmbo),temp)
 
 			for ni in np.arange(4,24):
 				Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z_value
 				temp = np.linspace(Z_value,Zmax,5)
-				integ[counter] = integ[counter]+Pn[ni-4]*scint.trapz(_eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/H(temp, Ho, Om_m,Tcmbo),temp)
+				integ[counter] = integ[counter]+Pn[ni-4]*scint.trapz(_eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)/H(temp, Ho, Om_m,Tcmbo),temp)
 			
 			counter=counter+1
 	

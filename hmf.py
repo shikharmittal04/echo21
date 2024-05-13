@@ -66,7 +66,7 @@ def m_min(Z,Om_m=0.315,Tmin_vir=1e4):
 	The mass returned is in units of solar mass/h
 	Optional parameters are relative matter density & miminum virial temperature (Tmin_vir in K)
 	'''
-	return 1e8*Om_m**(-0.5)*(10/Z*0.6/0.59*Tmin_vir/1.98e4)**1.5
+	return 1e8*Om_m**(-0.5)*(10/Z*0.6/1.22*Tmin_vir/1.98e4)**1.5
 
 
 '''
@@ -151,7 +151,7 @@ def dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45):
 	'''
 	Derivative of the collapse fraction
 	'''
-	return (f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45)-f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45))*1e3
+	return (f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,Yp,fdm,mx_gev,sigma45)-f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45))*1e3
 
  
 def SFRD(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fstar=0.1,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):
