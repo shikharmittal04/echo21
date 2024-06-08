@@ -47,6 +47,7 @@ def Elya(Z,xe,Tk,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar
 	J = lya_spec_inten(Z,xe,Ho,Om_m,Om_b,Tcmbo,falp,fstar,Tmin_vir)
 	nbary = (1+xHe(Yp))*nH(Z,Ho,Om_b,Yp)
 	return 8*np.pi/3 * hP/(kB*lam_alpha) * J*dopp(Tk)/nbary * (Ic+Ii)
+	
 
 
 def Ecmb(Z,xe,Tk,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):

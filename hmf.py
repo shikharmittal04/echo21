@@ -14,7 +14,7 @@ from colossus.lss import mass_function
 from .hmf_Mz_function import hmf_Mz, hmf_Mz_2d
 from scipy.interpolate import RectBivariateSpline
 import numpy as np
-
+import os
 
 def sfr_model(hmf_name='press74',sfe_name='const'):
 	global hmf_model
@@ -75,13 +75,39 @@ To use these value the parameter 'tinker08_galacticus' should be specified as sf
 hdf_file_path should contain the address of the hdf file which contains the corresponding data
 '''
 
+
+def hmf_hdf_file(mx_gev,sigma45):
+
+	'''
+	print(mx_gev,sigma45)
+	hdf_file_path1 = '/home/prakharb16/galacticus-master/haloMassFunction_main_CDM.hdf5'
+	hdf_file_path2 = '/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5'
+	redshifts1, halo_mass1, halo_mass_functions1 = hmf_Mz_2d(hdf_file_path1)
+	redshifts2, halo_mass2, halo_mass_functions2 = hmf_Mz_2d(hdf_file_path2)
+	global spline1, spline2
+	spline1 = RectBivariateSpline(redshifts1, halo_mass1, halo_mass_functions1)
+	spline2 = RectBivariateSpline(redshifts2, halo_mass2, halo_mass_functions2)
+	'''
+	
+	hdf_file_path = f'/home/prakharb16/galacticus-master/{mx_gev}GeV_{sigma45*1e-41}cm2_hmf.hdf5'
+	if (os.path.exists(hdf_file_path)!=True):
+		print(f'hdf file {mx_gev}GeV_{sigma45*1e-41}cm2_hmf.hdf5 does not exist. Using default file')
+		hdf_file_path = '/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5'
+		
+	if (hmf_model == 'tinker08_galacticus_CDM'):
+		hdf_file_path = '/home/prakharb16/galacticus-master/haloMassFunction_main_CDM.hdf5'
+	redshifts, halo_mass, halo_mass_functions = hmf_Mz_2d(hdf_file_path)
+	global spline
+	spline = RectBivariateSpline(redshifts, halo_mass, halo_mass_functions)
+
+'''
 hdf_file_path1 = '/home/prakharb16/galacticus-master/haloMassFunction_main_CDM.hdf5'
-hdf_file_path2 = '/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5'
+hdf_file_path2 = '/home/prakharb16/galacticus-master/haloMassFunction_main_CDM.hdf5'
 redshifts1, halo_mass1, halo_mass_functions1 = hmf_Mz_2d(hdf_file_path1)
 redshifts2, halo_mass2, halo_mass_functions2 = hmf_Mz_2d(hdf_file_path2)
 spline1 = RectBivariateSpline(redshifts1, halo_mass1, halo_mass_functions1)
 spline2 = RectBivariateSpline(redshifts2, halo_mass2, halo_mass_functions2)
-
+'''
 
 def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):
 	
@@ -105,10 +131,13 @@ def f_coll(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,fdm=1,mx_gev
 		h = Ho/100
 		M_halo = m_min(Z,Om_m,Tmin_vir)/h
 		#print(Z,M_halo)
+		'''
 		if hmf_model == 'tinker08_galacticus_CDM':
 			return spline1.ev(Z-1,M_halo)
 		elif hmf_model == 'tinker08_galacticus_IDM':
 			return spline2.ev(Z-1,M_halo)
+		'''
+		return spline.ev(Z-1,M_halo)
 			
 	
 	else:
@@ -151,7 +180,7 @@ def dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45):
 	'''
 	Derivative of the collapse fraction
 	'''
-	return (f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,Yp,fdm,mx_gev,sigma45)-f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45))*1e3
+	return (f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45)-f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir,fdm,mx_gev,sigma45))*1e3
 
  
 def SFRD(Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fstar=0.1,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1,cosmo=None,astro=None):

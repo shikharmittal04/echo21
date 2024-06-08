@@ -14,10 +14,17 @@ from .cosmic_history import run_solver
 from .extras import to_array, to_float, no_of_mdls
 from .hyperfine import twentyone_cm, spin_temp
 from .const import *
+from .hmf import hmf_hdf_file
 
 comm = MPI.COMM_WORLD
 cpu_ind = comm.Get_rank()
 n_cpu = comm.Get_size()
+
+
+
+
+
+
 
 def print_banner():
     banner = """\n\033[94m
@@ -32,7 +39,7 @@ def print_banner():
     return None
 
 def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fstar':0.1,'Tmin_vir':1e4,'fdm':1,'mx_gev':1,'sigma45':1},Z_eval=None,path=''):
-
+	
 	model = 0
 	for keys in astro.keys():
 		if np.size(astro[keys])>1:
@@ -70,7 +77,10 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 	fdm = astro['fdm']
 	mx_gev = astro['mx_gev']
 	sigma45= astro['sigma45']
-		
+	
+	#hmf_hdf_file(mx_gev,sigma45)
+	''' hdf file for halo mass function data'''
+	
 	if os.path.isdir(path)==False:
 		print('The requested directory does not exist. Creating one ...')
 		os.mkdir(path)
@@ -147,6 +157,9 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 		for i in range(n_mod):
 			if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
 				ind=np.where(arr==i)
+				
+				hmf_hdf_file(mx_gev[ind[5][0]],sigma45[ind[6][0]])  
+				''' hdf file for halo mass function data'''
 				
 				sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,
 				falp[ind[0][0]],fX[ind[1][0]],fstar[ind[2][0]],Tmin_vir[ind[3][0]],fdm[ind[4][0]],mx_gev[ind[5][0]],sigma45[ind[6][0]],

@@ -4,6 +4,9 @@ from .hmf import SFRD
 from .basic_cosmo import *
 import scipy.integrate as scint
 import scipy.special as scsp
+from mpmath import hyper
+
+
 
 def to_array(params):
 	for keys in params.keys():
@@ -66,7 +69,19 @@ def scatter_corr(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp):
 	This is the scattering correction, S. I am using the approximate version from Chuzhoy & Shapiro (2006).
 	'''
 	return np.exp(-1.69*zeta(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)**0.667)
-    
+	'''
+	def result_vec(Eta):
+		return 1- float(hyper([1/3,2/3,1],[],Eta))
+	
+	
+	Eta = 9*np.pi/(4*a_tau(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)*recoil(Tk)**3)
+	result_vec=np.frompyfunc(result_vec,1,1)
+	result=result_vec(-Eta)
+	#result= 1 - np.asarray(float(hyper([1/3,2/3,1],[],-Eta)))
+	print("scatt_corr_shikhar=", result)
+	print("scatt_corr_06=", np.exp(-1.69*zeta(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)**0.667))
+	return np.asfarray(result)
+    	'''
 def _eps_alpha_beta(Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45):
 	phi = hP/eC*2902.91*(E/13.6)**-0.86
 	return 1/(1.22*mP)*phi*SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)
@@ -79,7 +94,7 @@ def _eps_above_beta(Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45):
 	phi = hP/eC*1303.34*(E/13.6)**-7.658 #this is the SED in units of number per baryon per unit frequency (Hz^-1)
 	return 1/(1.22*mP)*phi*SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir,fdm,mx_gev,sigma45)
 
-def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0.1,Tmin_vir=1e4,,fdm=1,mx_gev=1,sigma45=1, cosmo=None,astro=None):
+def lya_spec_inten(Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0.1,Tmin_vir=1e4,fdm=1,mx_gev=1,sigma45=1, cosmo=None,astro=None):
 	'''
 	Specific intensity of Ly-alpha photons in terms of number per unit time per unit area per unit frequency per unit solid angle
 	(m^-2.s^-1.Hz^-1.sr^-1)
