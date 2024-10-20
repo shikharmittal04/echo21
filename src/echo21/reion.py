@@ -61,7 +61,7 @@ popt,pcov=op.curve_fit(Q_fit,ζ,Q_HII)     #This is the main step. popt contain 
 Q=Q_fit(ζ,*popt)                    
 print('Parameters ',popt)
 print('Error ',np.sqrt(np.diag(pcov)))
-'''
+
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 
@@ -79,10 +79,7 @@ plt.ylim([0,1])
 ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
 plt.show()
 
-secax1 = ax.secondary_xaxis('top', functions=(z2t,t2z))
+secax1 = ax.secondary_xaxis('top', functions=(Z2t,t2Z))
 secax1.set_xlabel('Time [Gyr]',fontsize=16,labelpad=12)
 secax1.tick_params(which='major', labelsize=18)
-'''
-np.savetxt("Q_HII.txt", Q_HII)
-np.savetxt("z.txt", ζ)
 
