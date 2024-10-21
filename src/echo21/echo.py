@@ -9,7 +9,7 @@ import os
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
-from time import gmtime, strftime
+from time import localtime, strftime
 
 #========================================================================================================
 #Universal constants
@@ -25,19 +25,27 @@ epsilon=8.85e-12 #Permittivity of free space
 aS=7.52e-16 #Stephan's radiation constant
 sigT=6.65e-29 #Thomson scattering cross-section, m^2
 
+fnu = 0.68 #neutrino contribution to energy density in relativistic species; 3 massless nu's
 #-------------------------------------------------------------
-#Cosmology related 
+#Conversions
+ 
 Mpc2km = 3.0857e19
 Msolar = 1.989e30 #Mass of sun in kg
-
 Msolar_by_Mpc3_to_kg_by_m3 = Msolar*(1000*Mpc2km)**-3
 
-fnu = 0.68 #neutrino contribution to energy density in relativistic species; 3 massless nu's 
+
+#-------------------------------------------------------------
+#Hardcoded but later we want to change some of these
+
+fstar = 0.1
+Nion = 1000
+alpha_A = 4.2e-19 #Case-B recombination coefficient (m^3/s) at T=2 X 10^4 K (Osterbrock & Ferland 2006)
+
 Zstar = 60 #redshift of the beginning of star formation
 
 Z_start = 1501
 Z_end = 6
-Ngrid = 1500
+Ngrid = 1600
 Z_default = np.linspace(Z_start,Z_end,Ngrid)
 
 #-------------------------------------------------------------
@@ -410,7 +418,7 @@ class hmf():
         sfe_model=self.sfe_name
         return
         
-    def dndlnM(self, M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,astro=None):
+    def dndlnM(self, M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,cosmo=None):
         '''
         The halo mass function (HMF) in the form of :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`. Note the natural logarithm.
         
@@ -432,9 +440,6 @@ class hmf():
         Om_b : float, optical
             Relative baryon density. Default value ``0.049``.
         
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Tcmbo : float, optional
             CMB temperature today in kelvin. Default value ``2.725``.
         
@@ -451,8 +456,6 @@ class hmf():
             Om_m = cosmo['Om_m']
             Om_b = cosmo['Om_b']
             Tcmbo = cosmo['Tcmbo']
-        if astro!=None:
-            Tmin_vir = astro['Tmin_vir']
             
         my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
         cosmology.setCosmology('my_cosmo', my_cosmo)
@@ -460,7 +463,7 @@ class hmf():
         M_by_h = M*h100 #M in units of solar mass/h
         return h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', model = hmf_model)
 
-    def dndM(self,M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,astro=None):
+    def dndM(self,M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,cosmo=None):
         '''
         The halo mass function (HMF) in a different form, i.e., :math:`\\mathrm{d}n/\\mathrm{d}M`.
         
@@ -485,9 +488,6 @@ class hmf():
         Tcmbo : float, optional
             CMB temperature today in kelvin. Default value ``2.725``.
         
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
         
         Returns
@@ -502,12 +502,10 @@ class hmf():
             Om_m = cosmo['Om_m']
             Om_b = cosmo['Om_b']
             Tcmbo = cosmo['Tcmbo']
-        if astro!=None:
-            Tmin_vir = astro['Tmin_vir']
-
+        
         my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
         cosmology.setCosmology('my_cosmo', my_cosmo)
-        return 1/M*self.dndlnM(M,Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)
+        return 1/M*self.dndlnM(M,Z,Ho,Om_m,Om_b,Tcmbo)
 
     #For details see eq.(50),(52) and (53) from Mittal & Kulkarni (2021), MNRAS
     def m_min(self,Z,Om_m=0.315,Tmin_vir=1e4):
@@ -587,14 +585,14 @@ class hmf():
             if numofZ == 1:
                 if type(Z)==np.ndarray: Z=Z[0]
                 M_space = np.logspace(np.log10(self.m_min(Z,Om_m,Tmin_vir)/h100),18,1500)    #These masses are in solar mass. 
-                hmf_space = self.dndlnM(M=M_space,Z=Z,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo,Tmin_vir=Tmin_vir)    #Corresponding HMF values are in cMpc^-3 
+                hmf_space = self.dndlnM(M=M_space,Z=Z,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo)    #Corresponding HMF values are in cMpc^-3 
                 rho_halo = Msolar_by_Mpc3_to_kg_by_m3*np.trapz(hmf_space,M_space)    #matter density collapsed as haloes (in kg/m^3, comoving)
             else:    
                 rho_halo = np.zeros(numofZ)
                 counter=0
                 for i in Z:
                     M_space = np.logspace(np.log10(self.m_min(i,Om_m,Tmin_vir)/h100),18,1500)    #These masses are in solar mass. 
-                    hmf_space = self.dndlnM(M=M_space,Z=i,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo,Tmin_vir=Tmin_vir)    #Corresponding HMF values are in cMpc^-3 
+                    hmf_space = self.dndlnM(M=M_space,Z=i,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo)    #Corresponding HMF values are in cMpc^-3 
                     rho_halo[counter] = Msolar_by_Mpc3_to_kg_by_m3*np.trapz(hmf_space,M_space)    #matter density collapsed as haloes (in kg/m^3, comoving)
                     counter=counter+1
             return rho_halo/(Om_m*basic_cosmo().rho_crit(Ho))
@@ -606,7 +604,7 @@ class hmf():
         return (self.f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir)-self.f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir))*1e3
 
      
-    def SFRD(self,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def SFRD(self,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,astro=None):
         '''
         This function returns the comoving star formation rate density (SFRD, :math:`\\dot{\\rho}_{\\star}`).
         
@@ -628,9 +626,6 @@ class hmf():
         Tcmbo : float, optional
             CMB temperature today in kelvin. Default value ``2.725``.
         
-        fstar : float, optional
-            Star formation efficiency (SFE, :math:`f_{\\mathrm{star}}`). Default value ``0.1``.
-        
         Tmin_vir : float, optional
             Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
         
@@ -648,7 +643,6 @@ class hmf():
             Om_b = cosmo['Om_b']
             Tcmbo = cosmo['Tcmbo']
         if astro!=None:
-            fstar = astro['fstar']
             Tmin_vir = astro['Tmin_vir']
 
         return -Z*fstar*Om_b*basic_cosmo().rho_crit(Ho)*self.dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)*basic_cosmo().H(Z, Ho,Om_m, Tcmbo)
@@ -713,7 +707,7 @@ class heating():
         return (8*sigT*aS)/(3*me*cE)*basic_cosmo().Tcmb(Z,Tcmbo)**4*xe*(basic_cosmo().Tcmb(Z,Tcmbo)-Tk)/(basic_cosmo().H(Z,Ho,Om_m,Tcmbo)*(1+basic_cosmo().xHe(Yp)+xe))
 
 
-    def Elya(self,Z,xe,Tk,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def Elya(self,Z,xe,Tk,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
         '''
         Ly-:math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__
         
@@ -746,9 +740,6 @@ class heating():
         
         falp : float, optional
             :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-            
-        fstar : float, optional
-            SFE, :math:`f_{\\mathrm{star}}`. Default value ``0.1``.
         
         Tmin_vir : float, optional
             Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
@@ -769,7 +760,6 @@ class heating():
             Tcmbo = cosmo['Tcmbo']
         if astro!=None:
             falp = astro['falp']
-            fstar = astro['fstar']
             Tmin_vir = astro['Tmin_vir']
             
         eta = extras().recoil(Tk)
@@ -779,7 +769,7 @@ class heating():
         
         Ic = eta*(2*np.pi**4*atau**2)**(1/3)*(arr[0]**2+arr[2]**2)
         Ii = eta*np.sqrt(atau/2)*scint.quad(lambda y:y**(-1/2)*np.exp(-2*eta*y-np.pi*y**3/(6*atau))*scsp.erfc(np.sqrt(np.pi*y**3/(2*atau))),0,np.inf)[0]-S*(1-S)/(2*eta)
-        J = extras().lya_spec_inten(Z,xe,Ho,Om_m,Om_b,Tcmbo,falp,fstar,Tmin_vir)
+        J = extras().lya_spec_inten(Z,Ho,Om_m,Om_b,Tcmbo,falp,Tmin_vir)
         nbary = (1+basic_cosmo().xHe(Yp))*basic_cosmo().nH(Z,Ho,Om_b,Yp)
         return 8*np.pi/3 * hP/(kB*lam_alpha) * J*extras().dopp(Tk)/nbary * (Ic+Ii)
        
@@ -817,7 +807,7 @@ class heating():
             return np.array([Gam_x,Ex])
     '''
 
-    def Ex(self,Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def Ex(self,Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
         '''
         See Eq.(11) from `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__
         
@@ -844,9 +834,6 @@ class heating():
         
         fX : float, optional
             :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value 0.1.
-            
-        fstar : float, optional
-            SFE, :math:`f_{\\mathrm{star}}`. Default value ``0.1``.
         
         Tmin_vir : float, optional
             Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
@@ -869,7 +856,6 @@ class heating():
             Tcmbo = cosmo['Tcmbo']
         if astro!=None:
             fX = astro['fX']
-            fstar = astro['fstar']
             Tmin_vir = astro['Tmin_vir']
         
         return 5e5*fX*fstar*fXh(xe)*Z*np.abs(hmf().dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir))
@@ -882,27 +868,34 @@ class cosmic_history():
         return None
 
     #The following function has the differential equations governing the ionisation and thermal history.
-    def _eqns(self, Z,V,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir):
+    def _eqns(self, Z,V,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fesc,Tmin_vir):
         '''
         When solving upto the end of dark ages, only cosmological parameters will be used.
         Beyond Zstar, i.e., beginning of cosmic dawn astrophysical will also be used.
         '''
         xe = V[0]
-        Tk = V[1]
+        QHII = V[1]
+        Tk = V[2]
 
         #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS
         eq1 = 1/basic_cosmo().H(Z,Ho,Om_m, Tcmbo)*recomb().Peebles_C(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp)*(xe**2*basic_cosmo().nH(Z,Ho,Om_b,Yp)*recomb().alpha(Tk)-recomb().beta(Tk)*(1-xe)*np.exp(-Ea/(kB*Tk)))
 
-        #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
-
-        if Z>Zstar:
-            eq2 = 2*Tk-Tk*eq1/(1+basic_cosmo().xHe(Yp)+xe)-heating().Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)
-        else:
-            eq2 = 2*Tk-Tk*eq1/(1+basic_cosmo().xHe(Yp)+xe)-heating().Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)-heating().Ex(Z,xe,Ho,Om_m,Om_b,Tcmbo,fX,fstar,Tmin_vir)-heating().Elya(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fstar,Tmin_vir)
+        #eq2 is (1+z)dQ/dz; Pritchard & Furlanetto (2007) eq.(11)
+        #eq3 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
         
-        return np.array([eq1,eq2])
+        if Z>Zstar:
+            eq2 = 0
+            eq3 = 2*Tk-Tk*eq1/(1+basic_cosmo().xHe(Yp)+xe)-heating().Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)
+        else:
+            if QHII<0.99:
+                eq2 = 1/basic_cosmo().H(Z,Ho,Om_m, Tcmbo)*(alpha_A*2*basic_cosmo().nH(Z,Ho,Om_b,Yp)*xe*QHII) + (1-xe)*(1+basic_cosmo.xHe(Yp))*fstar*fesc*Nion*Z*hmf().dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir)
+            else:
+                eq2 = 0
+            eq3 = 2*Tk-Tk*eq1/(1+basic_cosmo().xHe(Yp)+xe)-heating().Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)-heating().Ex(Z,xe,Ho,Om_m,Om_b,Tcmbo,fX,Tmin_vir)-heating().Elya(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp,Tmin_vir)
+        
+        return np.array([eq1,eq2,eq3])
 
-    def run_solver(self,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,fstar=0.1,Tmin_vir=1e4,Z_start=1501,Z_end=6,Z_eval=Z_default, xe_init=None,Tk_init=None,cosmo=None, astro=None):
+    def run_solver(self,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,fesc=0.1,Tmin_vir=1e4,Z_start=1501,Z_end=6,Z_eval=Z_default, xe_init=None,Tk_init=None,cosmo=None, astro=None):
         
         if cosmo!=None:
             Ho = cosmo['Ho']
@@ -913,7 +906,7 @@ class cosmic_history():
         if astro!=None:
             falp = astro['falp']
             fX = astro['fX']
-            fstar = astro['fstar']
+            fesc = astro['fesc']
             Tmin_vir = astro['Tmin_vir']
 
         if Z_start==1501:
@@ -922,13 +915,14 @@ class cosmic_history():
         elif xe_init==None and Tk_init==None:
             raise Exception('Initial conditions missing.')
             
-        Sol = scint.solve_ivp(lambda a, Var: -self._eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init],method='Radau',t_eval=1/Z_eval) 
+        Sol = scint.solve_ivp(lambda a, Var: -self._eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fesc,Tmin_vir)/a, [1/Z_start, 1/Z_end],[xe_init,0,Tk_init],method='Radau',t_eval=1/Z_eval) 
         
         #Obtaining the solutions ...
         xe=Sol.y[0]
-        Tk=Sol.y[1]
+        QHII=Sol.y[1]
+        Tk=Sol.y[2]
 
-        return [xe,Tk]
+        return [xe,QHII,Tk]
 
 #End of class cosmic_history
 #========================================================================================================
@@ -1023,7 +1017,7 @@ class hyperfine():
 
         return Tstar*basic_cosmo().nH(Z,Ho,Om_b,Yp)*((1-xe)*self.kHH(Tk)+xe*self.keH(Tk))/(A10*basic_cosmo().Tcmb(Z,Tcmbo))
 
-    def lya_coup(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def lya_coup(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
         '''
         Ly-:math:`\\alpha` coupling or the Wouthuysen--Field coupling.
         
@@ -1056,9 +1050,6 @@ class hyperfine():
         
         falp : float, optional
             :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-            
-        fstar : float, optional
-            SFE, :math:`f_{\\mathrm{star}}`. Default value ``0.1``.
         
         Tmin_vir : float, optional
             Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
@@ -1069,23 +1060,22 @@ class hyperfine():
         float
             :math:`x_{\\alpha}`, dimensionless.
         '''
-        if cosmo!=None and astro!=None:
+        if cosmo!=None:
             Ho = cosmo['Ho']
             Om_m = cosmo['Om_m']
             Om_b = cosmo['Om_b']
             Tcmbo = cosmo['Tcmbo']
             Yp = cosmo['Yp']
-            
+        if astro!=None:
             falp = astro['falp']
-            fstar = astro['fstar']
             Tmin_vir = astro['Tmin_vir']
         
         S = extras().scatter_corr(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)
-        J = extras().lya_spec_inten(Z,xe,Ho,Om_m,Om_b,Tcmbo,falp,fstar,Tmin_vir)    #'undistorted' background Spec. Inte. of Lya photons.
+        J = extras().lya_spec_inten(Z,Ho,Om_m,Om_b,Tcmbo,falp,Tmin_vir)    #'undistorted' background Spec. Inte. of Lya photons.
         Jo = 5.54e-8*Z         #eq.(24) in Mittal & Kulkarni (2021)
         return S*J/Jo
 
-    def spin_temp(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def spin_temp(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
         '''
         Spin temperature.
         
@@ -1118,9 +1108,6 @@ class hyperfine():
         
         falp : float, optional
             :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-            
-        fstar : float, optional
-            SFE, :math:`f_{\\mathrm{star}}`. Default value ``0.1``.
         
         Tmin_vir : float, optional
             Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
@@ -1139,10 +1126,9 @@ class hyperfine():
             Yp = cosmo['Yp']
             
             falp = astro['falp']
-            fstar = astro['fstar']
             Tmin_vir = astro['Tmin_vir']
 
-        xa = self.lya_coup(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp, falp,fstar,Tmin_vir)
+        xa = self.lya_coup(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp, falp,Tmin_vir)
         xk = self.col_coup(Z,xe,Tk, Ho,Om_b,Tcmbo,Yp)
         Ts = ( 1  + xa + xk)/(1/basic_cosmo().Tcmb(Z, Tcmbo) +  (xk+xa)/Tk )    #We assume the colour temperature is same as Tk.
         return Ts
@@ -1150,7 +1136,7 @@ class hyperfine():
     def Terb(self,Z,Tcmbo,zeta_erb): #Net background temperature (includes CMB)
         return np.where(Z<Zstar,Tcmbo*Z*(1+0.169*zeta_erb*Z**2.6),basic_cosmo().Tcmb(Z,Tcmbo))
 
-    def twentyone_cm(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def twentyone_cm(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
         '''
         The global (sky-averaged) 21-cm signal.
         
@@ -1183,9 +1169,6 @@ class hyperfine():
         
         falp : float, optional
             :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-            
-        fstar : float, optional
-            SFE, :math:`f_{\\mathrm{star}}`. Default value ``0.1``.
         
         Tmin_vir : float, optional
             Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
@@ -1204,12 +1187,11 @@ class hyperfine():
             Yp = cosmo['Yp']
         if astro!=None:
             falp = astro['falp']
-            fstar = astro['fstar']
             Tmin_vir = astro['Tmin_vir']
 
         xHI=(1-xe)
         h100 = Ho/100
-        Ts = self.spin_temp(Z,xe,Tk, Ho, Om_m, Om_b, Tcmbo, Yp,falp,fstar,Tmin_vir)
+        Ts = self.spin_temp(Z,xe,Tk, Ho, Om_m, Om_b, Tcmbo, Yp,falp,Tmin_vir)
         return 27*xHI*((1-Yp)/0.76)*(Om_b*h100**2/0.023)*np.sqrt(0.15*Z/(10*Om_m*h100**2))*(1-basic_cosmo().Tcmb(Z)/Ts)
 
 #========================================================================================================
@@ -1221,7 +1203,7 @@ class pipeline():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fstar':0.1,'Tmin_vir':1e4},Z_eval=None,path=''):
+    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fesc':0.1,'Tmin_vir':1e4},Z_eval=None,path=''):
 
         self.cosmo=cosmo
         self.astro=astro
@@ -1237,14 +1219,14 @@ class pipeline():
         
         self.falp = astro['falp']
         self.fX = astro['fX']
-        self.fstar = astro['fstar']
+        self.fesc = astro['fesc']
         self.Tmin_vir = astro['Tmin_vir']
         
         if os.path.isdir(self.path)==False:
             print('The requested directory does not exist. Creating one ...')
             os.mkdir(self.path)
         
-        self.timestamp = strftime("%Y%m%d%H%M%S", gmtime())
+        self.timestamp = strftime("%Y%m%d%H%M%S", localtime())
         self.path = self.path + 'output_'+self.timestamp+'/'
         os.mkdir(self.path)
 
@@ -1287,7 +1269,7 @@ class pipeline():
         #Cosmological and astrophysical parameters are fixed.
             if cpu_ind==0:
                 print_banner()
-                print('Both cosmological and astrophysical parameters are fixed.')
+                print('Both cosmological and astrophysical parameters are fixed.\n')
                 
                 if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
                     self.Z_eval=np.array(self.Z_eval)
@@ -1302,17 +1284,20 @@ class pipeline():
                 st = time.process_time()
                 
                 print('Obtaining the thermal and ionisation history ...')
-                sol = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp,self.fX,self.fstar,self.Tmin_vir,1501,6,self.Z_eval)
+                sol = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp,self.fX,self.fesc,self.Tmin_vir,1501,6,self.Z_eval)
                 
+                x_glob = sol[1] + (1-sol[1])*sol[0]
+
                 print('Obtaining spin temperature ...')
-                Ts = hyperfine().spin_temp(self.Z_eval,sol[0],sol[1], self.Ho,self.Om_m, self.Om_b,self.Tcmbo, self.Yp, self.falp,self.fstar,self.Tmin_vir)
+                Ts = hyperfine().spin_temp(self.Z_eval,x_glob,sol[2], self.Ho,self.Om_m, self.Om_b,self.Tcmbo, self.Yp, self.falp,self.Tmin_vir)
 
                 print('Computing the 21-cm signal ...')
-                T21 = hyperfine().twentyone_cm(self.Z_eval,sol[0],sol[1], self.Ho,self.Om_m, self.Om_b,self.Tcmbo, self.Yp, self.falp,self.fstar,self.Tmin_vir)
+                T21 = hyperfine().twentyone_cm(self.Z_eval,x_glob,sol[2], self.Ho,self.Om_m, self.Om_b,self.Tcmbo, self.Yp, self.falp,self.Tmin_vir)
                 
                 print('Done.')
 
                 xe_save_name = self.path+'xe'
+                Q_save_name = self.path+'Q'
                 Tk_save_name = self.path+'Tk'
                 Ts_save_name = self.path+'Ts'
                 Tcmb_save_name = self.path+'Tcmb'
@@ -1320,13 +1305,14 @@ class pipeline():
                 z_save_name = self.path+'one_plus_z'
                 
                 np.save(xe_save_name,sol[0])
-                np.save(Tk_save_name,sol[1])
+                np.save(Q_save_name,sol[1])
+                np.save(Tk_save_name,sol[2])
                 np.save(Ts_save_name,Ts)
                 np.save(Tcmb_save_name,basic_cosmo().Tcmb(self.Z_eval,self.Tcmbo))
                 np.save(T21_save_name,T21)
                 np.save(z_save_name,self.Z_eval)
                 
-                print('\033[32m 1+z, Electron fraction, gas temperature, spin temperature, CMB temperature, and 21-cm signal have been saved into folder:',self.path,'\033[00m')
+                print('\033[32m1+z, xe, Q_HII, Tk, Ts, T_CMB, and T_21 have been saved into folder:',self.path,'\033[00m')
                 
                 et = time.process_time()
                 # get the execution time
@@ -1350,7 +1336,7 @@ class pipeline():
                 myfile.write('Shikhar Mittal, 2024\n')
                 myfile.write('\nThis is output_'+self.timestamp)
                 myfile.write('\n------------------------------\n')
-                myfile.write('\nTime stamp: '+self.formatted_timestamp)
+                myfile.write('\nGMT time stamp: '+self.formatted_timestamp)
                 myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
                 myfile.write('\n')
                 myfile.write('\nParameters given:\n')
@@ -1361,6 +1347,7 @@ class pipeline():
                 myfile.write('\nYp = {}'.format(self.Yp))
                 myfile.write('\n\nfalp = {}'.format(self.falp))
                 myfile.write('\nfX = {}'.format(self.fX))
+                myfile.write('\nfesc = {}'.format(self.fesc))
                 myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
                 myfile.write('\n')
                 myfile.write('\nStrongest signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
@@ -1381,7 +1368,7 @@ class pipeline():
 
             if cpu_ind==0: print('Generating once the thermal and ionisation history up to dark ages ...')
             Z_da = np.linspace(1501,Zstar,1400)
-            sol_da = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[0],self.fX[0],self.fstar[0],self.Tmin_vir[0],Z_start=1501,Z_end=Zstar, Z_eval=Z_da)
+            sol_da = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[0],self.fX[0],self.fesc[0],self.Tmin_vir[0],Z_start=1501,Z_end=Zstar, Z_eval=Z_da)
             xe_da = sol_da[0]
             Tk_da = sol_da[1]
 
@@ -1399,17 +1386,17 @@ class pipeline():
             
             n_mod = extras().no_of_mdls(self.astro)
             arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fstar),np.size(self.Tmin_vir)])
-            T21 = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fstar),np.size(self.Tmin_vir),n_values))
+            arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
+            T21 = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
             if cpu_ind==0: print('Done.\nGenerating',n_mod,'21-cm global signals ...\n')
             st = time.process_time()
             for i in range(n_mod):
                 if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
                     ind=np.where(arr==i)
-                    sol_cd = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[ind[0][0]],self.fX[ind[1][0]],self.fstar[ind[2][0]],
+                    sol_cd = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[ind[0][0]],self.fX[ind[1][0]],self.fesc[ind[2][0]],
                     self.Tmin_vir[ind[3][0]],Zstar,6,self.Z_eval,xe_da[-1],Tk_da[-1])
-                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= hyperfine().twentyone_cm(self.Z_eval,sol_cd[0],sol_cd[1],self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[ind[0][0]],self.fstar[ind[2][0]],self.Tmin_vir[ind[3][0]])
+                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= hyperfine().twentyone_cm(self.Z_eval,sol_cd[0],sol_cd[1],self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[ind[0][0]],self.Tmin_vir[ind[3][0]])
             
             comm.Barrier()
             if cpu_ind!=0:
@@ -1419,7 +1406,7 @@ class pipeline():
                 for j in range(1,n_cpu):
                     T21 = T21 + comm.recv(source=j)
                 
-                T21_save_name = self.path+'T21_'+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fstar))+str(np.size(self.Tmin_vir))
+                T21_save_name = self.path+'T21_'+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))
                 z_save_name = self.path+'one_plus_z'
                 
                 np.save(T21_save_name,T21)
@@ -1430,6 +1417,37 @@ class pipeline():
                 # get the execution time
                 elapsed_time = et - st
                 print('\nProcessing time: %.2f seconds' %elapsed_time)
+
+                #========================================================
+                #Writing to a summary file
+
+                sumfile = self.path+"summary_"+self.timestamp+".txt"
+                myfile = open(sumfile, "w")
+                myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
+██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
+█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
+██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
+███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
+╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
+                myfile.write('Shikhar Mittal, 2024\n')
+                myfile.write('\nThis is output_'+self.timestamp)
+                myfile.write('\n------------------------------\n')
+                myfile.write('\nTime stamp: '+self.formatted_timestamp)
+                myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
+                myfile.write('\n')
+                myfile.write('\nParameters given:\n')
+                myfile.write('Ho = {}'.format(self.Ho))
+                myfile.write('\nOm_m = {}'.format(self.Om_m))
+                myfile.write('\nOm_b = {}'.format(self.Om_b))
+                myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
+                myfile.write('\nYp = {}'.format(self.Yp))
+                myfile.write('\n\nfalp = {}'.format(self.falp))
+                myfile.write('\nfX = {}'.format(self.fX))
+                myfile.write('\nfesc = {}'.format(self.fesc))
+                myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
+                myfile.close()
+                #========================================================
+
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
 
         elif model==3:
@@ -1457,9 +1475,9 @@ class pipeline():
             
             n_mod = extras().no_of_mdls(self.astro)*extras().no_of_mdls(self.cosmo)
             arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fstar),np.size(self.Tmin_vir)])
+            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
             T21 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),
-            np.size(self.falp),np.size(self.fX),np.size(self.fstar),np.size(self.Tmin_vir),n_values))
+            np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
             if cpu_ind==0: print('Generating',n_mod,'models ...')
             st = time.process_time()
@@ -1468,9 +1486,9 @@ class pipeline():
                 if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
                     ind=np.where(arr==i)
                     sol = cosmic_history().run_solver(self.Ho[ind[0][0]],self.Om_m[ind[1][0]],self.Om_b[ind[2][0]],self.Tcmbo[ind[3][0]],self.Yp[ind[4][0]],
-                    self.falp[ind[5][0]],self.fX[ind[6][0]],self.fstar[ind[7][0]],self.Tmin_vir[ind[8][0]],Z_start=1501,Z_end=6,Z_eval=self.Z_eval)
+                    self.falp[ind[5][0]],self.fX[ind[6][0]],self.fesc[ind[7][0]],self.Tmin_vir[ind[8][0]],Z_start=1501,Z_end=6,Z_eval=self.Z_eval)
                     T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
-                    [ind[6][0]],[ind[7][0]],[ind[8][0]]:] = hyperfine().twentyone_cm(self.Z_eval,sol[0],sol[1],self.Ho[ind[0][0]],self.Om_m[ind[1][0]],self.Om_b[ind[2][0]],self.Tcmbo[ind[3][0]],self.Yp[ind[4][0]],self.falp[ind[5][0]],self.fstar[ind[7][0]],self.Tmin_vir[ind[8][0]])
+                    [ind[6][0]],[ind[7][0]],[ind[8][0]],:] = hyperfine().twentyone_cm(self.Z_eval,sol[0],sol[1],self.Ho[ind[0][0]],self.Om_m[ind[1][0]],self.Om_b[ind[2][0]],self.Tcmbo[ind[3][0]],self.Yp[ind[4][0]],self.falp[ind[5][0]],self.Tmin_vir[ind[8][0]])
             
             comm.Barrier()
             if cpu_ind!=0:
@@ -1479,7 +1497,7 @@ class pipeline():
                 print('Done.')
                 for j in range(1,n_cpu):
                     T21 = T21 + comm.recv(source=j)
-                save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fstar))+str(np.size(self.Tmin_vir))+'.npy'
+                save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))+'.npy'
                 np.save(save_name,T21)
                 
                 print('\033[32m\nYour T21s have been saved into file:',T21_save_name,'\033[00m')
@@ -1617,6 +1635,12 @@ class extras():
                 prod=prod*len(params[keys])
         return prod
 
+    def clump(self,Z):
+        '''
+        Clumping factor. Taken from Madau & Fragos (2017)
+        '''
+        return 20.81*Z**-1.1
+
     def recoil(self,Tk):
         '''
         The recoil parameter. Eq.(15) in Mittal & Kulkarni (2021).
@@ -1656,19 +1680,19 @@ class extras():
         '''
         return np.exp(-1.69*self.zeta(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)**0.667)
         
-    def _eps_alpha_beta(self,Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir):
+    def _eps_alpha_beta(self,Z,E, Ho,Om_m,Om_b,Tcmbo,Tmin_vir):
         phi = hP/eC*2902.91*(E/13.6)**-0.86
-        return 1/(1.22*mP)*phi*hmf().SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)
+        return 1/(1.22*mP)*phi*hmf().SFRD(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)
 
-    def _eps_above_beta(self,Z,E, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir):
+    def _eps_above_beta(self,Z,E, Ho,Om_m,Om_b,Tcmbo,Tmin_vir):
         '''
         Comoving emissivity in units of number per unit time per unit frequency per unit volume (s^-1.m^-3.Hz^-1)
         Valid only for photons of energy above Ly beta, i.e., E > 12.089 eV
         '''
         phi = hP/eC*1303.34*(E/13.6)**-7.658 #this is the SED in units of number per baryon per unit frequency (Hz^-1)
-        return 1/(1.22*mP)*phi*hmf().SFRD(Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)
+        return 1/(1.22*mP)*phi*hmf().SFRD(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)
 
-    def lya_spec_inten(self,Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def lya_spec_inten(self,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
         '''
         Specific intensity of Ly-alpha photons in terms of number per unit time per unit area per unit frequency per unit solid angle
         (m^-2.s^-1.Hz^-1.sr^-1)
@@ -1680,7 +1704,6 @@ class extras():
             Tcmbo = cosmo['Tcmbo']
             
             falp = astro['falp']
-            fstar = astro['fstar']
             Tmin_vir = astro['Tmin_vir']
             
         loc=0
@@ -1691,11 +1714,11 @@ class extras():
                 return 0
             Zmax = 32/27*Z
             temp = np.linspace(Z,Zmax,10)
-            integ = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
+            integ = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z, Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
             for ni in np.arange(4,24):
                 Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
                 temp = np.linspace(Z,Zmax,5)
-                integ = integ+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
+                integ = integ+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
         
         elif type(Z)==np.ndarray or type(Z)==list:
             if Z[0]>Zstar:
@@ -1709,12 +1732,12 @@ class extras():
             for Z_value in Z:
                 Zmax = 32/27*Z_value
                 temp = np.linspace(Z_value,Zmax,10)
-                integ[counter] = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z_value, Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
+                integ[counter] = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z_value, Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
 
                 for ni in np.arange(4,24):
                     Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z_value
                     temp = np.linspace(Z_value,Zmax,5)
-                    integ[counter] = integ[counter]+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value,Ho,Om_m,Om_b,Tcmbo,fstar,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
+                    integ[counter] = integ[counter]+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
                 
                 counter=counter+1
         
@@ -1727,16 +1750,4 @@ class extras():
         else:
             return J_temp
 #End of class extras
-#========================================================================================================
-
-class plotter():
-    #The following two functions will add a secondary x-axis showing the frequency
-    np.seterr(divide='ignore')
-    
-    def __init__(self):
-        return None
-    
-     
-
-#End of class plotter
 #========================================================================================================
