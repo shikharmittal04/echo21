@@ -68,7 +68,7 @@ Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.35
             
 #========================================================================================================
             
-def print_banner():
+def _print_banner():
     banner = """\n\033[94m
     ███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
     ██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
@@ -80,17 +80,114 @@ def print_banner():
     print(banner)
     return None
 
-class basic_cosmo():
+def _to_array(params):
+        for keys in params.keys():
+            if type(params[keys])==list:
+                params[keys]=np.array(params[keys])
+            elif type(params[keys])==float or type(params[keys])==int:
+                params[keys]=np.array([params[keys]])
+        return params
+
+def _to_float(params):
+    for keys in params.keys():
+        if type(params[keys])==list:
+            [params[keys]]=params[keys]
+        elif type(params[keys])==np.ndarray:
+            params[keys]=params[keys][0]
+    return params
+    
+def _no_of_mdls(params):
+    prod=1
+    for keys in params.keys():
+        if type(params[keys])==np.ndarray:
+            prod=prod*len(params[keys])
+    return prod
+
+class main():
     '''
-    This module has all the basic :math:`\\Lambda`CDM-cosmology-related functions, such as Hubble function, CMB temperature, etc.
+    Function names starting with 'basic_cosmo' include the basic :math:`\\Lambda`CDM-cosmology-related functions, such as Hubble function, CMB temperature, etc.
+
+    Function names starting with 'recomb' include recombination-physics-related functions.
+
+    Function names starting with 'hmf' include HMF-related functions, i.e., :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`, :math:`\\mathrm{d}n/\\mathrm{d}M`, :math:`m_{\\mathrm{min}}`, :math:`f_{\\mathrm{coll}}`, :math:`\\mathrm{d}f_{\\mathrm{coll}}/\\mathrm{d}z`, and :math:`\\dot{\\rho}_{\\star}`. Use this function to set your choice of HMF model name and also the choice of star formation efficiency (SFE) model name. Eg. ``hmf.hmf_name = 'press74'`` and ``hmf.sfe_name = 'const'``. Available HMF model names:
+        - press74 (default, for Press & Schechter 1974),
+        - sheth99 (for Sheth & Tormen 1999)
+
+    Function names starting with 'heating' include all the heating (or cooling) terms. All the terms are in the form of :math:`-(1+z)\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}z` and hence in units of temperature.
+    
+    Function names starting with 'hyfi' include all the functions related to computation of 21-cm signal. These are
+    :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\alpha}, T_{\\mathrm{s}}` and :math:`T_{21}`.
 
     Methods
     ~~~~~~~
     '''
-    def __init__(self):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1.0,fX=0.1,fesc=0.1,Tmin_vir=1e4,cosmo=None,astro=None, hmf_name='press74',sfe_name='const'):
+        '''
+        Ho : float, optional
+            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
+        
+        Om_m : float, optical
+            Relative matter density. Default value ``0.315``.
+        
+        Om_b : float, optical
+            Relative baryon density. Default value ``0.049``.            
+        
+        Tcmbo : float, optional
+            CMB temperature today in kelvin. Default value ``2.725``.
+        
+        Yp : float, optional
+            Primordial helium fraction by mass. Default value ``0.245``.
+        
+        falp : float, optional
+            :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
+        
+        fX : float, optional
+            :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value 0.1.
+        
+        fesc : float, optional
+            :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionising photons. Default value 0.1.
+
+        Tmin_vir : float, optional
+            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
+
+        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
+
+        hmf_name : str, option
+            HMF model name. Default 'press74' for Press & Schechter (1974).
+        '''
+        if cosmo!=None:
+            Ho = cosmo['Ho']
+            Om_m = cosmo['Om_m']
+            Om_b = cosmo['Om_b']
+            Tcmbo = cosmo['Tcmbo']
+            Yp = cosmo['Yp']
+        if astro!=None:
+            falp = astro['falp']
+            fX = astro['fX']
+            fesc = astro['fesc']
+            Tmin_vir = astro['Tmin_vir']
+        
+        self.Ho = Ho
+        self.Om_m = Om_m
+        self.Om_b = Om_b
+        self.Tcmbo = Tcmbo
+        self.Yp = Yp
+        
+        self.falp = falp
+        self.fX = fX
+        self.fesc = fesc
+        self.Tmin_vir = Tmin_vir
+
+        self.hmf_name=hmf_name
+        self.sfe_name=sfe_name
+
+        self.my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
+        cosmology.setCosmology('my_cosmo', self.my_cosmo)
+        self.h100 = self.Ho/100
+
         return None
 
-    def mu(self,xe,Yp=0.245):
+    def basic_cosmo_mu(self,xe):
         '''
         Average baryon mass in amu
 
@@ -99,11 +196,7 @@ class basic_cosmo():
 
         xe : float
             Electron fraction (dimensionless)
-
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``
-                    
-                    
+           
         Returns
         -------
 
@@ -111,17 +204,16 @@ class basic_cosmo():
             Average baryon mass in amu
         
         '''
-        return 4/(4-3*Yp+4*xe*(1-Yp))
+        return 4/(4-3*self.Yp+4*xe*(1-self.Yp))
 
-    def xHe(self,Yp=0.245):
+    def basic_cosmo_xHe(self):
         '''
         Ratio of helium number density to hydrogen number density
 
         Arguments
         ---------
 
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``
+        No arguments required.
 
         Returns
         -------
@@ -130,9 +222,9 @@ class basic_cosmo():
             :math:`n_{\\mathrm{He}}/n_{\\mathrm{H}}`
         
         '''
-        return 0.25*Yp/(1-Yp)
+        return 0.25*self.Yp/(1-self.Yp)
 
-    def Tcmb(self,Z,Tcmbo=2.725):
+    def basic_cosmo_Tcmb(self,Z):
         '''
         CMB temperature at a given redshift
 
@@ -142,36 +234,32 @@ class basic_cosmo():
         Z : float
             1+z
 
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``
-
         Returns
         -------
 
         float
             CMB temperature at the given redshift in kelvin
         '''
-        return Tcmbo*Z
+        return self.Tcmbo*Z
 
-    def rho_crit(self,Ho=67.4):
+    def basic_cosmo_rho_crit(self):
         '''
         Critical density of the Universe today
 
         Arguments
         ---------
 
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``
-      
+        No arguments required.
+
         Returns
         -------
         
         float
             Critical density today, :math:`\\rho_{\mathrm{crit}}=\\frac{3H_0^2}{8\\pi G_{\\mathrm{N}}}` in units of :math:`\\mathrm{kg}\\,\\mathrm{m}^{-3}`
         '''
-        return 3*Ho**2/(8*np.pi*GN*Mpc2km**2)
+        return 3*self.Ho**2/(8*np.pi*GN*Mpc2km**2)
 
-    def nH(self,Z,Ho=67.4,Om_b=0.049,Yp=0.245):
+    def basic_cosmo_nH(self,Z):
         '''
         Hydrogen number density (proper)
         
@@ -180,15 +268,6 @@ class basic_cosmo():
         
         Z : float
             1+z
-            
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``
-            
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``
         
         Returns
         -------
@@ -196,9 +275,9 @@ class basic_cosmo():
         float
             Proper hydrogen number density at given redshift in units of :math:`\\mathrm{m}^{-3}`
         '''
-        return self.rho_crit(Ho)*Om_b*(1-Yp)*Z**3/mP
+        return self.basic_cosmo_rho_crit()*self.Om_b*(1-self.Yp)*Z**3/mP
 
-    def H(self,Z,Ho=67.4,Om_m=0.315, Tcmbo=2.725):
+    def basic_cosmo_H(self,Z):
         '''
         Hubble factor in SI units
         
@@ -208,41 +287,21 @@ class basic_cosmo():
         Z : float
             1+z
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``
-            
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``
-        
         Returns
         -------
         
         float
             Hubble parameter at a given redshift in units of :math:`\\mathrm{s}^{-1}`
         '''
-        Om_lam = 1-Om_m
-        Om_r = (1+fnu)*aS*Tcmbo**4/(cE**2*self.rho_crit(Ho))
+        Om_lam = 1-self.Om_m
+        Om_r = (1+fnu)*aS*self.Tcmbo**4/(cE**2*self.basic_cosmo_rho_crit())
         
-        return Ho*(Om_r*Z**4+Om_m*Z**3+Om_lam)**0.5/Mpc2km
+        return self.Ho*(Om_r*Z**4+self.Om_m*Z**3+Om_lam)**0.5/Mpc2km
 
-#End of class basic_cosmo
-#========================================================================================================
-     
-class recomb():
-    '''
-    This has eveything related to recombination physics.
-    
-    Methods
-    ~~~~~~~
-    '''
-    
-    def __init__(self):
-        return None
-        
-    def alpha(self, Tk):
+    #End of functions related to basic cosmology.
+    #========================================================================================================
+           
+    def recomb_alpha(self, Tk):
         '''
         :math:`\\alpha_{\\mathrm{B}}=\\alpha_{\\mathrm{B}}(T)`
         
@@ -264,7 +323,7 @@ class recomb():
         t=Tk/10000
         return (1e-19)*Feff*A*t**b/(1+c*t**d)
 
-    def beta(self, Tk):
+    def recomb_beta(self, Tk):
         '''
         :math:`\\beta=\\beta(T)`
         
@@ -286,9 +345,9 @@ class recomb():
             The total photoionisation rate in :math:`(\\mathrm{s}^{-1})`.
             
         '''
-        return self.alpha(Tk)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B2/(kB*Tk))
+        return self.recomb_alpha(Tk)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B2/(kB*Tk))
 
-    def Krr(self, Z,Ho=67.4,Om_m=0.315, Tcmbo=2.725):
+    def recomb_Krr(self, Z):
         '''
         Redshifting rate appearing in the Peebles' 'C' factor
         
@@ -298,15 +357,6 @@ class recomb():
         Z : float
             1+z
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``
-            
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``
-        
         Returns
         -------
         
@@ -314,9 +364,9 @@ class recomb():
             Redshifting rate in units of :math:`\\mathrm{m^3s}`
         
         '''
-        return lam_alpha**3/(8*np.pi*basic_cosmo().H(Z,Ho,Om_m, Tcmbo))
+        return lam_alpha**3/(8*np.pi*self.basic_cosmo_H(Z))
 
-    def Peebles_C(self,Z,xe,Tk, Ho=67.4,Om_m=0.315, Om_b=0.049, Tcmbo=2.725, Yp=0.245):
+    def recomb_Peebles_C(self,Z,xe,Tk):
         '''
         :math:`C_{\mathrm{P}}`
         
@@ -332,21 +382,6 @@ class recomb():
         Tk : float
             Gas temperature in units of kelvin
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``
-            
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value 0.245
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value 2.725
-        
         Returns
         -------
         
@@ -354,9 +389,9 @@ class recomb():
             Peebles 'C' factor appearing in Eq. (71) from `Seager et al (2000) <https://iopscience.iop.org/article/10.1086/313388>`__, dimensionless.
         '''
         
-        return (1+self.Krr(Z,Ho,Om_m, Tcmbo)*Lam_H*basic_cosmo().nH(Z, Ho,Om_b,Yp)*(1-xe))/(1+self.Krr(Z, Ho,Om_m, Tcmbo)*(Lam_H+self.beta(Tk))*basic_cosmo().nH(Z, Ho,Om_b,Yp)*(1-xe))
+        return (1+self.recomb_Krr(Z)*Lam_H*self.basic_cosmo_nH(Z)*(1-xe))/(1+self.recomb_Krr(Z)*(Lam_H+self.recomb_beta(Tk))*self.basic_cosmo_nH(Z)*(1-xe))
 
-    def Saha_xe(self,Z,Tk, Ho=67.4,Om_b=0.049,Yp=0.245):
+    def recomb_Saha_xe(self,Z,Tk):
         '''
         Electron fraction predicted by the Saha's equation. This is important to initialise the differential equation for :math:`x_{\mathrm{e}}`. At high redshift such as :math:`z\\approx1500`, Saha's equation give accurate estimate of :math:`x_{\mathrm{e}}`.
         
@@ -369,56 +404,19 @@ class recomb():
         Tk : float
             Gas temperature in units of kelvin
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``
-            
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``
-        
         Returns
         -------
         
         float
             Electron fraction predicted by Saha's equation.
         '''
-        S=1/basic_cosmo().nH(Z, Ho,Om_b,Yp)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B1/(kB*Tk))
+        S=1/self.basic_cosmo_nH(Z)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B1/(kB*Tk))
         return (np.sqrt(S**2+4*S)-S)/2
 
-#End of class recomb
-#========================================================================================================
-
-class hmf():
-    '''
-    This class contains :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`, :math:`\\mathrm{d}n/\\mathrm{d}M`, :math:`m_{\\mathrm{min}}`, :math:`f_{\\mathrm{coll}}`, :math:`\\mathrm{d}f_{\\mathrm{coll}}/\\mathrm{d}z`, and :math:`\\dot{\\rho}_{\\star}`.
-    
-    Use this function to set your choice of HMF model name and also the choice of star formation efficiency (SFE) model name. Eg. ``hmf.hmf_name = 'press74'`` and ``hmf.sfe_name = 'const'``.
-    
-    Available HMF model names:
-        - press74 (default, for Press & Schechter 1974),
-        - sheth99 (for Sheth & Tormen 1999),
-        -
+    #End of functions related to recombination
+    #========================================================================================================
         
-    Available SFE models:
-        - const (default, for a constant SFE throughout the redshift)
-        - log
-        - dpl
-        
-    Methods
-    ~~~~~~~
-    '''
-    def __init__(self, hmf_name='press74',sfe_name='const'):
-        global hmf_model
-        self.hmf_name=hmf_name
-        hmf_model=self.hmf_name
-        global sfe_model
-        self.sfe_name=sfe_name
-        sfe_model=self.sfe_name
-        return
-        
-    def dndlnM(self, M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,cosmo=None):
+    def hmf_dndlnM(self, M,Z):
         '''
         The halo mass function (HMF) in the form of :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`. Note the natural logarithm.
         
@@ -431,39 +429,17 @@ class hmf():
         Z : float
             1 + redshift, dimensionless.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-            
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
-        
         Returns
         -------
         
         float
             HMF, :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M=M\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving Mega parsec.
         '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-            
-        my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
-        cosmology.setCosmology('my_cosmo', my_cosmo)
-        h100=Ho/100
-        M_by_h = M*h100 #M in units of solar mass/h
-        return h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', model = hmf_model)
 
-    def dndM(self,M,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,cosmo=None):
+        M_by_h = M*self.h100 #M in units of solar mass/h
+        return self.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', model = self.hmf_name)
+
+    def hmf_dndM(self,M,Z):
         '''
         The halo mass function (HMF) in a different form, i.e., :math:`\\mathrm{d}n/\\mathrm{d}M`.
         
@@ -476,20 +452,6 @@ class hmf():
         Z : float
             1 + z, dimensionless.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-            
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
-        
         Returns
         -------
         
@@ -497,18 +459,10 @@ class hmf():
             HMF in a different form, :math:`\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}\mathrm{M}_{\\odot}^{-1}`, where 'cMpc' represents comoving Mega parsec and :math:`\mathrm{M}_{\\odot}` represents the solar mass.
         '''
 
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-        
-        my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
-        cosmology.setCosmology('my_cosmo', my_cosmo)
-        return 1/M*self.dndlnM(M,Z,Ho,Om_m,Om_b,Tcmbo)
+        return 1/M*self.hmf_dndlnM(M,Z)
 
     #For details see eq.(50),(52) and (53) from Mittal & Kulkarni (2021), MNRAS
-    def m_min(self,Z,Om_m=0.315,Tmin_vir=1e4):
+    def hmf_m_min(self,Z):
         '''
         The minimum halo mass for which star formation is possible.
         
@@ -518,21 +472,15 @@ class hmf():
         Z : float
             1 + z, dimensionless. It can be a single number or an array.
         
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Returns
         -------
         
         float
             The mass returned is in units of :math:`\mathrm{M}_{\\odot}/h`.
         '''
-        return 1e8*Om_m**(-0.5)*(10/Z*0.6/1.22*Tmin_vir/1.98e4)**1.5
+        return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.Tmin_vir/1.98e4)**1.5
 
-    def f_coll(self,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,astro=None):
+    def hmf_f_coll(self,Z):
         '''
         Collapse fraction -- fraction of total matter that collapsed into the haloes. See definition below.
         :math:`F_{\\mathrm{coll}}=\\frac{1}{\\bar{\\rho}^0_{\\mathrm{m}}}\\int_{M_{\\mathrm{min}}}^{\\infty} M\\frac{\\mathrm{d}n}{\\mathrm{d} M}\,\\mathrm{d} M\,,`
@@ -543,68 +491,41 @@ class hmf():
         Z : float
             1 + z, dimensionless. Can be a single quantity or an array.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-            
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
-        
         Returns
         -------
         
         float 
             Collapse fraction. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-        if astro!=None:
-            Tmin_vir = astro['Tmin_vir']
 
-        if hmf_model=='press74':
-            my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
-            cosmology.setCosmology('my_cosmo', my_cosmo)
-            return scsp.erfc(peaks.peakHeight(self.m_min(Z,Om_m,Tmin_vir),Z-1)/np.sqrt(2))
+        if self.hmf_name=='press74':
+            return scsp.erfc(peaks.peakHeight(self.hmf_m_min(Z),Z-1)/np.sqrt(2))
         else:
-            h100=Ho/100
             numofZ = np.size(Z)
                 
             if numofZ == 1:
                 if type(Z)==np.ndarray: Z=Z[0]
-                M_space = np.logspace(np.log10(self.m_min(Z,Om_m,Tmin_vir)/h100),18,1500)    #These masses are in solar mass. 
-                hmf_space = self.dndlnM(M=M_space,Z=Z,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo)    #Corresponding HMF values are in cMpc^-3 
+                M_space = np.logspace(np.log10(self.hmf_m_min(Z)/self.h100),18,1500)    #These masses are in solar mass. 
+                hmf_space = self.hmf_dndlnM(M=M_space,Z=Z)    #Corresponding HMF values are in cMpc^-3 
                 rho_halo = Msolar_by_Mpc3_to_kg_by_m3*np.trapz(hmf_space,M_space)    #matter density collapsed as haloes (in kg/m^3, comoving)
             else:    
                 rho_halo = np.zeros(numofZ)
                 counter=0
                 for i in Z:
-                    M_space = np.logspace(np.log10(self.m_min(i,Om_m,Tmin_vir)/h100),18,1500)    #These masses are in solar mass. 
-                    hmf_space = self.dndlnM(M=M_space,Z=i,Ho=Ho,Om_m=Om_m,Om_b=Om_b,Tcmbo=Tcmbo)    #Corresponding HMF values are in cMpc^-3 
+                    M_space = np.logspace(np.log10(self.hmf_m_min(i)/self.h100),18,1500)    #These masses are in solar mass. 
+                    hmf_space = self.hmf_dndlnM(M=M_space,Z=i)    #Corresponding HMF values are in cMpc^-3 
                     rho_halo[counter] = Msolar_by_Mpc3_to_kg_by_m3*np.trapz(hmf_space,M_space)    #matter density collapsed as haloes (in kg/m^3, comoving)
                     counter=counter+1
-            return rho_halo/(Om_m*basic_cosmo().rho_crit(Ho))
+            return rho_halo/(self.Om_m*self.basic_cosmo_rho_crit())
 
-    def dfcoll_dz(self,Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir):
+    def hmf_dfcoll_dz(self,Z):
         '''
         Redshift derivative of the collapse fraction, i.e., :math:`\\mathrm{d}F_{\\mathrm{coll}}/\\mathrm{d}z`
         '''
-        return (self.f_coll(Z+1e-3, Ho, Om_m,Om_b,Tcmbo, Tmin_vir)-self.f_coll(Z, Ho, Om_m,Om_b,Tcmbo, Tmin_vir))*1e3
+        return (self.hmf_f_coll(Z+1e-3)-self.hmf_f_coll(Z))*1e3
 
      
-    def SFRD(self,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Tmin_vir=1e4,cosmo=None,astro=None):
+    def hmf_SFRD(self,Z):
         '''
         This function returns the comoving star formation rate density (SFRD, :math:`\\dot{\\rho}_{\\star}`).
         
@@ -614,21 +535,6 @@ class hmf():
         Z : float
             1 + z, dimensionless. Can be a single quantity or an array.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-            
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
         
         Returns
@@ -637,31 +543,118 @@ class hmf():
         float 
             Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-        if astro!=None:
-            Tmin_vir = astro['Tmin_vir']
 
-        return -Z*fstar*Om_b*basic_cosmo().rho_crit(Ho)*self.dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)*basic_cosmo().H(Z, Ho,Om_m, Tcmbo)
+        return -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.hmf_dfcoll_dz(Z)*self.basic_cosmo_H(Z)
 
-#End of class hmf
-#========================================================================================================
+    #End of functions related to HMF
+    #========================================================================================================
 
-class heating():
-    '''
+    def _recoil(self,Tk):
+        '''
+        The recoil parameter. Eq.(15) in Mittal & Kulkarni (2021).
+        '''
+        return 0.02542/np.sqrt(Tk)
+
+    def _dopp(self,Tk):
+        '''
+        Doppler width for Lya-HI interaction. Eq.(14) in Mittal & Kulkarni (2021).
+        '''
+        return nu_alpha*np.sqrt(2*kB*Tk/(mP*cE**2))
+
+    def _a_tau(self,Z,xe,Tk):
+        '''
+        Returns the product a*tau, since all the relevant formulae require the product only.
+        a is the Voigt parameter and tau is the optical depth of Lya photons.
+        '''
+        tau = 3/(8*np.pi)*A_alpha/self.basic_cosmo_H(Z)*self.basic_cosmo_nH(Z)*(1-xe)*lam_alpha**3
+        a = A_alpha/(4*np.pi*self._dopp(Tk))
+        return a*tau
+        
+    def _zeta(self,Z,xe,Tk):
+        '''
+        A dimensionless number. See below Eq.(12) in Chuzhoy & Shapiro (2006).
+        '''
+        return 4/3*np.sqrt(self._a_tau(Z,xe,Tk)*self._recoil(Tk)**3/np.pi)
+
+    def _xi2(self,Z,xe,Tk):
+        '''
+        A dimensionless number. Eq.(39) in Mittal & Kulkarni (2021).
+        '''
+        return (4*self._a_tau(Z,xe,Tk)*self._recoil(Tk)**3/np.pi)**(1/3)
+
+    def _scatter_corr(self,Z,xe,Tk):
+        '''
+        This is the scattering correction, S. I am using the approximate version from Chuzhoy & Shapiro (2006).
+        '''
+        return np.exp(-1.69*self._zeta(Z,xe,Tk)**0.667)
+        
+    def _eps_alpha_beta(self,Z,E):
+        phi = hP/eC*2902.91*(E/13.6)**-0.86
+        return 1/(1.22*mP)*phi*self.hmf_SFRD(Z)
+
+    def _eps_above_beta(self,Z,E):
+        '''
+        Comoving emissivity in units of number per unit time per unit frequency per unit volume (s^-1.m^-3.Hz^-1)
+        Valid only for photons of energy above Ly beta, i.e., E > 12.089 eV
+        '''
+        phi = hP/eC*1303.34*(E/13.6)**-7.658 #this is the SED in units of number per baryon per unit frequency (Hz^-1)
+        return 1/(1.22*mP)*phi*self.hmf_SFRD(Z)
+
+    def _lya_spec_inten(self,Z):
+        '''
+        Specific intensity of Ly-alpha photons in terms of number per unit time per unit area per unit frequency per unit solid angle
+        (m^-2.s^-1.Hz^-1.sr^-1)
+        '''
+            
+        loc=0
+        flag=False
+        integ=0
+        if type(Z)==float or type(Z)==int:
+            if Z>Zstar:
+                return 0
+            Zmax = 32/27*Z
+            temp = np.linspace(Z,Zmax,10)
+            integ = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z)/self.basic_cosmo_H(temp),temp)
+            for ni in np.arange(4,24):
+                Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
+                temp = np.linspace(Z,Zmax,5)
+                integ = integ+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z)/self.basic_cosmo_H(temp),temp)
+        
+        elif type(Z)==np.ndarray or type(Z)==list:
+            if Z[0]>Zstar:
+                flag=True
+                loc = np.where(Z<Zstar)[0][0]
+                Z=Z[loc:]
+            
+            counter=0
+            numofZ = len(Z)
+            integ=np.zeros(numofZ)
+            for Z_value in Z:
+                Zmax = 32/27*Z_value
+                temp = np.linspace(Z_value,Zmax,10)
+                integ[counter] = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z_value)/self.basic_cosmo_H(temp),temp)
+
+                for ni in np.arange(4,24):
+                    Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z_value
+                    temp = np.linspace(Z_value,Zmax,5)
+                    integ[counter] = integ[counter]+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value)/self.basic_cosmo_H(temp),temp)
+                
+                counter=counter+1
+        
+
+        J_temp = self.falp*cE/(4*np.pi)*Z**2*integ
+        if flag == True:
+            J_before_CD = np.zeros(loc)
+            J_after_CD = J_temp
+            return np.concatenate((J_before_CD,J_after_CD))
+        else:
+            return J_temp
     
-    This class contains all the heating (or cooling) terms. All the terms are in the form of :math:`-(1+z)\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}z` and hence in units of temperature.
-    
-    Methods
-    ~~~~~~~
-    '''
-    def __init__(self):
-        return None
-    
-    def Ecomp(self,Z,xe,Tk,Ho=67.4,Om_m=0.315,Tcmbo=2.725,Yp=0.245,cosmo=None):
+    #End of extra functions.
+    #========================================================================================================
+
+
+    def heating_Ecomp(self,Z,xe,Tk):
         '''
         See Eq.(2.32) from Mittal et al (2022), JCAP.
         (However, there is a minor typo in that equation; numerator has an :math:`x_{\\mathrm{e}}` missing.)
@@ -678,36 +671,17 @@ class heating():
         Tk : float
             Gas kinetic temperature.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``
-        
         Returns
         -------    
         
         float
             Compton heating. Units kelvin.
-            
-        Note: cosmological parameters can also be supplied through dictionary ``cosmo``
-        '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Tcmbo = cosmo['Tcmbo']
-            Yp = cosmo['Yp']
-        
-        return (8*sigT*aS)/(3*me*cE)*basic_cosmo().Tcmb(Z,Tcmbo)**4*xe*(basic_cosmo().Tcmb(Z,Tcmbo)-Tk)/(basic_cosmo().H(Z,Ho,Om_m,Tcmbo)*(1+basic_cosmo().xHe(Yp)+xe))
+
+        '''        
+        return (8*sigT*aS)/(3*me*cE)*self.basic_cosmo_Tcmb(Z)**4*xe*(self.basic_cosmo_Tcmb(Z)-Tk)/(self.basic_cosmo_H(Z)*(1+self.basic_cosmo_xHe()+xe))
 
 
-    def Elya(self,Z,xe,Tk,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def heating_Elya(self,Z,xe,Tk):
         '''
         Ly-:math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__
         
@@ -723,55 +697,23 @@ class heating():
         Tk : float
             Gas kinetic temperature.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``.
-        
-        falp : float, optional
-            :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Returns
         -------    
         
         float
             Net heating by the Lyman series photons. Units kelvin.
-            
-        Note: cosmological ans astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``, respectively.
         '''
-        
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-        if astro!=None:
-            falp = astro['falp']
-            Tmin_vir = astro['Tmin_vir']
             
-        eta = extras().recoil(Tk)
-        S = extras().scatter_corr(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)
-        atau = extras().a_tau(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)
-        arr = scsp.airy(-extras().xi2(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp))
+        eta = self._recoil(Tk)
+        S = self._scatter_corr(Z,xe,Tk)
+        atau = self._a_tau(Z,xe,Tk)
+        arr = scsp.airy(-self._xi2(Z,xe,Tk))
         
         Ic = eta*(2*np.pi**4*atau**2)**(1/3)*(arr[0]**2+arr[2]**2)
         Ii = eta*np.sqrt(atau/2)*scint.quad(lambda y:y**(-1/2)*np.exp(-2*eta*y-np.pi*y**3/(6*atau))*scsp.erfc(np.sqrt(np.pi*y**3/(2*atau))),0,np.inf)[0]-S*(1-S)/(2*eta)
-        J = extras().lya_spec_inten(Z,Ho,Om_m,Om_b,Tcmbo,falp,Tmin_vir)
-        nbary = (1+basic_cosmo().xHe(Yp))*basic_cosmo().nH(Z,Ho,Om_b,Yp)
-        return 8*np.pi/3 * hP/(kB*lam_alpha) * J*extras().dopp(Tk)/nbary * (Ic+Ii)
+        J = self._lya_spec_inten(Z)
+        nbary = (1+self.basic_cosmo_xHe())*self.basic_cosmo_nH(Z)
+        return 8*np.pi/3 * hP/(kB*lam_alpha) * J*self._dopp(Tk)/nbary * (Ic+Ii)
        
     '''
     def tau(E,Z,Z1,x_HI):     #X-ray optical depth
@@ -807,7 +749,7 @@ class heating():
             return np.array([Gam_x,Ex])
     '''
 
-    def Ex(self,Z,xe,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,fX=0.1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def heating_Ex(self,Z,xe):
         '''
         See Eq.(11) from `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__
         
@@ -820,56 +762,24 @@ class heating():
         xe : float
             Electron fraction.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        fX : float, optional
-            :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value 0.1.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Returns
         -------    
         
         float
             Net heating by the X-ray photons. Units kelvin.
             
-        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``, respectively.
         '''
         def fXh(xe):
             return 1-(1-xe**0.2663)**1.3163
         
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-        if astro!=None:
-            fX = astro['fX']
-            Tmin_vir = astro['Tmin_vir']
-        
-        return 5e5*fX*fstar*fXh(xe)*Z*np.abs(hmf().dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir))
+        return 5e5*self.fX*fstar*fXh(xe)*Z*np.abs(self.hmf_dfcoll_dz(Z))
 
-#End of class heating
-#========================================================================================================
+    #End of functions related to heating.
+    #========================================================================================================
 
-class cosmic_history():  
-    def __init__(self):
-        return None
-
-    #The following function has the differential equations governing the ionisation and thermal history.
-    def _eqns(self, Z,V,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fesc,Tmin_vir):
+    def history_eqns(self, Z,V):
         '''
+        The following function has the differential equations governing the ionisation and thermal history.
         When solving upto the end of dark ages, only cosmological parameters will be used.
         Beyond Zstar, i.e., beginning of cosmic dawn astrophysical will also be used.
         '''
@@ -878,44 +788,30 @@ class cosmic_history():
         Tk = V[2]
 
         #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS
-        eq1 = 1/basic_cosmo().H(Z,Ho,Om_m, Tcmbo)*recomb().Peebles_C(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp)*(xe**2*basic_cosmo().nH(Z,Ho,Om_b,Yp)*recomb().alpha(Tk)-recomb().beta(Tk)*(1-xe)*np.exp(-Ea/(kB*Tk)))
+        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tk)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tk)*(1-xe)*np.exp(-Ea/(kB*Tk)))
 
         #eq2 is (1+z)dQ/dz; Pritchard & Furlanetto (2007) eq.(11)
         #eq3 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
         
         if Z>Zstar:
             eq2 = 0
-            eq3 = 2*Tk-Tk*eq1/(1+basic_cosmo().xHe(Yp)+xe)-heating().Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)
+            eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
         else:
             if QHII<0.99:
-                eq2 = 1/basic_cosmo().H(Z,Ho,Om_m, Tcmbo)*(alpha_A*2*basic_cosmo().nH(Z,Ho,Om_b,Yp)*xe*QHII) + (1-xe)*(1+basic_cosmo.xHe(Yp))*fstar*fesc*Nion*Z*hmf().dfcoll_dz(Z,Ho,Om_m,Om_b,Tcmbo, Tmin_vir)
+                eq2 = 1/self.basic_cosmo_H(Z)*(alpha_A*2*self.basic_cosmo_nH(Z)*xe*QHII) + (1-xe)*(1+self.basic_cosmo_xHe())*fstar*self.fesc*Nion*Z*self.hmf_dfcoll_dz(Z)
             else:
                 eq2 = 0
-            eq3 = 2*Tk-Tk*eq1/(1+basic_cosmo().xHe(Yp)+xe)-heating().Ecomp(Z,xe,Tk,Ho,Om_m,Tcmbo,Yp)-heating().Ex(Z,xe,Ho,Om_m,Om_b,Tcmbo,fX,Tmin_vir)-heating().Elya(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp,Tmin_vir)
+            eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
         
         return np.array([eq1,eq2,eq3])
 
-    def run_solver(self,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fX=0.1,fesc=0.1,Tmin_vir=1e4,Z_start=1501,Z_end=6,Z_eval=Z_default, xe_init=None,Tk_init=None,cosmo=None, astro=None):
-        
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-            Yp = cosmo['Yp']
-        if astro!=None:
-            falp = astro['falp']
-            fX = astro['fX']
-            fesc = astro['fesc']
-            Tmin_vir = astro['Tmin_vir']
+    def history_solver(self,Z_start = 1501, Z_end = 6, Z_eval=Z_default, xe_init = None, Tk_init = None):
 
-        if Z_start==1501:
-            Tk_init = basic_cosmo().Tcmb(Z_start,Tcmbo)
-            xe_init = recomb().Saha_xe(Z_start,Tk_init, Ho,Om_b,Yp)
-        elif xe_init==None and Tk_init==None:
-            raise Exception('Initial conditions missing.')
+        if xe_init == None and Tk_init == None:
+            Tk_init = self.basic_cosmo_Tcmb(Z_start)
+            xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
             
-        Sol = scint.solve_ivp(lambda a, Var: -self._eqns(1/a,Var,Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fesc,Tmin_vir)/a, [1/Z_start, 1/Z_end],[xe_init,0,Tk_init],method='Radau',t_eval=1/Z_eval) 
+        Sol = scint.solve_ivp(lambda a, Var: -self.history_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,0,Tk_init],method='Radau',t_eval=1/Z_eval) 
         
         #Obtaining the solutions ...
         xe=Sol.y[0]
@@ -924,22 +820,10 @@ class cosmic_history():
 
         return [xe,QHII,Tk]
 
-#End of class cosmic_history
-#========================================================================================================
+    #End of functions related to history equations.
+    #========================================================================================================
 
-class hyperfine():
-    '''
-    This class has all the functions related to computation of 21-cm signal, :math:`T_{21}`. These are
-    
-    :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\alpha}, T_{\\mathrm{s}}` and :math:`T_{21}`.
-    
-    Methods
-    ~~~~~~~
-    '''
-    def __init__(self):
-        return None
-
-    def kHH(self,Tk):
+    def hyfi_kHH(self,Tk):
         '''
         Volumetric spin flip rate for hydrogen-hydrogen collision. This fitting function and the next one is available from `Pritchard & Loeb (2012) <https://ui.adsabs.harvard.edu/abs/2012RPPh...75h6901P/abstract>`__.
         
@@ -957,7 +841,7 @@ class hyperfine():
         '''
         return 3.1*10**(-17)*Tk**0.357*np.exp(-32/Tk)
 
-    def keH(self,Tk):
+    def hyfi_keH(self,Tk):
         '''
         Volumetric spin flip rate for electron-hydrogen collision.
         
@@ -975,7 +859,7 @@ class hyperfine():
         '''
         return np.where(Tk<10**4,10**(-15.607+0.5*np.log10(Tk)*np.exp(-(np.abs(np.log10(Tk)))**4.5/1800) ),10**(-14.102))
 
-    def col_coup(self,Z,xe,Tk, Ho=67.4,Om_b=0.049,Tcmbo=2.725,Yp=0.245,cosmo=None):
+    def hyfi_col_coup(self,Z,xe,Tk):
         '''
         Collisional coupling
         
@@ -990,18 +874,6 @@ class hyperfine():
         
         Tk : float
             Gas kinetic temperature.
-            
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``.
         
         Returns
         -------
@@ -1009,15 +881,10 @@ class hyperfine():
         float 
             :math:`x_{\\mathrm{k}}`, dimensionless.
         '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-            Yp = cosmo['Yp']
 
-        return Tstar*basic_cosmo().nH(Z,Ho,Om_b,Yp)*((1-xe)*self.kHH(Tk)+xe*self.keH(Tk))/(A10*basic_cosmo().Tcmb(Z,Tcmbo))
+        return Tstar*self.basic_cosmo_nH(Z)*((1-xe)*self.hyfi_kHH(Tk)+xe*self.hyfi_keH(Tk))/(A10*self.basic_cosmo_Tcmb(Z))
 
-    def lya_coup(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def hyfi_lya_coup(self,Z,xe,Tk):
         '''
         Ly-:math:`\\alpha` coupling or the Wouthuysen--Field coupling.
         
@@ -1033,49 +900,19 @@ class hyperfine():
         Tk : float
             Gas kinetic temperature.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``.
-        
-        falp : float, optional
-            :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Returns
         -------
         
         float
             :math:`x_{\\alpha}`, dimensionless.
         '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-            Yp = cosmo['Yp']
-        if astro!=None:
-            falp = astro['falp']
-            Tmin_vir = astro['Tmin_vir']
-        
-        S = extras().scatter_corr(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)
-        J = extras().lya_spec_inten(Z,Ho,Om_m,Om_b,Tcmbo,falp,Tmin_vir)    #'undistorted' background Spec. Inte. of Lya photons.
+    
+        S = self._scatter_corr(Z,xe,Tk)
+        J = self._lya_spec_inten(Z)    #'undistorted' background Spec. Inte. of Lya photons.
         Jo = 5.54e-8*Z         #eq.(24) in Mittal & Kulkarni (2021)
         return S*J/Jo
 
-    def spin_temp(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def hyfi_spin_temp(self,Z,xe,Tk):
         '''
         Spin temperature.
         
@@ -1091,52 +928,22 @@ class hyperfine():
         Tk : float
             Gas kinetic temperature.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``.
-        
-        falp : float, optional
-            :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Returns
         -------
         
         float
             :math:`T_{\\mathrm{s}}`, K.
         '''
-        if cosmo!=None and astro!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-            Yp = cosmo['Yp']
-            
-            falp = astro['falp']
-            Tmin_vir = astro['Tmin_vir']
 
-        xa = self.lya_coup(Z,xe,Tk, Ho,Om_m,Om_b,Tcmbo,Yp, falp,Tmin_vir)
-        xk = self.col_coup(Z,xe,Tk, Ho,Om_b,Tcmbo,Yp)
-        Ts = ( 1  + xa + xk)/(1/basic_cosmo().Tcmb(Z, Tcmbo) +  (xk+xa)/Tk )    #We assume the colour temperature is same as Tk.
+        xa = self.hyfi_lya_coup(Z,xe,Tk)
+        xk = self.hyfi_col_coup(Z,xe,Tk)
+        Ts = ( 1  + xa + xk)/(1/self.basic_cosmo_Tcmb(Z) +  (xk+xa)/Tk )    #We assume the colour temperature is same as Tk.
         return Ts
 
     def Terb(self,Z,Tcmbo,zeta_erb): #Net background temperature (includes CMB)
-        return np.where(Z<Zstar,Tcmbo*Z*(1+0.169*zeta_erb*Z**2.6),basic_cosmo().Tcmb(Z,Tcmbo))
+        return np.where(Z<Zstar,Tcmbo*Z*(1+0.169*zeta_erb*Z**2.6),self.basic_cosmo_Tcmb(Z,Tcmbo))
 
-    def twentyone_cm(self,Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
+    def hyfi_twentyone_cm(self,Z,xe,Tk):
         '''
         The global (sky-averaged) 21-cm signal.
         
@@ -1152,65 +959,60 @@ class hyperfine():
         Tk : float
             Gas kinetic temperature.
         
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``.
-        
-        falp : float, optional
-            :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-        
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-        
         Returns
         -------
         
         float
             :math:`T_{21}`, mK.
         '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-            Yp = cosmo['Yp']
-        if astro!=None:
-            falp = astro['falp']
-            Tmin_vir = astro['Tmin_vir']
-
+        
         xHI=(1-xe)
-        h100 = Ho/100
-        Ts = self.spin_temp(Z,xe,Tk, Ho, Om_m, Om_b, Tcmbo, Yp,falp,Tmin_vir)
-        return 27*xHI*((1-Yp)/0.76)*(Om_b*h100**2/0.023)*np.sqrt(0.15*Z/(10*Om_m*h100**2))*(1-basic_cosmo().Tcmb(Z)/Ts)
+        Ts = self.hyfi_spin_temp(Z,xe,Tk)
+        return 27*xHI*((1-self.Yp)/0.76)*(self.Om_b*self.h100**2/0.023)*np.sqrt(0.15*Z/(10*self.Om_m*self.h100**2))*(1-self.basic_cosmo_Tcmb(Z)/Ts)
 
+#End of class main.
 #========================================================================================================
+#========================================================================================================
+
 
 class pipeline():
     '''
-    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts. Additionally, this class also has the function plotter which you can use to plot gas temperature, spin temperature or the global signal.
+    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts.
     
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fesc':0.1,'Tmin_vir':1e4},Z_eval=None,path=''):
+    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fesc':0.1,'Tmin_vir':1e4},Z_eval=None,path='', hmf_name='press74'):
 
         self.cosmo=cosmo
         self.astro=astro
 
-        self.path=path
-
+        self.model = 0
+        for keys in self.astro.keys():
+            if np.size(self.astro[keys])>1:
+                self.model = self.model+1
+                break
+                
+        for keys in self.cosmo.keys():
+            if np.size(self.cosmo[keys])>1:
+                self.model = self.model+2
+                break
+        
+        if self.model==0:
+            self.astro=_to_float(self.astro)
+            self.cosmo=_to_float(self.cosmo)
+        elif self.model==1:
+            self.astro=_to_array(self.astro)
+            self.cosmo=_to_float(self.cosmo)
+        elif self.model==3:
+            self.astro=_to_array(self.astro)
+            self.cosmo=_to_array(self.cosmo)
+        else:
+            print('Currently not designed to work with varying cosmological parameters only!')
+            sys.exit()
+        
         self.Z_eval = Z_eval
+
         self.Ho = cosmo['Ho']
         self.Om_m = cosmo['Om_m']
         self.Om_b = cosmo['Om_b']
@@ -1222,6 +1024,9 @@ class pipeline():
         self.fesc = astro['fesc']
         self.Tmin_vir = astro['Tmin_vir']
         
+        self.hmf_name = hmf_name
+
+        self.path=path
         if os.path.isdir(self.path)==False:
             print('The requested directory does not exist. Creating one ...')
             os.mkdir(self.path)
@@ -1237,38 +1042,12 @@ class pipeline():
 
         comm = MPI.COMM_WORLD
         cpu_ind = comm.Get_rank()
-        n_cpu = comm.Get_size()
-
-        model = 0
-        for keys in self.astro.keys():
-            if np.size(self.astro[keys])>1:
-                model = model+1
-                break
-                
-        for keys in self.cosmo.keys():
-            if np.size(self.cosmo[keys])>1:
-                model = model+2
-                break
-        
-        if model==0:
-            self.astro=extras().to_float(self.astro)
-            self.cosmo=extras().to_float(self.cosmo)
-        elif model==1:
-            self.astro=extras().to_array(self.astro)
-            self.cosmo=extras().to_float(self.cosmo)
-        elif model==3:
-            self.astro=extras().to_array(self.astro)
-            self.cosmo=extras().to_array(self.cosmo)
-        else:
-            print('Currently not designed to work with varying cosmological parameters only!')
-            sys.exit()
-                
-        
+        n_cpu = comm.Get_size()        
                     
-        if model==0:
+        if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
             if cpu_ind==0:
-                print_banner()
+                _print_banner()
                 print('Both cosmological and astrophysical parameters are fixed.\n')
                 
                 if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
@@ -1283,16 +1062,18 @@ class pipeline():
                 
                 st = time.process_time()
                 
+                myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
+
                 print('Obtaining the thermal and ionisation history ...')
-                sol = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp,self.fX,self.fesc,self.Tmin_vir,1501,6,self.Z_eval)
+                sol = myobj.history_solver(Z_eval=self.Z_eval)
                 
                 x_glob = sol[1] + (1-sol[1])*sol[0]
 
                 print('Obtaining spin temperature ...')
-                Ts = hyperfine().spin_temp(self.Z_eval,x_glob,sol[2], self.Ho,self.Om_m, self.Om_b,self.Tcmbo, self.Yp, self.falp,self.Tmin_vir)
+                Ts = myobj.hyfi_spin_temp(self.Z_eval,x_glob,sol[2])
 
                 print('Computing the 21-cm signal ...')
-                T21 = hyperfine().twentyone_cm(self.Z_eval,x_glob,sol[2], self.Ho,self.Om_m, self.Om_b,self.Tcmbo, self.Yp, self.falp,self.Tmin_vir)
+                T21 = myobj.hyfi_twentyone_cm(self.Z_eval,x_glob,sol[2])
                 
                 print('Done.')
 
@@ -1308,7 +1089,7 @@ class pipeline():
                 np.save(Q_save_name,sol[1])
                 np.save(Tk_save_name,sol[2])
                 np.save(Ts_save_name,Ts)
-                np.save(Tcmb_save_name,basic_cosmo().Tcmb(self.Z_eval,self.Tcmbo))
+                np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(self.Z_eval))
                 np.save(T21_save_name,T21)
                 np.save(z_save_name,self.Z_eval)
                 
@@ -1336,7 +1117,7 @@ class pipeline():
                 myfile.write('Shikhar Mittal, 2024\n')
                 myfile.write('\nThis is output_'+self.timestamp)
                 myfile.write('\n------------------------------\n')
-                myfile.write('\nGMT time stamp: '+self.formatted_timestamp)
+                myfile.write('\nTime stamp: '+self.formatted_timestamp)
                 myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
                 myfile.write('\n')
                 myfile.write('\nParameters given:\n')
@@ -1357,20 +1138,23 @@ class pipeline():
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
                 return None
             
-        elif model==1:
+        elif self.model==1:
         #Cosmological parameters are fixed so dark ages is solved only once.
             if cpu_ind==0:
-                print_banner()
-                print('Cosmological parameter are fixed. Astrophysical parameters are varied.')
+                _print_banner()
+                print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
             
             if(n_cpu==1):
                 print("\033[91mBetter to parallelise. Eg. 'mpirun -np 4 python3 %s', where 4 specifies the number of tasks.\033[00m" %(sys.argv[0]))
 
-            if cpu_ind==0: print('Generating once the thermal and ionisation history up to dark ages ...')
+            if cpu_ind==0: print('\nGenerating once the thermal and ionisation history for dark ages ...')
+            
+            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[0],fX=self.fX[0],fesc=self.fesc[0],Tmin_vir=self.Tmin_vir[0], hmf_name=self.hmf_name)
+
             Z_da = np.linspace(1501,Zstar,1400)
-            sol_da = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[0],self.fX[0],self.fesc[0],self.Tmin_vir[0],Z_start=1501,Z_end=Zstar, Z_eval=Z_da)
+            sol_da = myobj_da.history_solver(Z_start=1501,Z_end=Zstar, Z_eval=Z_da)
             xe_da = sol_da[0]
-            Tk_da = sol_da[1]
+            Tk_da = sol_da[2]
 
             if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
                 self.Z_eval=np.array(self.Z_eval)
@@ -1384,19 +1168,22 @@ class pipeline():
 
             n_values=len(self.Z_eval)
             
-            n_mod = extras().no_of_mdls(self.astro)
+            n_mod = _no_of_mdls(self.astro)
             arr = np.arange(n_mod)
             arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
             T21 = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
-            if cpu_ind==0: print('Done.\nGenerating',n_mod,'21-cm global signals ...\n')
+            if cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models ...\n')
+
             st = time.process_time()
             for i in range(n_mod):
                 if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
                     ind=np.where(arr==i)
-                    sol_cd = cosmic_history().run_solver(self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[ind[0][0]],self.fX[ind[1][0]],self.fesc[ind[2][0]],
-                    self.Tmin_vir[ind[3][0]],Zstar,6,self.Z_eval,xe_da[-1],Tk_da[-1])
-                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= hyperfine().twentyone_cm(self.Z_eval,sol_cd[0],sol_cd[1],self.Ho,self.Om_m,self.Om_b,self.Tcmbo,self.Yp,self.falp[ind[0][0]],self.Tmin_vir[ind[3][0]])
+
+                    myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
+                    sol_cd = myobj_cd.history_solver(Z_start=Zstar,Z_end=6,Z_eval=self.Z_eval,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
+                    x_glob = sol_cd[1] + (1-sol_cd[1])*sol_cd[0]
+                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=self.Z_eval,xe=x_glob,Tk=sol_cd[2])
             
             comm.Barrier()
             if cpu_ind!=0:
@@ -1411,7 +1198,7 @@ class pipeline():
                 
                 np.save(T21_save_name,T21)
                 np.save(z_save_name,self.Z_eval)
-                print('\033[32m\nYour T21s have been saved into file:',T21_save_name,'\033[00m')
+                print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 
                 et = time.process_time()
                 # get the execution time
@@ -1436,7 +1223,8 @@ class pipeline():
                 myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
                 myfile.write('\n')
                 myfile.write('\nParameters given:\n')
-                myfile.write('Ho = {}'.format(self.Ho))
+                myfile.write('-----------------')
+                myfile.write('\nHo = {}'.format(self.Ho))
                 myfile.write('\nOm_m = {}'.format(self.Om_m))
                 myfile.write('\nOm_b = {}'.format(self.Om_b))
                 myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
@@ -1445,15 +1233,17 @@ class pipeline():
                 myfile.write('\nfX = {}'.format(self.fX))
                 myfile.write('\nfesc = {}'.format(self.fesc))
                 myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
+                myfile.write('\n\n{} models generated'.format(n_mod))
+                myfile.write('Number of CPU(s) = \n{}'.format(n_cpu))
                 myfile.close()
                 #========================================================
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
 
-        elif model==3:
+        elif self.model==3:
 
             if cpu_ind==0:
-                print_banner()
+                _print_banner()
                 print('Both cosmological and astrophysical parameters are varied.')
             
             if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
@@ -1473,281 +1263,75 @@ class pipeline():
                 print("Run as, say, 'mpirun -n 4 python3 %s', where 4 specifies the number of CPUs." %(sys.argv[0]))
                 sys.exit()		
             
-            n_mod = extras().no_of_mdls(self.astro)*extras().no_of_mdls(self.cosmo)
+            n_mod = _no_of_mdls(self.astro)*_no_of_mdls(self.cosmo)
             arr = np.arange(n_mod)
             arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),
-            np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            T21 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
-            if cpu_ind==0: print('Generating',n_mod,'models ...')
+            if cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
             
             for i in range(n_mod):
                 if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
                     ind=np.where(arr==i)
-                    sol = cosmic_history().run_solver(self.Ho[ind[0][0]],self.Om_m[ind[1][0]],self.Om_b[ind[2][0]],self.Tcmbo[ind[3][0]],self.Yp[ind[4][0]],
-                    self.falp[ind[5][0]],self.fX[ind[6][0]],self.fesc[ind[7][0]],self.Tmin_vir[ind[8][0]],Z_start=1501,Z_end=6,Z_eval=self.Z_eval)
-                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
-                    [ind[6][0]],[ind[7][0]],[ind[8][0]],:] = hyperfine().twentyone_cm(self.Z_eval,sol[0],sol[1],self.Ho[ind[0][0]],self.Om_m[ind[1][0]],self.Om_b[ind[2][0]],self.Tcmbo[ind[3][0]],self.Yp[ind[4][0]],self.falp[ind[5][0]],self.Tmin_vir[ind[8][0]])
+
+                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],Tcmbo=self.Tcmbo[ind[3][0]],Yp=self.Yp[ind[4][0]],falp=self.falp[ind[5][0]],fX=self.fX[ind[6][0]],fesc=self.fesc[ind[7][0]],Tmin_vir=self.Tmin_vir[ind[8][0]], hmf_name=self.hmf_name)
+                    sol = myobj.history_solver(Z_start=1501,Z_end=6,Z_eval=self.Z_eval)
+                    x_glob = sol[1] + (1-sol[1])*sol[0]
+                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],:] = myobj.hyfi_twentyone_cm(Z=self.Z_eval,xe=x_glob,Tk=sol[2])
             
             comm.Barrier()
             if cpu_ind!=0:
                 comm.send(T21, dest=0)
             else:
-                print('Done.')
+                print('Done.\n')
                 for j in range(1,n_cpu):
                     T21 = T21 + comm.recv(source=j)
                 save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))+'.npy'
                 np.save(save_name,T21)
                 
-                print('\033[32m\nYour T21s have been saved into file:',T21_save_name,'\033[00m')
+                print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 
                 et = time.process_time()
                 # get the execution time
                 elapsed_time = et - st
                 print('\nProcessing time: %.2f seconds' %elapsed_time)
+                #========================================================
+                #Writing to a summary file
+
+                sumfile = self.path+"summary_"+self.timestamp+".txt"
+                myfile = open(sumfile, "w")
+                myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
+██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
+█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
+██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
+███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
+╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
+                myfile.write('Shikhar Mittal, 2024\n')
+                myfile.write('\nThis is output_'+self.timestamp)
+                myfile.write('\n------------------------------\n')
+                myfile.write('\nTime stamp: '+self.formatted_timestamp)
+                myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
+                myfile.write('\n')
+                myfile.write('\nParameters given:\n')
+                myfile.write('-----------------')
+                myfile.write('\nHo = {}'.format(self.Ho))
+                myfile.write('\nOm_m = {}'.format(self.Om_m))
+                myfile.write('\nOm_b = {}'.format(self.Om_b))
+                myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
+                myfile.write('\nYp = {}'.format(self.Yp))
+                myfile.write('\n\nfalp = {}'.format(self.falp))
+                myfile.write('\nfX = {}'.format(self.fX))
+                myfile.write('\nfesc = {}'.format(self.fesc))
+                myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
+                myfile.write('\n\n{} models generated'.format(n_mod))
+                myfile.write('Number of CPU(s) = \n{}'.format(n_cpu))
+                myfile.close()
+                #========================================================
+
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
         return None
     #End of function glob_sig               
 
-    def Z2nu(self,Z):
-        return 1420/Z
-
-    def nu2Z(self,nu):
-        return 1420/nu
-
-    def plotter(self,x=None,y=None,xlog=True,ylog=False,quant_name='',add_edges=False,xlow=6,xhigh=200):
-        plt.rc('text', usetex=True)
-        plt.rc('font', family='serif')
-
-        if (x==None and y==None):
-            x=np.load(self.path+'one_plus_z.npy')
-            y=np.load(self.path+'T21.npy')
-            quant_name = 'T21'
-
-        fig,ax=plt.subplots(figsize=(8.3,7.5),dpi=300)
-        fig.subplots_adjust(left=0.12, bottom=0.07, right=0.88, top=0.97)
-        clr=['b','r','limegreen']
-        linsty=['-','--',':']
-        if type(y)==dict:
-            leng = len(y)
-            keys = list(y.keys())
-            for i in range(leng):
-                if keys[i]=='Tk':
-                    lbl = '$T_{\mathrm{k}}$'
-                elif keys[i]=='Ts':
-                    lbl = '$T_{\mathrm{s}}$'
-                elif keys[i]=='Tcmb':
-                    lbl = '$T_{\mathrm{cmb}}$'
-                else:
-                    print('Warning: unknown quantity given in the dictionary!')
-                ax.plot(x,y[keys[i]],color=clr[i],ls=linsty[i],label=lbl)
-            if leng>1:
-                ax.set_ylabel(r'$T\,$(K)',fontsize=20)
-                ax.legend(fontsize=18,frameon=False)
-            else:
-                if quant_name=='Tk':
-                    ax.set_ylabel(r'$T_{\mathrm{k}}\,$(K)',fontsize=20)
-                elif quant_name=='Tcmb':
-                    ax.set_ylabel(r'$T_{\mathrm{cmb}}\,$(K)',fontsize=20)
-                elif quant_name=='Ts':
-                    ax.set_ylabel(r'$T_{\mathrm{s}}\,$(K)',fontsize=20)
-                
-                
-        elif type(y)==np.ndarray:
-            ax.plot(x,y,'b')
-            if quant_name=='xe':
-                ax.set_ylabel(r'$x_{\mathrm{e}}$',fontsize=20)
-            elif quant_name=='Tk':
-                ax.set_ylabel(r'$T_{\mathrm{k}}\,$(K)',fontsize=20)
-            elif quant_name=='Tcmb':
-                ax.set_ylabel(r'$T_{\mathrm{cmb}}\,$(K)',fontsize=20)
-            elif quant_name=='Ts':
-                ax.set_ylabel(r'$T_{\mathrm{s}}\,$(K)',fontsize=20)
-            elif quant_name=='sfrd' or quant_name=='SFRD':
-                ax.set_ylabel(r'$\dot{\rho}_{\star}\,(\mathrm{kg\,m^{-3}s^{-1}})$',fontsize=20)
-            elif quant_name=='T21':
-                if add_edges==True:
-                    nu_edges=np.load('nu_edges.npy')
-                    Z_edges=1420/nu_edges
-                    T21_edges=np.load('T21_edges.npy')
-                    res=np.load('residue.npy')
-                    ax.plot(Z_edges,1000*(T21_edges+res),'r--',lw=1.5)
-                    ax.legend(['Theory','EDGES'],fontsize=18,frameon=False)
-                    secax = ax.secondary_xaxis('top', functions=(self.Z2nu,self.nu2Z))
-                    secax.set_xlabel(r'$\nu\,(\mathrm{MHz})$',fontsize=20, labelpad=12)
-                    secax.minorticks_on()
-                    secax.tick_params(axis='x',which='major', length=5, width=1, labelsize=20,direction='in')
-                    secax.tick_params(axis='x',which='minor', length=3, width=1, direction='in')
-                ax.axhline(y=0,ls=':',color='k')
-                ax.set_xlim([xlow,xhigh])
-                ax.set_ylabel(r'$T_{21}\,$(mK)',fontsize=20)
-            else:
-                print("Warning: enter the quantity name. Use argument 'quant_name'")
-            
-        else:
-            print("Error: incorrect syntax! Give y as an array or dictionary of arrays. eg. {'Tk':Tk,'Ts':Ts,'Tcmb':Tcmb}")
-            sys.exit()
-
-        if xlog==True:
-            ax.set_xscale('log')
-        if ylog==True:
-            ax.set_yscale('log')
-        
-        ax.set_xlabel(r'$1+z$',fontsize=20)    
-        ax.tick_params(axis='both', which='major', length=5, width=1, labelsize=20,direction='in')
-        ax.tick_params(axis='both', which='minor', length=3, width=1, direction='in')
-        ax.minorticks_on()
-        ax.invert_xaxis()
-        ax.yaxis.set_ticks_position('both')
-        if add_edges==False:
-            ax.xaxis.set_ticks_position('both')
-        ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
-        plt.savefig(self.path+quant_name+'.pdf')
-        return
 #End of class pipeline
-#========================================================================================================
-
-class extras():
-    def __init__(self):
-        return None
-
-    def to_array(self,params):
-        for keys in params.keys():
-            if type(params[keys])==list:
-                params[keys]=np.array(params[keys])
-            elif type(params[keys])==float or type(params[keys])==int:
-                params[keys]=np.array([params[keys]])
-        return params
-
-    def to_float(self,params):
-        for keys in params.keys():
-            if type(params[keys])==list:
-                [params[keys]]=params[keys]
-            elif type(params[keys])==np.ndarray:
-                params[keys]=params[keys][0]
-        return params
-        
-    def no_of_mdls(self,params):
-        prod=1
-        for keys in params.keys():
-            if type(params[keys])==np.ndarray:
-                prod=prod*len(params[keys])
-        return prod
-
-    def clump(self,Z):
-        '''
-        Clumping factor. Taken from Madau & Fragos (2017)
-        '''
-        return 20.81*Z**-1.1
-
-    def recoil(self,Tk):
-        '''
-        The recoil parameter. Eq.(15) in Mittal & Kulkarni (2021).
-        '''
-        return 0.02542/np.sqrt(Tk)
-
-    def dopp(self,Tk):
-        '''
-        Doppler width for Lya-HI interaction. Eq.(14) in Mittal & Kulkarni (2021).
-        '''
-        return nu_alpha*np.sqrt(2*kB*Tk/(mP*cE**2))
-
-    def a_tau(self,Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp):
-        '''
-        Returns the product a*tau, since all the relevant formulae require the product only.
-        a is the Voigt parameter and tau is the optical depth of Lya photons.
-        '''
-        tau = 3/(8*np.pi)*A_alpha/basic_cosmo().H(Z,Ho,Om_m,Tcmbo)*basic_cosmo().nH(Z,Ho,Om_b,Yp)*(1-xe)*lam_alpha**3
-        a = A_alpha/(4*np.pi*self.dopp(Tk))
-        return a*tau
-        
-    def zeta(self,Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp):
-        '''
-        A dimensionless number. See below Eq.(12) in Chuzhoy & Shapiro (2006).
-        '''
-        return 4/3*np.sqrt(self.a_tau(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)*self.recoil(Tk)**3/np.pi)
-
-    def xi2(self,Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp):
-        '''
-        A dimensionless number. Eq.(39) in Mittal & Kulkarni (2021).
-        '''
-        return (4*self.a_tau(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)*self.recoil(Tk)**3/np.pi)**(1/3)
-
-    def scatter_corr(self,Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp):
-        '''
-        This is the scattering correction, S. I am using the approximate version from Chuzhoy & Shapiro (2006).
-        '''
-        return np.exp(-1.69*self.zeta(Z,xe,Tk,Ho,Om_m,Om_b,Tcmbo,Yp)**0.667)
-        
-    def _eps_alpha_beta(self,Z,E, Ho,Om_m,Om_b,Tcmbo,Tmin_vir):
-        phi = hP/eC*2902.91*(E/13.6)**-0.86
-        return 1/(1.22*mP)*phi*hmf().SFRD(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)
-
-    def _eps_above_beta(self,Z,E, Ho,Om_m,Om_b,Tcmbo,Tmin_vir):
-        '''
-        Comoving emissivity in units of number per unit time per unit frequency per unit volume (s^-1.m^-3.Hz^-1)
-        Valid only for photons of energy above Ly beta, i.e., E > 12.089 eV
-        '''
-        phi = hP/eC*1303.34*(E/13.6)**-7.658 #this is the SED in units of number per baryon per unit frequency (Hz^-1)
-        return 1/(1.22*mP)*phi*hmf().SFRD(Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)
-
-    def lya_spec_inten(self,Z,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,falp=1,Tmin_vir=1e4,cosmo=None,astro=None):
-        '''
-        Specific intensity of Ly-alpha photons in terms of number per unit time per unit area per unit frequency per unit solid angle
-        (m^-2.s^-1.Hz^-1.sr^-1)
-        '''
-        if cosmo!=None and astro!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            Tcmbo = cosmo['Tcmbo']
-            
-            falp = astro['falp']
-            Tmin_vir = astro['Tmin_vir']
-            
-        loc=0
-        flag=False
-        integ=0
-        if type(Z)==float or type(Z)==int:
-            if Z>Zstar:
-                return 0
-            Zmax = 32/27*Z
-            temp = np.linspace(Z,Zmax,10)
-            integ = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z, Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
-            for ni in np.arange(4,24):
-                Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
-                temp = np.linspace(Z,Zmax,5)
-                integ = integ+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
-        
-        elif type(Z)==np.ndarray or type(Z)==list:
-            if Z[0]>Zstar:
-                flag=True
-                loc = np.where(Z<Zstar)[0][0]
-                Z=Z[loc:]
-            
-            counter=0
-            numofZ = len(Z)
-            integ=np.zeros(numofZ)
-            for Z_value in Z:
-                Zmax = 32/27*Z_value
-                temp = np.linspace(Z_value,Zmax,10)
-                integ[counter] = scint.trapz(self._eps_alpha_beta(temp,10.2*temp/Z_value, Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
-
-                for ni in np.arange(4,24):
-                    Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z_value
-                    temp = np.linspace(Z_value,Zmax,5)
-                    integ[counter] = integ[counter]+Pn[ni-4]*scint.trapz(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value,Ho,Om_m,Om_b,Tcmbo,Tmin_vir)/basic_cosmo().H(temp, Ho, Om_m,Tcmbo),temp)
-                
-                counter=counter+1
-        
-
-        J_temp = falp*cE/(4*np.pi)*Z**2*integ
-        if flag == True:
-            J_before_CD = np.zeros(loc)
-            J_after_CD = J_temp
-            return np.concatenate((J_before_CD,J_after_CD))
-        else:
-            return J_temp
-#End of class extras
 #========================================================================================================
