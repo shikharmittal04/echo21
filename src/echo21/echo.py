@@ -75,7 +75,8 @@ def _print_banner():
     █████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
     ██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
     ███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝                                         
+    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝
+    Copyright 2024, Shikhar Mittal.                                     
     \033[00m\n"""
     print(banner)
     return None
@@ -779,7 +780,7 @@ class main():
 
     def history_eqns(self, Z,V):
         '''
-        The following function has the differential equations governing the ionisation and thermal history.
+        This function has the differential equations governing the ionisation and thermal history.
         When solving upto the end of dark ages, only cosmological parameters will be used.
         Beyond Zstar, i.e., beginning of cosmic dawn astrophysical will also be used.
         '''

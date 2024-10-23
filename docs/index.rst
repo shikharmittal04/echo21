@@ -10,6 +10,10 @@ Welcome to echo21's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   Basics <basics>
+   
+   In-depth usage <detexp>
+   
    API Reference <api>
 
-
+   FAQs <faqs>
