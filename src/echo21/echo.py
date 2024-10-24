@@ -1,5 +1,6 @@
 import scipy.special as scsp
 import scipy.integrate as scint
+from scipy.interpolate import CubicSpline
 import numpy as np
 import matplotlib.pyplot as plt
 from mpi4py import MPI
@@ -10,6 +11,7 @@ from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
 from time import localtime, strftime
+from tqdm import tqdm
 
 #========================================================================================================
 #Universal constants
@@ -806,9 +808,13 @@ class main():
         
         return np.array([eq1,eq2,eq3])
 
-    def history_solver(self,Z_start = 1501, Z_end = 6, Z_eval=Z_default, xe_init = None, Tk_init = None):
+    def history_solver(self, Z_eval, xe_init = None, Tk_init = None):
 
-        if xe_init == None and Tk_init == None:
+        #Assuming Z_eval is in decreasing order.
+        Z_start = Z_eval[0]
+        Z_end = Z_eval[-1]
+
+        if Z_start == 1501:
             Tk_init = self.basic_cosmo_Tcmb(Z_start)
             xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
             
@@ -941,9 +947,6 @@ class main():
         Ts = ( 1  + xa + xk)/(1/self.basic_cosmo_Tcmb(Z) +  (xk+xa)/Tk )    #We assume the colour temperature is same as Tk.
         return Ts
 
-    def Terb(self,Z,Tcmbo,zeta_erb): #Net background temperature (includes CMB)
-        return np.where(Z<Zstar,Tcmbo*Z*(1+0.169*zeta_erb*Z**2.6),self.basic_cosmo_Tcmb(Z,Tcmbo))
-
     def hyfi_twentyone_cm(self,Z,xe,Tk):
         '''
         The global (sky-averaged) 21-cm signal.
@@ -1014,6 +1017,12 @@ class pipeline():
         
         self.Z_eval = Z_eval
 
+        if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
+            self.Z_eval=np.array(self.Z_eval)
+            if self.Z_eval[1]>self.Z_eval[0]:
+                # Arranging redshifts from ascending to descending
+                self.Z_eval = self.Z_eval[::-1]
+
         self.Ho = cosmo['Ho']
         self.Om_m = cosmo['Om_m']
         self.Om_b = cosmo['Om_b']
@@ -1029,7 +1038,7 @@ class pipeline():
 
         self.path=path
         if os.path.isdir(self.path)==False:
-            print('The requested directory does not exist. Creating one ...')
+            print('The requested directory does not exist. Creating ',self.path)
             os.mkdir(self.path)
         
         self.timestamp = strftime("%Y%m%d%H%M%S", localtime())
@@ -1051,30 +1060,41 @@ class pipeline():
                 _print_banner()
                 print('Both cosmological and astrophysical parameters are fixed.\n')
                 
-                if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
-                    self.Z_eval=np.array(self.Z_eval)
-                    if self.Z_eval[1]>self.Z_eval[0]:
-                        self.Z_eval = self.Z_eval[::-1]
-                elif self.Z_eval==None:
-                    self.Z_eval = np.linspace(1501,6,1500)
-                else:
-                    print('\033[31mError! Z_eval not recognised!\033[00m')
-                    sys.exit()
-                
                 st = time.process_time()
                 
                 myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
 
+                Z_temp = Z_default
+                if self.Z_eval!=None:
+                    if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
+                        print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
+                        print('Terminating ...\033[00m')
+                        sys.exit()
+                    else:
+                        Z_temp = self.Z_eval
+
                 print('Obtaining the thermal and ionisation history ...')
-                sol = myobj.history_solver(Z_eval=self.Z_eval)
+                sol = myobj.history_solver(Z_eval=Z_default)
                 
-                x_glob = sol[1] + (1-sol[1])*sol[0]
+                xe = sol[0]
+                Q_Hii = sol[1]
+                Tk = sol[2]
+
+                if self.Z_eval!= None:
+                    splxe = CubicSpline(Z_default, xe)
+                    xe = splxe(self.Z_eval)
+                    splQ = CubicSpline(Z_default, Q_Hii)
+                    Q_Hii = splQ(self.Z_eval)
+                    splTk = CubicSpline(Z_default, Tk)
+                    Tk = splTk(self.Z_eval)
+
+                x_gaif = Q_Hii + (1-Q_Hii)*xe
 
                 print('Obtaining spin temperature ...')
-                Ts = myobj.hyfi_spin_temp(self.Z_eval,x_glob,sol[2])
+                Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=x_gaif,Tk=Tk)
 
                 print('Computing the 21-cm signal ...')
-                T21 = myobj.hyfi_twentyone_cm(self.Z_eval,x_glob,sol[2])
+                T21_mod1 = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=x_gaif,Tk=Tk)
                 
                 print('Done.')
 
@@ -1086,13 +1106,13 @@ class pipeline():
                 T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
                 
-                np.save(xe_save_name,sol[0])
-                np.save(Q_save_name,sol[1])
-                np.save(Tk_save_name,sol[2])
+                np.save(xe_save_name,xe)
+                np.save(Q_save_name,Q_Hii)
+                np.save(Tk_save_name,Tk)
                 np.save(Ts_save_name,Ts)
-                np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(self.Z_eval))
-                np.save(T21_save_name,T21)
-                np.save(z_save_name,self.Z_eval)
+                np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
+                np.save(T21_save_name,T21_mod1)
+                np.save(z_save_name,Z_temp)
                 
                 print('\033[32m1+z, xe, Q_HII, Tk, Ts, T_CMB, and T_21 have been saved into folder:',self.path,'\033[00m')
                 
@@ -1103,9 +1123,14 @@ class pipeline():
 
                 #========================================================
                 #Writing to a summary file
-                max_T21 = np.min(T21)
-                max_ind = np.where(T21==max_T21)
-                [max_z] = self.Z_eval[max_ind]
+                max_T21 = np.min(T21_mod1)
+                max_ind = np.where(T21_mod1==max_T21)
+                [max_z] = Z_temp[max_ind]
+
+                idx = np.argmin(np.abs(Q_Hii-0.5))
+                z50 = Z_temp[idx]-1
+                idx = np.where(Q_Hii>=0.98)[0][0]
+                z100 = Z_temp[idx]-1
 
                 sumfile = self.path+"summary_"+self.timestamp+".txt"
                 myfile = open(sumfile, "w")
@@ -1122,7 +1147,8 @@ class pipeline():
                 myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
                 myfile.write('\n')
                 myfile.write('\nParameters given:\n')
-                myfile.write('Ho = {}'.format(self.Ho))
+                myfile.write('-----------------')
+                myfile.write('\nHo = {}'.format(self.Ho))
                 myfile.write('\nOm_m = {}'.format(self.Om_m))
                 myfile.write('\nOm_b = {}'.format(self.Om_b))
                 myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
@@ -1132,7 +1158,10 @@ class pipeline():
                 myfile.write('\nfesc = {}'.format(self.fesc))
                 myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
                 myfile.write('\n')
-                myfile.write('\nStrongest signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
+                myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
+                myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
+                myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
+                myfile.write('\n')
                 myfile.close()
                 #========================================================
 
@@ -1144,61 +1173,71 @@ class pipeline():
             if cpu_ind==0:
                 _print_banner()
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
-            
-            if(n_cpu==1):
-                print("\033[91mBetter to parallelise. Eg. 'mpirun -np 4 python3 %s', where 4 specifies the number of tasks.\033[00m" %(sys.argv[0]))
-
-            if cpu_ind==0: print('\nGenerating once the thermal and ionisation history for dark ages ...')
+                print('\nGenerating once the thermal and ionisation history for dark ages ...')
             
             myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[0],fX=self.fX[0],fesc=self.fesc[0],Tmin_vir=self.Tmin_vir[0], hmf_name=self.hmf_name)
 
             Z_da = np.linspace(1501,Zstar,1400)
-            sol_da = myobj_da.history_solver(Z_start=1501,Z_end=Zstar, Z_eval=Z_da)
+            sol_da = myobj_da.history_solver(Z_eval=Z_da)
             xe_da = sol_da[0]
             Tk_da = sol_da[2]
 
-            if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
-                self.Z_eval=np.array(self.Z_eval)
-                if self.Z_eval[1]>self.Z_eval[0]:
-                    self.Z_eval = self.Z_eval[::-1]
-                if self.Z_eval[0]>self.Zstar:
-                    print('Error: first value should be below or equal to Zstar (= 60)')
+            Z_cd = np.linspace(Zstar,Z_end,100)
+            Z_temp = Z_cd
+            if self.Z_eval!=None:
+                if (self.Z_eval[0]>Zstar or self.Z_eval[-1]<Z_end):
+                    print('\033[31mYour requested redshift values should satisfy ',Zstar,'>1+z>',Z_end)
+                    print('Terminating ...\033[00m')
                     sys.exit()
-            elif self.Z_eval==None:
-                self.Z_eval = np.linspace(Zstar,6,200)
+                else:
+                    Z_temp = self.Z_eval
 
-            n_values=len(self.Z_eval)
+            n_values = len(Z_temp)
             
             n_mod = _no_of_mdls(self.astro)
             arr = np.arange(n_mod)
             arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21 = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            T21_cd = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
             if cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models ...\n')
 
             st = time.process_time()
-            for i in range(n_mod):
+            for i in tqdm(range(n_mod)):
                 if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
                     ind=np.where(arr==i)
 
                     myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
-                    sol_cd = myobj_cd.history_solver(Z_start=Zstar,Z_end=6,Z_eval=self.Z_eval,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                    x_glob = sol_cd[1] + (1-sol_cd[1])*sol_cd[0]
-                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=self.Z_eval,xe=x_glob,Tk=sol_cd[2])
+                    sol_cd = myobj_cd.history_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
+                    
+                    xe_cd = sol_cd[0]
+                    Q_cd = sol_cd[1]
+                    Tk_cd = sol_cd[2]
+
+                    if self.Z_eval!= None:
+                        splxe = CubicSpline(Z_cd, xe_cd)
+                        xe_cd = splxe(self.Z_eval)
+                        splQ = CubicSpline(Z_cd, Q_cd)
+                        Q_cd = splQ(self.Z_eval)
+                        splTk = CubicSpline(Z_cd, Tk_cd)
+                        Tk_cd = splTk(self.Z_eval)
+                        
+
+                    x_gaif = Q_cd + (1-Q_cd)*xe_cd
+                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=x_gaif,Tk=Tk_cd)
             
             comm.Barrier()
             if cpu_ind!=0:
-                comm.send(T21, dest=0)
+                comm.send(T21_cd, dest=0)
             else:
                 print('Done.')
                 for j in range(1,n_cpu):
-                    T21 = T21 + comm.recv(source=j)
+                    T21_cd = T21_cd + comm.recv(source=j)
                 
                 T21_save_name = self.path+'T21_'+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))
                 z_save_name = self.path+'one_plus_z'
                 
-                np.save(T21_save_name,T21)
-                np.save(z_save_name,self.Z_eval)
+                np.save(T21_save_name,T21_cd)
+                np.save(z_save_name,Z_temp)
                 print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 
                 et = time.process_time()
@@ -1236,6 +1275,7 @@ class pipeline():
                 myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
                 myfile.write('\n\n{} models generated'.format(n_mod))
                 myfile.write('Number of CPU(s) = \n{}'.format(n_cpu))
+                myfile.write('\n')
                 myfile.close()
                 #========================================================
 
@@ -1247,49 +1287,58 @@ class pipeline():
                 _print_banner()
                 print('Both cosmological and astrophysical parameters are varied.')
             
-            if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
-                self.Z_eval=np.array(self.Z_eval)
-                if self.Z_eval[1]>self.Z_eval[0]:
-                    self.Z_eval = self.Z_eval[::-1]
-                if self.Z_eval[0]>1501 or self.Z_eval[-1]<6:
-                    print('Error: redshift values not within the range')
+
+            Z_temp = Z_default
+            if self.Z_eval!=None:
+                if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
+                    print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
+                    print('Terminating ...\033[00m')
                     sys.exit()
-            elif self.Z_eval==None:
-                self.Z_eval = np.linspace(1501,6,2000)
-            
-            n_values=len(self.Z_eval)
-                
-            if(n_cpu==1):
-                print('Error: you want to generate global signals for multiple parameter values.')
-                print("Run as, say, 'mpirun -n 4 python3 %s', where 4 specifies the number of CPUs." %(sys.argv[0]))
-                sys.exit()		
+                else:
+                    Z_temp = self.Z_eval
+
+            n_values = len(Z_temp)
             
             n_mod = _no_of_mdls(self.astro)*_no_of_mdls(self.cosmo)
             arr = np.arange(n_mod)
             arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
             if cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
             
-            for i in range(n_mod):
+            for i in tqdm(range(n_mod)):
                 if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
                     ind=np.where(arr==i)
 
                     myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],Tcmbo=self.Tcmbo[ind[3][0]],Yp=self.Yp[ind[4][0]],falp=self.falp[ind[5][0]],fX=self.fX[ind[6][0]],fesc=self.fesc[ind[7][0]],Tmin_vir=self.Tmin_vir[ind[8][0]], hmf_name=self.hmf_name)
-                    sol = myobj.history_solver(Z_start=1501,Z_end=6,Z_eval=self.Z_eval)
-                    x_glob = sol[1] + (1-sol[1])*sol[0]
-                    T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],:] = myobj.hyfi_twentyone_cm(Z=self.Z_eval,xe=x_glob,Tk=sol[2])
+                    sol = myobj.history_solver(Z_eval=Z_default)
+
+                    xe = sol[0]
+                    Q_Hii = sol[1]
+                    Tk = sol[2]
+
+                    if self.Z_eval!= None:
+                        splxe = CubicSpline(Z_default, xe)
+                        xe = splxe(self.Z_eval)
+                        splQ = CubicSpline(Z_default, Q_Hii)
+                        Q_Hii = splQ(self.Z_eval)
+                        splTk = CubicSpline(Z_default, Tk)
+                        Tk = splTk(self.Z_eval)
+
+                    x_gaif = Q_Hii + (1-Q_Hii)*xe
+                    T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=x_gaif,Tk=Tk)
             
             comm.Barrier()
             if cpu_ind!=0:
-                comm.send(T21, dest=0)
+                comm.send(T21_mod3, dest=0)
             else:
                 print('Done.\n')
                 for j in range(1,n_cpu):
-                    T21 = T21 + comm.recv(source=j)
+                    T21_mod3 = T21_mod3 + comm.recv(source=j)
+                
                 save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))+'.npy'
-                np.save(save_name,T21)
+                np.save(save_name,T21_mod3)
                 
                 print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 
@@ -1327,6 +1376,7 @@ class pipeline():
                 myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
                 myfile.write('\n\n{} models generated'.format(n_mod))
                 myfile.write('Number of CPU(s) = \n{}'.format(n_cpu))
+                myfile.write('\n')
                 myfile.close()
                 #========================================================
 
