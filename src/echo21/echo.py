@@ -808,15 +808,18 @@ class main():
         '''
         return 20.81*Z**-1.1
 
-    def reion_tau(self,Zreion):
+    def reion_tau(self,Z,Q):
         '''
-        Compute the Thomson-scattering optical depth up to the redshift of full reionization.
+        Compute the Thomson-scattering optical depth up to a 1+redshift=Z.
 
         Arguments
         ---------
-        Zreion : float
-            The redshift+1 when the Universe was fully ionized.
+        Z : float
+            The 1+redshift to which you want to calculate :math:`\\tau_{\\mathrm{e}}}`.
         
+        Q : float
+            The volume-filling factor. This should be the solution for default redshift range. Saved as ``Q_default``.
+
         Returns
         -------
 
@@ -824,9 +827,36 @@ class main():
             :math:`\\tau_{\\mathrm{e}}}`
 
         '''
-        tau = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+2*self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Zreion**3)-1)
-        return tau
-    
+        idx1 = np.where(Q>=0.98)[0][0]
+        Zreion = Z_default[idx1]
+
+        if type(Z) == int or type(Z)==float:
+            idx2 = np.argmin(np.abs(Z_default-Z))
+            if Z>Zreion:
+                Z_int = Z_default[idx2:idx1][::-1]
+                Q_int = Q[idx2:idx1][::-1]
+                tau1 = cE*sigT*self.basic_cosmo_nH(1)*np.trapezoid(Q_int*(1+self.basic_cosmo_xHe())*Z_int**2/self.basic_cosmo_H(Z_int),Z_int)
+                tau2 = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Zreion**3)-1)
+                tau = tau1 + tau2
+            else:
+                tau = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Z**3)-1)
+            return tau
+        elif type(Z)==np.ndarray or type(Z)==list:
+            i = 0
+            numofZ = len(Z)
+            tau=np.zeros(numofZ)
+            for X in Z:
+                idx2 = np.argmin(np.abs(Z_default-X))
+                if X>Zreion:
+                    Z_int = Z_default[idx2:idx1][::-1]
+                    Q_int = Q[idx2:idx1][::-1]
+                    tau1 = cE*sigT*self.basic_cosmo_nH(1)*np.trapezoid(Q_int*(1+self.basic_cosmo_xHe())*Z_int**2/self.basic_cosmo_H(Z_int),Z_int)
+                    tau2 = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Zreion**3)-1)
+                    tau[i] = tau1 + tau2
+                else:
+                    tau[i] = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*X**3)-1)
+                i=i+1
+            return tau
     #End of functions related to reionization.
     #========================================================================================================
     
@@ -1062,6 +1092,10 @@ class pipeline():
     '''
     def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fesc':0.1,'Tmin_vir':1e4},Z_eval=None,path='', hmf_name='press74'):
 
+        self.comm = MPI.COMM_WORLD
+        self.cpu_ind = self.comm.Get_rank()
+        self.n_cpu = self.comm.Get_size()  
+
         self.cosmo=cosmo
         self.astro=astro
 
@@ -1111,26 +1145,23 @@ class pipeline():
         self.hmf_name = hmf_name
 
         self.path=path
-        if os.path.isdir(self.path)==False:
-            print('The requested directory does not exist. Creating ',self.path)
+        if self.cpu_ind==0:
+            if os.path.isdir(self.path)==False:
+                print('The requested directory does not exist. Creating ',self.path)
+                os.mkdir(self.path)
+            
+            self.timestamp = strftime("%Y%m%d%H%M%S", localtime())
+            self.path = self.path + 'output_'+self.timestamp+'/'
             os.mkdir(self.path)
-        
-        self.timestamp = strftime("%Y%m%d%H%M%S", localtime())
-        self.path = self.path + 'output_'+self.timestamp+'/'
-        os.mkdir(self.path)
 
-        self.formatted_timestamp = self.timestamp[8:10]+':'+self.timestamp[10:12]+':'+self.timestamp[12:14]+' '+self.timestamp[6:8]+'/'+self.timestamp[4:6]+'/'+ self.timestamp[:4]
+            self.formatted_timestamp = self.timestamp[8:10]+':'+self.timestamp[10:12]+':'+self.timestamp[12:14]+' '+self.timestamp[6:8]+'/'+self.timestamp[4:6]+'/'+ self.timestamp[:4]
         return None
 
-    def glob_sig(self):
-
-        comm = MPI.COMM_WORLD
-        cpu_ind = comm.Get_rank()
-        n_cpu = comm.Get_size()        
+    def glob_sig(self):      
                     
         if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
-            if cpu_ind==0:
+            if self.cpu_ind==0:
                 _print_banner()
                 print('Both cosmological and astrophysical parameters are fixed.\n')
                 
@@ -1155,6 +1186,8 @@ class pipeline():
                 Q_Hii = sol[1]
                 Tk = sol[2]
                 
+                Q_Hii_default = Q_Hii  #We need this for computing CMB optical depth
+
                 if self.Z_eval is not None:
                     splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
                     xe = splxe(self.Z_eval)
@@ -1172,6 +1205,7 @@ class pipeline():
 
                 xe_save_name = self.path+'xe'
                 Q_save_name = self.path+'Q'
+                Q_default_save_name = self.path+'Q_default'
                 Tk_save_name = self.path+'Tk'
                 Ts_save_name = self.path+'Ts'
                 Tcmb_save_name = self.path+'Tcmb'
@@ -1180,6 +1214,7 @@ class pipeline():
                 
                 np.save(xe_save_name,xe)
                 np.save(Q_save_name,Q_Hii)
+                np.save(Q_default_save_name,Q_Hii_default)
                 np.save(Tk_save_name,Tk)
                 np.save(Ts_save_name,Ts)
                 np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
@@ -1199,15 +1234,15 @@ class pipeline():
                 max_ind = np.where(T21_mod1==max_T21)
                 [max_z] = Z_temp[max_ind]
 
-                idx = np.argmin(np.abs(Q_Hii-0.5))
-                z50 = Z_temp[idx]-1
+                idx = np.argmin(np.abs(Q_Hii_default-0.5))
+                z50 = Z_default[idx]-1
                 z100 = None
                 try:
-                    idx = np.where(Q_Hii>=0.98)[0][0]
-                    z100 = Z_temp[idx]-1
-                    tau_e = myobj.reion_tau(1+z100)
+                    idx = np.where(Q_Hii_default>=0.98)[0][0]
+                    z100 = Z_default[idx]-1
+                    tau_e = myobj.reion_tau(60,Q_Hii_default)
                 except:
-                    print('\nReionisation did not complete within the given z range.')
+                    print('\nReionisation did not complete by z=5.')
                 
                 sumfile = self.path+"summary_"+self.timestamp+".txt"
                 myfile = open(sumfile, "w")
@@ -1238,7 +1273,7 @@ class pipeline():
                 myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
                 if z100!=None:
                     myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
-                    myfile.write("\nThomson-scattering optical depth up to the completion of reionisation = {:.4f}".format(tau_e))
+                    myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
 
                 myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
                 myfile.write('\n')
@@ -1250,7 +1285,7 @@ class pipeline():
             
         elif self.model==1:
         #Cosmological parameters are fixed so dark ages is solved only once.
-            if cpu_ind==0:
+            if self.cpu_ind==0:
                 _print_banner()
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
                 print('\nGenerating once the thermal and ionisation history for dark ages ...')
@@ -1279,11 +1314,11 @@ class pipeline():
             arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
             T21_cd = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
-            if cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models ...\n')
+            if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models ...\n')
 
             st = time.process_time()
             for i in tqdm(range(n_mod)):
-                if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
+                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                     ind=np.where(arr==i)
 
                     myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
@@ -1302,13 +1337,13 @@ class pipeline():
 
                     T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Tk=Tk_cd)
             
-            comm.Barrier()
-            if cpu_ind!=0:
-                comm.send(T21_cd, dest=0)
+            self.comm.Barrier()
+            if self.cpu_ind!=0:
+                self.comm.send(T21_cd, dest=0)
             else:
                 print('Done.')
-                for j in range(1,n_cpu):
-                    T21_cd = T21_cd + comm.recv(source=j)
+                for j in range(1,self.n_cpu):
+                    T21_cd = T21_cd + self.comm.recv(source=j)
                 
                 T21_save_name = self.path+'T21_'+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))
                 z_save_name = self.path+'one_plus_z'
@@ -1351,7 +1386,7 @@ class pipeline():
                 myfile.write('\nfesc = {}'.format(self.fesc))
                 myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
                 myfile.write('\n\n{} models generated'.format(n_mod))
-                myfile.write('Number of CPU(s) = \n{}'.format(n_cpu))
+                myfile.write('\nNumber of CPU(s) = \n{}'.format(self.n_cpu))
                 myfile.write('\n')
                 myfile.close()
                 #========================================================
@@ -1360,7 +1395,7 @@ class pipeline():
 
         elif self.model==3:
 
-            if cpu_ind==0:
+            if self.cpu_ind==0:
                 _print_banner()
                 print('Both cosmological and astrophysical parameters are varied.')
             
@@ -1381,11 +1416,11 @@ class pipeline():
             arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
             T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
-            if cpu_ind==0: print('\nGenerating',n_mod,'models ...')
+            if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
             
             for i in tqdm(range(n_mod)):
-                if (cpu_ind == int(i/int(n_mod/n_cpu))%n_cpu):
+                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                     ind=np.where(arr==i)
 
                     myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],Tcmbo=self.Tcmbo[ind[3][0]],Yp=self.Yp[ind[4][0]],falp=self.falp[ind[5][0]],fX=self.fX[ind[6][0]],fesc=self.fesc[ind[7][0]],Tmin_vir=self.Tmin_vir[ind[8][0]], hmf_name=self.hmf_name)
@@ -1404,13 +1439,13 @@ class pipeline():
 
                     T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
             
-            comm.Barrier()
-            if cpu_ind!=0:
-                comm.send(T21_mod3, dest=0)
+            self.comm.Barrier()
+            if self.cpu_ind!=0:
+                self.comm.send(T21_mod3, dest=0)
             else:
                 print('Done.\n')
-                for j in range(1,n_cpu):
-                    T21_mod3 = T21_mod3 + comm.recv(source=j)
+                for j in range(1,self.n_cpu):
+                    T21_mod3 = T21_mod3 + self.comm.recv(source=j)
                 
                 save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))+'.npy'
                 np.save(save_name,T21_mod3)
@@ -1450,7 +1485,7 @@ class pipeline():
                 myfile.write('\nfesc = {}'.format(self.fesc))
                 myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
                 myfile.write('\n\n{} models generated'.format(n_mod))
-                myfile.write('Number of CPU(s) = \n{}'.format(n_cpu))
+                myfile.write('\nNumber of CPU(s) = \n{}'.format(self.n_cpu))
                 myfile.write('\n')
                 myfile.close()
                 #========================================================
