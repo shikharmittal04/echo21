@@ -1291,12 +1291,12 @@ class pipeline():
             
             myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[0],fX=self.fX[0],fesc=self.fesc[0],Tmin_vir=self.Tmin_vir[0], hmf_name=self.hmf_name)
 
-            Z_da = np.linspace(1501,Zstar,1400)
+            Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.history_solver(Z_eval=Z_da)
             xe_da = sol_da[0]
             Tk_da = sol_da[2]
 
-            Z_cd = np.linspace(Zstar,Z_end,100)
+            Z_cd = 1/np.linspace(1/Zstar,1/Z_end,200)
             Z_temp = Z_cd
             if self.Z_eval is not None:
                 if (self.Z_eval[0]>Zstar or self.Z_eval[-1]<Z_end):
@@ -1327,7 +1327,7 @@ class pipeline():
                     Q_cd = sol_cd[1]
                     Tk_cd = sol_cd[2]
 
-                    if np.any(self.Z_eval)!= None:
+                    if self.Z_eval is not None:
                         splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
                         xe_cd = splxe(self.Z_eval)
                         Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
@@ -1356,6 +1356,105 @@ class pipeline():
                 elapsed_time = et - st
                 print('\nProcessing time: %.2f seconds' %elapsed_time)
 
+                #========================================================
+                #Writing to a summary file
+
+                sumfile = self.path+"summary_"+self.timestamp+".txt"
+                myfile = open(sumfile, "w")
+                myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
+██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
+█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
+██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
+███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
+╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
+                myfile.write('Shikhar Mittal, 2024\n')
+                myfile.write('\nThis is output_'+self.timestamp)
+                myfile.write('\n------------------------------\n')
+                myfile.write('\nTime stamp: '+self.formatted_timestamp)
+                myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
+                myfile.write('\n')
+                myfile.write('\nParameters given:\n')
+                myfile.write('-----------------')
+                myfile.write('\nHo = {}'.format(self.Ho))
+                myfile.write('\nOm_m = {}'.format(self.Om_m))
+                myfile.write('\nOm_b = {}'.format(self.Om_b))
+                myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
+                myfile.write('\nYp = {}'.format(self.Yp))
+                myfile.write('\n\nfalp = {}'.format(self.falp))
+                myfile.write('\nfX = {}'.format(self.fX))
+                myfile.write('\nfesc = {}'.format(self.fesc))
+                myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
+                myfile.write('\n\n{} models generated'.format(n_mod))
+                myfile.write('\nNumber of CPU(s) = \n{}'.format(self.n_cpu))
+                myfile.write('\n')
+                myfile.close()
+                #========================================================
+
+                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
+
+        elif self.model==2:
+
+            if self.cpu_ind==0:
+                _print_banner()
+                print('Only cosmological parameters are varied.')
+            
+
+            Z_temp = Z_default
+            if self.Z_eval is not None:
+                if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
+                    print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
+                    print('Terminating ...\033[00m')
+                    sys.exit()
+                else:
+                    Z_temp = self.Z_eval
+
+            n_values = len(Z_temp)
+            
+            n_mod = _no_of_mdls(self.cosmo)
+            arr = np.arange(n_mod)
+            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp)])
+            T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),n_values))
+            
+            if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
+            st = time.process_time()
+            
+            for i in range(n_mod):
+                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                    ind=np.where(arr==i)
+
+                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],Tcmbo=self.Tcmbo[ind[3][0]],Yp=self.Yp[ind[4][0]],falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
+                    sol = myobj.history_solver(Z_eval=Z_default)
+
+                    xe = sol[0]
+                    Q_Hii = sol[1]
+                    Tk = sol[2]
+
+                    if self.Z_eval is not None:
+                        splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                        xe = splxe(self.Z_eval)
+                        Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
+                        splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                        Tk = splTk(self.Z_eval)
+
+                    T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
+            
+            self.comm.Barrier()
+            if self.cpu_ind!=0:
+                self.comm.send(T21_mod2, dest=0)
+            else:
+                print('Done.\n')
+                for j in range(1,self.n_cpu):
+                    T21_mod2 = T21_mod2 + self.comm.recv(source=j)
+                
+                save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+'.npy'
+                np.save(save_name,T21_mod2)
+                
+                print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
+                
+                et = time.process_time()
+                # get the execution time
+                elapsed_time = et - st
+                print('\nProcessing time: %.2f seconds' %elapsed_time)
                 #========================================================
                 #Writing to a summary file
 
@@ -1429,7 +1528,7 @@ class pipeline():
                     Q_Hii = sol[1]
                     Tk = sol[2]
 
-                    if np.any(self.Z_eval)!= None:
+                    if self.Z_eval is not None:
                         splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
                         xe = splxe(self.Z_eval)
                         Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
