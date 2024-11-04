@@ -881,7 +881,6 @@ class main():
             eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
         else:
             if QHII<0.99:
-                #eq2 = 1/self.basic_cosmo_H(Z)*(alpha_A*2*self.basic_cosmo_nH(Z)*xe*QHII) + (1-xe)*(1+self.basic_cosmo_xHe())*fstar*self.fesc*Nion*Z*self.hmf_dfcoll_dz(Z)
                 eq2 = (1/(1-self.Yp))*fstar*self.fesc*Nion*Z*self.hmf_dfcoll_dz(Z) + (1+self.basic_cosmo_xHe())*1/self.basic_cosmo_H(Z)*(alpha_B*self.reion_clump(Z)*self.basic_cosmo_nH(Z)*QHII)
             else:
                 eq2 = 0
@@ -1317,7 +1316,7 @@ class pipeline():
             if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models ...\n')
 
             st = time.process_time()
-            for i in tqdm(range(n_mod)):
+            for i in range(n_mod):
                 if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                     ind=np.where(arr==i)
 
@@ -1419,7 +1418,7 @@ class pipeline():
             if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
             
-            for i in tqdm(range(n_mod)):
+            for i in range(n_mod):
                 if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                     ind=np.where(arr==i)
 
