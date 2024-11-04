@@ -1115,11 +1115,14 @@ class pipeline():
         elif self.model==1:
             self.astro=_to_array(self.astro)
             self.cosmo=_to_float(self.cosmo)
+        elif self.model==2:
+            self.astro=_to_float(self.astro)
+            self.cosmo=_to_array(self.cosmo)
         elif self.model==3:
             self.astro=_to_array(self.astro)
             self.cosmo=_to_array(self.cosmo)
         else:
-            print('Currently not designed to work with varying cosmological parameters only!')
+            print('Impossible!')
             sys.exit()
         
         self.Z_eval = Z_eval
