@@ -12,6 +12,7 @@ from colossus.lss import peaks
 from colossus.lss import mass_function
 from time import localtime, strftime
 from tqdm import tqdm
+from pybaselines import Baseline
 
 #========================================================================================================
 #Universal constants in SI units
@@ -129,6 +130,10 @@ def _gaif(xe,Q):
     '''
     return Q+(1-Q)*xe
 
+def _smoother(x,y):
+    baseline_fitter = Baseline(x_data = x)
+    y = baseline_fitter.imodpoly(y, poly_order=4)[0]
+    return y
 
 class main():
     '''
@@ -702,8 +707,9 @@ class main():
         float
             Compton heating. Units kelvin.
 
-        '''        
-        return (8*sigT*aS)/(3*me*cE)*self.basic_cosmo_Tcmb(Z)**4*xe*(self.basic_cosmo_Tcmb(Z)-Tk)/(self.basic_cosmo_H(Z)*(1+self.basic_cosmo_xHe()+xe))
+        '''
+        compterm = (8*sigT*aS)/(3*me*cE)*self.basic_cosmo_Tcmb(Z)**4*xe*(self.basic_cosmo_Tcmb(Z)-Tk)/(self.basic_cosmo_H(Z)*(1+self.basic_cosmo_xHe()+xe))
+        return compterm
 
 
     def heating_Elya(self,Z,xe,Tk):
@@ -818,7 +824,7 @@ class main():
             The 1+redshift to which you want to calculate :math:`\\tau_{\\mathrm{e}}}`.
         
         Q : float
-            The volume-filling factor. This should be the solution for default redshift range. Saved as ``Q_default``.
+            The volume-filling factor. This should be the solution for default redshift range; in the output folder it would be saved as ``Q_default``.
 
         Returns
         -------
@@ -847,11 +853,11 @@ class main():
             tau=np.zeros(numofZ)
             for X in Z:
                 idx2 = np.argmin(np.abs(Z_default-X))
+                tau2 = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Zreion**3)-1)
                 if X>Zreion:
                     Z_int = Z_default[idx2:idx1][::-1]
                     Q_int = Q[idx2:idx1][::-1]
                     tau1 = cE*sigT*self.basic_cosmo_nH(1)*np.trapezoid(Q_int*(1+self.basic_cosmo_xHe())*Z_int**2/self.basic_cosmo_H(Z_int),Z_int)
-                    tau2 = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Zreion**3)-1)
                     tau[i] = tau1 + tau2
                 else:
                     tau[i] = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*X**3)-1)
@@ -898,12 +904,12 @@ class main():
             Tk_init = self.basic_cosmo_Tcmb(Z_start)
             xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
             
-        Sol = scint.solve_ivp(lambda a, Var: -self.history_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,0,Tk_init],method='Radau',t_eval=1/Z_eval) 
-        
+        Sol = scint.solve_ivp(lambda a, Var: -self.history_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,0,Tk_init],method='Radau',t_eval=1/Z_eval)
+
         #Obtaining the solutions ...
-        xe=Sol.y[0]
-        QHII=Sol.y[1]
-        Tk=Sol.y[2]
+        xe = Sol.y[0]
+        QHII = Sol.y[1]
+        Tk = Sol.y[2]
 
         return [xe,QHII,Tk]
 
@@ -1159,6 +1165,38 @@ class pipeline():
             self.formatted_timestamp = self.timestamp[8:10]+':'+self.timestamp[10:12]+':'+self.timestamp[12:14]+' '+self.timestamp[6:8]+'/'+self.timestamp[4:6]+'/'+ self.timestamp[:4]
         return None
 
+    def _write_summary(self, elapsed_time):
+        '''
+        Given the elapsed time of the code execution write the main summary of the run.
+        '''
+        sumfile = self.path+"summary_"+self.timestamp+".txt"
+        myfile = open(sumfile, "w")
+        myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
+██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
+█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
+██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
+███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
+╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
+        myfile.write('Shikhar Mittal, 2024\n')
+        myfile.write('\nThis is output_'+self.timestamp)
+        myfile.write('\n------------------------------\n')
+        myfile.write('\nTime stamp: '+self.formatted_timestamp)
+        myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
+        myfile.write('\n')
+        myfile.write('\nParameters given:\n')
+        myfile.write('-----------------')
+        myfile.write('\nHo = {}'.format(self.Ho))
+        myfile.write('\nOm_m = {}'.format(self.Om_m))
+        myfile.write('\nOm_b = {}'.format(self.Om_b))
+        myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
+        myfile.write('\nYp = {}'.format(self.Yp))
+        myfile.write('\n\nfalp = {}'.format(self.falp))
+        myfile.write('\nfX = {}'.format(self.fX))
+        myfile.write('\nfesc = {}'.format(self.fesc))
+        myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
+        myfile.write('\n')
+        return myfile
+
     def glob_sig(self):      
                     
         if self.model==0:
@@ -1188,6 +1226,9 @@ class pipeline():
                 Q_Hii = sol[1]
                 Tk = sol[2]
                 
+                #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+
                 Q_Hii_default = Q_Hii  #We need this for computing CMB optical depth
 
                 if self.Z_eval is not None:
@@ -1246,32 +1287,8 @@ class pipeline():
                 except:
                     print('\nReionisation did not complete by z=5.')
                 
-                sumfile = self.path+"summary_"+self.timestamp+".txt"
-                myfile = open(sumfile, "w")
-                myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-                myfile.write('Shikhar Mittal, 2024\n')
-                myfile.write('\nThis is output_'+self.timestamp)
-                myfile.write('\n------------------------------\n')
-                myfile.write('\nTime stamp: '+self.formatted_timestamp)
-                myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
-                myfile.write('\n')
-                myfile.write('\nParameters given:\n')
-                myfile.write('-----------------')
-                myfile.write('\nHo = {}'.format(self.Ho))
-                myfile.write('\nOm_m = {}'.format(self.Om_m))
-                myfile.write('\nOm_b = {}'.format(self.Om_b))
-                myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
-                myfile.write('\nYp = {}'.format(self.Yp))
-                myfile.write('\n\nfalp = {}'.format(self.falp))
-                myfile.write('\nfX = {}'.format(self.fX))
-                myfile.write('\nfesc = {}'.format(self.fesc))
-                myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
-                myfile.write('\n')
+                myfile = self._write_summary(elapsed_time=elapsed_time)
+                
                 myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
                 if z100!=None:
                     myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
@@ -1316,7 +1333,7 @@ class pipeline():
             arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
             T21_cd = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
-            if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models ...\n')
+            if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
 
             st = time.process_time()
             for i in range(n_mod):
@@ -1347,7 +1364,7 @@ class pipeline():
                 for j in range(1,self.n_cpu):
                     T21_cd = T21_cd + self.comm.recv(source=j)
                 
-                T21_save_name = self.path+'T21_'+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))
+                T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
                 
                 np.save(T21_save_name,T21_cd)
@@ -1362,33 +1379,9 @@ class pipeline():
                 #========================================================
                 #Writing to a summary file
 
-                sumfile = self.path+"summary_"+self.timestamp+".txt"
-                myfile = open(sumfile, "w")
-                myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-                myfile.write('Shikhar Mittal, 2024\n')
-                myfile.write('\nThis is output_'+self.timestamp)
-                myfile.write('\n------------------------------\n')
-                myfile.write('\nTime stamp: '+self.formatted_timestamp)
-                myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
-                myfile.write('\n')
-                myfile.write('\nParameters given:\n')
-                myfile.write('-----------------')
-                myfile.write('\nHo = {}'.format(self.Ho))
-                myfile.write('\nOm_m = {}'.format(self.Om_m))
-                myfile.write('\nOm_b = {}'.format(self.Om_b))
-                myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
-                myfile.write('\nYp = {}'.format(self.Yp))
-                myfile.write('\n\nfalp = {}'.format(self.falp))
-                myfile.write('\nfX = {}'.format(self.fX))
-                myfile.write('\nfesc = {}'.format(self.fesc))
-                myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
-                myfile.write('\n\n{} models generated'.format(n_mod))
-                myfile.write('\nNumber of CPU(s) = \n{}'.format(self.n_cpu))
+                myfile = self._write_summary(elapsed_time=elapsed_time)
+                myfile.write('\n{} models generated'.format(n_mod))
+                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
                 myfile.write('\n')
                 myfile.close()
                 #========================================================
@@ -1432,6 +1425,9 @@ class pipeline():
                     Q_Hii = sol[1]
                     Tk = sol[2]
 
+                    #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                    Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+
                     if self.Z_eval is not None:
                         splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
                         xe = splxe(self.Z_eval)
@@ -1449,9 +1445,12 @@ class pipeline():
                 for j in range(1,self.n_cpu):
                     T21_mod2 = T21_mod2 + self.comm.recv(source=j)
                 
-                save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+'.npy'
-                np.save(save_name,T21_mod2)
+                z_save_name = self.path+'one_plus_z'
+                T21_save_name = self.path+'T21'
                 
+                np.save(T21_save_name,T21_mod2)
+                np.save(z_save_name,Z_temp)
+
                 print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 
                 et = time.process_time()
@@ -1461,33 +1460,9 @@ class pipeline():
                 #========================================================
                 #Writing to a summary file
 
-                sumfile = self.path+"summary_"+self.timestamp+".txt"
-                myfile = open(sumfile, "w")
-                myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-                myfile.write('Shikhar Mittal, 2024\n')
-                myfile.write('\nThis is output_'+self.timestamp)
-                myfile.write('\n------------------------------\n')
-                myfile.write('\nTime stamp: '+self.formatted_timestamp)
-                myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
-                myfile.write('\n')
-                myfile.write('\nParameters given:\n')
-                myfile.write('-----------------')
-                myfile.write('\nHo = {}'.format(self.Ho))
-                myfile.write('\nOm_m = {}'.format(self.Om_m))
-                myfile.write('\nOm_b = {}'.format(self.Om_b))
-                myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
-                myfile.write('\nYp = {}'.format(self.Yp))
-                myfile.write('\n\nfalp = {}'.format(self.falp))
-                myfile.write('\nfX = {}'.format(self.fX))
-                myfile.write('\nfesc = {}'.format(self.fesc))
-                myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
-                myfile.write('\n\n{} models generated'.format(n_mod))
-                myfile.write('\nNumber of CPU(s) = \n{}'.format(self.n_cpu))
+                myfile = self._write_summary(elapsed_time=elapsed_time)
+                myfile.write('\n{} models generated'.format(n_mod))
+                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
                 myfile.write('\n')
                 myfile.close()
                 #========================================================
@@ -1531,6 +1506,10 @@ class pipeline():
                     Q_Hii = sol[1]
                     Tk = sol[2]
 
+
+                    #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                    Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+
                     if self.Z_eval is not None:
                         splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
                         xe = splxe(self.Z_eval)
@@ -1548,9 +1527,13 @@ class pipeline():
                 for j in range(1,self.n_cpu):
                     T21_mod3 = T21_mod3 + self.comm.recv(source=j)
                 
-                save_name = self.path+'T21_'+str(np.size(self.Ho))+str(np.size(self.Om_m))+str(np.size(self.Om_b))+str(np.size(self.Tcmbo))+str(np.size(self.Yp))+str(np.size(self.falp))+str(np.size(self.fX))+str(np.size(self.fesc))+str(np.size(self.Tmin_vir))+'.npy'
-                np.save(save_name,T21_mod3)
+                z_save_name = self.path+'one_plus_z'
+                T21_save_name = self.path+'T21'
                 
+                np.save(z_save_name,Z_temp)
+                np.save(T21_save_name,T21_mod3)
+                
+
                 print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 
                 et = time.process_time()
@@ -1560,33 +1543,9 @@ class pipeline():
                 #========================================================
                 #Writing to a summary file
 
-                sumfile = self.path+"summary_"+self.timestamp+".txt"
-                myfile = open(sumfile, "w")
-                myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-                myfile.write('Shikhar Mittal, 2024\n')
-                myfile.write('\nThis is output_'+self.timestamp)
-                myfile.write('\n------------------------------\n')
-                myfile.write('\nTime stamp: '+self.formatted_timestamp)
-                myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
-                myfile.write('\n')
-                myfile.write('\nParameters given:\n')
-                myfile.write('-----------------')
-                myfile.write('\nHo = {}'.format(self.Ho))
-                myfile.write('\nOm_m = {}'.format(self.Om_m))
-                myfile.write('\nOm_b = {}'.format(self.Om_b))
-                myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
-                myfile.write('\nYp = {}'.format(self.Yp))
-                myfile.write('\n\nfalp = {}'.format(self.falp))
-                myfile.write('\nfX = {}'.format(self.fX))
-                myfile.write('\nfesc = {}'.format(self.fesc))
-                myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
-                myfile.write('\n\n{} models generated'.format(n_mod))
-                myfile.write('\nNumber of CPU(s) = \n{}'.format(self.n_cpu))
+                myfile = self._write_summary(elapsed_time=elapsed_time)
+                myfile.write('\n{} models generated'.format(n_mod))
+                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
                 myfile.write('\n')
                 myfile.close()
                 #========================================================
