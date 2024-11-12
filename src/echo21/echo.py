@@ -2,16 +2,15 @@ import scipy.special as scsp
 import scipy.integrate as scint
 from scipy.interpolate import CubicSpline
 import numpy as np
-import matplotlib.pyplot as plt
 from mpi4py import MPI
 import sys
 import time
 import os
+import pickle
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
 from time import localtime, strftime
-from tqdm import tqdm
 from pybaselines import Baseline
 
 #========================================================================================================
@@ -153,7 +152,7 @@ class main():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1.0,fX=0.1,fesc=0.1,Tmin_vir=1e4,cosmo=None,astro=None, hmf_name='press74',sfe_name='const'):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,falp=1.0,fX=0.1,fesc=0.1,Tmin_vir=1e4,cosmo=None,astro=None, hmf_name='press74',sfe_name='const'):
         '''
         Ho : float, optional
             Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
@@ -164,6 +163,12 @@ class main():
         Om_b : float, optical
             Relative baryon density. Default value ``0.049``.            
         
+        sig8: float, optional
+            Amplitude of density fluctuations. Default value ``0.811``.
+        
+        ns: float, optional
+            Spectral index of the primordial scalar spectrum. Default value ``0.965``. 
+
         Tcmbo : float, optional
             CMB temperature today in kelvin. Default value ``2.725``.
         
@@ -191,6 +196,8 @@ class main():
             Ho = cosmo['Ho']
             Om_m = cosmo['Om_m']
             Om_b = cosmo['Om_b']
+            sig8 = cosmo['sig8']
+            ns = cosmo['ns']
             Tcmbo = cosmo['Tcmbo']
             Yp = cosmo['Yp']
         if astro!=None:
@@ -202,6 +209,8 @@ class main():
         self.Ho = Ho
         self.Om_m = Om_m
         self.Om_b = Om_b
+        self.sig8 = sig8
+        self.ns = ns
         self.Tcmbo = Tcmbo
         self.Yp = Yp
         
@@ -213,7 +222,7 @@ class main():
         self.hmf_name=hmf_name
         self.sfe_name=sfe_name
 
-        self.my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': 0.811, 'ns': 0.965,'relspecies': True,'Tcmb0': Tcmbo}
+        self.my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
         cosmology.setCosmology('my_cosmo', self.my_cosmo)
         self.h100 = self.Ho/100
 
@@ -1095,11 +1104,11 @@ class pipeline():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fesc':0.1,'Tmin_vir':1e4},Z_eval=None,path='', hmf_name='press74'):
+    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fesc':0.1,'Tmin_vir':1e4},Z_eval=None,path='', hmf_name='press74'):
 
         self.comm = MPI.COMM_WORLD
         self.cpu_ind = self.comm.Get_rank()
-        self.n_cpu = self.comm.Get_size()  
+        self.n_cpu = self.comm.Get_size()
 
         self.cosmo=cosmo
         self.astro=astro
@@ -1142,6 +1151,8 @@ class pipeline():
         self.Ho = cosmo['Ho']
         self.Om_m = cosmo['Om_m']
         self.Om_b = cosmo['Om_b']
+        self.sig8 = cosmo['sig8']
+        self.ns = cosmo['ns']
         self.Tcmbo = cosmo['Tcmbo']
         self.Yp = cosmo['Yp']
         
@@ -1188,6 +1199,8 @@ class pipeline():
         myfile.write('\nHo = {}'.format(self.Ho))
         myfile.write('\nOm_m = {}'.format(self.Om_m))
         myfile.write('\nOm_b = {}'.format(self.Om_b))
+        myfile.write('\nsig8 = {}'.format(self.sig8))
+        myfile.write('\nns = {}'.format(self.ns))
         myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
         myfile.write('\nYp = {}'.format(self.Yp))
         myfile.write('\n\nfalp = {}'.format(self.falp))
@@ -1198,7 +1211,7 @@ class pipeline():
         return myfile
 
     def glob_sig(self):      
-                    
+        #completed = 0
         if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
@@ -1207,7 +1220,7 @@ class pipeline():
                 
                 st = time.process_time()
                 
-                myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
+                myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
 
                 Z_temp = Z_default
 
@@ -1254,7 +1267,7 @@ class pipeline():
                 Tcmb_save_name = self.path+'Tcmb'
                 T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
-                
+
                 np.save(xe_save_name,xe)
                 np.save(Q_save_name,Q_Hii)
                 np.save(Q_default_save_name,Q_Hii_default)
@@ -1309,7 +1322,7 @@ class pipeline():
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
                 print('\nGenerating once the thermal and ionisation history for dark ages ...')
             
-            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[0],fX=self.fX[0],fesc=self.fesc[0],Tmin_vir=self.Tmin_vir[0], hmf_name=self.hmf_name)
+            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[0],fX=self.fX[0],fesc=self.fesc[0],Tmin_vir=self.Tmin_vir[0], hmf_name=self.hmf_name)
 
             Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.history_solver(Z_eval=Z_da)
@@ -1335,9 +1348,41 @@ class pipeline():
             
             if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
 
-            st = time.process_time()
+            st = time.process_time()            
             for i in range(n_mod):
                 if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                    ind=np.where(arr==i)
+
+                    myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
+                    sol_cd = myobj_cd.history_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
+                    
+                    xe_cd = sol_cd[0]
+                    Q_cd = sol_cd[1]
+                    Tk_cd = sol_cd[2]
+
+                    if self.Z_eval is not None:
+                        splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
+                        xe_cd = splxe(self.Z_eval)
+                        Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
+                        splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
+                        Tk_cd = splTk(self.Z_eval)
+
+                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Tk=Tk_cd)
+                    '''
+                    #    self.comm.send('done', dest=0, tag=1)
+                    #    num_models_complete +=1
+                    #    if num_models_complete==int(n_mod/self.n_cpu):
+                    #        break
+            else:
+                pbar = tqdm(total=n_mod, desc="Processing Models")
+                while completed < int(n_mod/self.n_cpu)*(self.n_cpu-1):
+                    # Receive a message from any worker
+                    status = MPI.Status()
+                    self.comm.recv(source=MPI.ANY_SOURCE, tag=1, status=status)
+                    completed += 1
+                    pbar.update(1)
+
+                for i in np.concatenate((range(int(n_mod/self.n_cpu)),range(int(n_mod/self.n_cpu)*self.n_cpu,n_mod))):
                     ind=np.where(arr==i)
 
                     myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
@@ -1355,12 +1400,15 @@ class pipeline():
                         Tk_cd = splTk(self.Z_eval)
 
                     T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Tk=Tk_cd)
-            
+                    pbar.update(1)
+
+                pbar.close()
+            '''
             self.comm.Barrier()
             if self.cpu_ind!=0:
                 self.comm.send(T21_cd, dest=0)
             else:
-                print('Done.')
+                print('\nDone.')
                 for j in range(1,self.n_cpu):
                     T21_cd = T21_cd + self.comm.recv(source=j)
                 
@@ -1408,8 +1456,8 @@ class pipeline():
             
             n_mod = _no_of_mdls(self.cosmo)
             arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp)])
-            T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),n_values))
+            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp)])
+            T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
             
             if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
@@ -1418,7 +1466,7 @@ class pipeline():
                 if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                     ind=np.where(arr==i)
 
-                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],Tcmbo=self.Tcmbo[ind[3][0]],Yp=self.Yp[ind[4][0]],falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
+                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
                     sol = myobj.history_solver(Z_eval=Z_default)
 
                     xe = sol[0]
@@ -1435,7 +1483,7 @@ class pipeline():
                         splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
                         Tk = splTk(self.Z_eval)
 
-                    T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
+                    T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
             
             self.comm.Barrier()
             if self.cpu_ind!=0:
@@ -1489,8 +1537,8 @@ class pipeline():
             
             n_mod = _no_of_mdls(self.astro)*_no_of_mdls(self.cosmo)
             arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
+            T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             
             if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
@@ -1499,7 +1547,7 @@ class pipeline():
                 if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                     ind=np.where(arr==i)
 
-                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],Tcmbo=self.Tcmbo[ind[3][0]],Yp=self.Yp[ind[4][0]],falp=self.falp[ind[5][0]],fX=self.fX[ind[6][0]],fesc=self.fesc[ind[7][0]],Tmin_vir=self.Tmin_vir[ind[8][0]], hmf_name=self.hmf_name)
+                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],falp=self.falp[ind[7][0]],fX=self.fX[ind[8][0]],fesc=self.fesc[ind[9][0]],Tmin_vir=self.Tmin_vir[ind[10][0]], hmf_name=self.hmf_name)
                     sol = myobj.history_solver(Z_eval=Z_default)
 
                     xe = sol[0]
@@ -1517,7 +1565,7 @@ class pipeline():
                         splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
                         Tk = splTk(self.Z_eval)
 
-                    T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
+                    T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]]:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
             
             self.comm.Barrier()
             if self.cpu_ind!=0:
