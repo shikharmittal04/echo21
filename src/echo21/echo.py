@@ -6,7 +6,6 @@ from mpi4py import MPI
 import sys
 import time
 import os
-import pickle
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
@@ -39,6 +38,11 @@ Msolar_by_Mpc3_year_to_kg_by_m3_sec = Msolar*(1000*Mpc2km)**-3*year**-1
 
 #-------------------------------------------------------------
 #Hardcoded but later we want to change some of these
+
+a = 1.127
+b = 2.5
+Mdot0 = 3     #Solar mass per year
+L_UV = 8.695e20  #W/Hz/(Msun/yr)
 
 fstar = 0.1
 Nion = 7253
@@ -502,7 +506,7 @@ class main():
 
         return 1/M*self.hmf_dndlnM(M,Z)
 
-    #For details see eq.(50),(52) and (53) from Mittal & Kulkarni (2021), MNRAS
+    
     def hmf_m_min(self,Z):
         '''
         The minimum halo mass for which star formation is possible.
@@ -576,8 +580,6 @@ class main():
         Z : float
             1 + z, dimensionless. Can be a single quantity or an array.
         
-        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
-        
         Returns
         -------
         
@@ -588,6 +590,122 @@ class main():
         return -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.hmf_dfcoll_dz(Z)*self.basic_cosmo_H(Z)
 
     #End of functions related to HMF
+    #========================================================================================================
+
+    def luminosity(self,M,Z):
+        '''
+        Computes the luminosity given the halo mass and redshift.
+        
+        Arguments
+        ---------
+
+        M : float
+            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
+
+        Z : float
+            1 + z, dimensionless. Can be a single quantity or an array.
+        
+        Returns
+        -------
+            
+        float
+            Luminosity in W/Hz.
+        '''
+        
+        return fstar*Mdot0*(M/1e10)**a*(Z/7)**b*L_UV
+
+    def muv2M(self,muv,Z):
+        '''
+        For a give apparent magnitude computes the corresponding halo mass.
+        
+        Arguments
+        ---------
+        
+        muv :float
+            Apparent magnitude in AB system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__.
+        
+        Z : float
+            1 + z, dimensionless. Can be a single quantity or an array.
+        
+        Returns
+        -------
+            
+        float
+            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
+        '''
+        
+        DL = 3.086e22 * self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in metres.
+        Lum = 4*np.pi*DL**2*10**(-0.4*(muv+56.1)) #Halo luminosity in W/Hz
+        return 1e10*(Lum/(fstar*Mdot0*(Z/7)**b*L_UV))**(1/a)
+
+    def MAB(self,M,Z):
+        '''
+        Computes the absolute UV magnitude.
+
+        Arguments
+        ---------
+
+        M : float
+            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
+
+        Z : float
+            1 + z, dimensionless. Can be a single quantity or an array.
+        
+        Returns
+        -------
+
+        float
+            Absolute magnitude. We use the AB magnitude system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__.
+        '''
+
+        return -2.5*np.log10(self.luminosity(M,Z)/(4*np.pi*(10*3.086e16)**2))-56.1
+
+    def uvlf(self,M,Z):
+        '''
+        Computes the UV luminosity function for a given halo mass and redshift. Note that this model is valid when SFE is a constant.
+         
+        Arguments
+        ---------
+        
+        M : float
+            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
+
+        Z : float
+            1 + z, dimensionless. Can be a single quantity or an array.
+        
+        Returns
+        -------
+        
+        float
+            UV LF in the same units as HMF, i.e. :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving Mega parsec.
+        '''
+        return 2*np.log(10)/5/a*self.dndlnM(M,Z)
+
+    def num_gal(self,muv_lim,area,Z):
+        '''
+        Given a limiting apparent magnitude and survey area (in deg), what is the number of galaxies seen at z.
+        '''
+        def _num_gal(muv_lim,area,Z):
+            
+            Mh_lim = self.muv2M(self,muv_lim,Z)
+            halo_masses=np.logspace(np.log10(Mh_lim),18,2000)
+            integral = np.trapezoid(self.dndM(halo_masses,Z),halo_masses)    #number per unit cMpc^3
+            DL = self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in Mpc
+            return 1/(Mpc2km*1e3)*cE/self.basic_cosmo_H(Z)*(DL/Z)**2*(np.pi/180)**2*integral*area
+        
+        if type(Z)==np.ndarray or type(Z)==list:
+            leng = len(Z)
+            N=np.zeros(leng)
+            count=0
+            for i in Z:
+                N[count]=_num_gal(muv_lim,area,i)
+                count=count+1
+        else:
+            N = _num_gal(muv_lim,area,Z)
+            print('For survey area =',area,'deg and limiting magnitude =',muv_lim,'there are',round(N),'galaxies at z =',Z-1)
+        return N
+
+    #End of functions required for UV LF and related quantities.
     #========================================================================================================
 
     def _recoil(self,Tk):
@@ -842,34 +960,40 @@ class main():
             :math:`\\tau_{\\mathrm{e}}}`
 
         '''
-        idx1 = np.where(Q>=0.98)[0][0]
-        Zreion = Z_default[idx1]
+        prefac = cE*sigT*self.basic_cosmo_nH(1)
+        xHe = self.basic_cosmo_xHe()
 
-        if type(Z) == int or type(Z)==float:
-            idx2 = np.argmin(np.abs(Z_default-Z))
+        def _Ez(Z):
+            return np.sqrt(1-self.Om_m+self.Om_m*Z**3)
+
+        def _reion(Z):
             if Z>Zreion:
+                idx2 = np.argmin(np.abs(Z_default-Z))
                 Z_int = Z_default[idx2:idx1][::-1]
                 Q_int = Q[idx2:idx1][::-1]
-                tau1 = cE*sigT*self.basic_cosmo_nH(1)*np.trapezoid(Q_int*(1+self.basic_cosmo_xHe())*Z_int**2/self.basic_cosmo_H(Z_int),Z_int)
-                tau2 = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Zreion**3)-1)
+                tau1 = prefac*(1+xHe)*np.trapezoid(Q_int*Z_int**2/self.basic_cosmo_H(Z_int),Z_int)
+                tau2 = prefac*(Mpc2km/self.Ho)*(2/3*1/self.Om_m)*((1+2*xHe)*(_Ez(5)-1)+(1+xHe)*(_Ez(Zreion)-_Ez(5)))
                 tau = tau1 + tau2
             else:
-                tau = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Z**3)-1)
+                if Z>5:
+                    tau = prefac*(Mpc2km/self.Ho)*(2/3*1/self.Om_m)*((1+2*xHe)*(_Ez(5)-1)+(1+xHe)*(_Ez(Z)-_Ez(5)))
+                else:
+                    tau = prefac*(Mpc2km/self.Ho)*(2/3*1/self.Om_m)*(1+2*xHe)*(_Ez(Z)-1)
+
             return tau
+        
+        idx1 = np.where(Q>=0.98)[0][0]
+        Zreion = Z_default[idx1]
+        
+        
+        if type(Z) == int or type(Z)==float:
+            return _reion(Z)
         elif type(Z)==np.ndarray or type(Z)==list:
             i = 0
             numofZ = len(Z)
             tau=np.zeros(numofZ)
             for X in Z:
-                idx2 = np.argmin(np.abs(Z_default-X))
-                tau2 = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*Zreion**3)-1)
-                if X>Zreion:
-                    Z_int = Z_default[idx2:idx1][::-1]
-                    Q_int = Q[idx2:idx1][::-1]
-                    tau1 = cE*sigT*self.basic_cosmo_nH(1)*np.trapezoid(Q_int*(1+self.basic_cosmo_xHe())*Z_int**2/self.basic_cosmo_H(Z_int),Z_int)
-                    tau[i] = tau1 + tau2
-                else:
-                    tau[i] = Mpc2km*(cE*sigT/self.Ho)*(2/3*1/self.Om_m)*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe())*(np.sqrt(1-self.Om_m+self.Om_m*X**3)-1)
+                tau[i]=_reion(X)
                 i=i+1
             return tau
     #End of functions related to reionization.
@@ -900,7 +1024,7 @@ class main():
             else:
                 eq2 = 0
             eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
-        
+        print('z, xe, Tk, QHII =', Z, xe, Tk, QHII)
         return np.array([eq1,eq2,eq3])
 
     def history_solver(self, Z_eval, xe_init = None, Tk_init = None):
@@ -1211,7 +1335,7 @@ class pipeline():
         return myfile
 
     def glob_sig(self):      
-        #completed = 0
+        completed = 0
         if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
@@ -1267,7 +1391,7 @@ class pipeline():
                 Tcmb_save_name = self.path+'Tcmb'
                 T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
-
+                
                 np.save(xe_save_name,xe)
                 np.save(Q_save_name,Q_Hii)
                 np.save(Q_default_save_name,Q_Hii_default)
