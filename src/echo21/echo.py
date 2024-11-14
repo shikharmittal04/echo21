@@ -11,6 +11,9 @@ from colossus.lss import peaks
 from colossus.lss import mass_function
 from time import localtime, strftime
 from pybaselines import Baseline
+import warnings
+
+warnings.filterwarnings('ignore')
 
 #========================================================================================================
 #Universal constants in SI units
@@ -929,6 +932,7 @@ class main():
         '''
         def fXh(xe):
             return 1-(1-xe**0.2663)**1.3163
+
         
         return 5e5*self.fX*fstar*fXh(xe)*Z*np.abs(self.hmf_dfcoll_dz(Z))
 
@@ -1010,7 +1014,10 @@ class main():
         Tk = V[2]
 
         #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS
-        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tk)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tk)*(1-xe)*np.exp(-Ea/(kB*Tk)))
+        if xe<0.99:
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tk)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tk)*(1-xe)*np.exp(-Ea/(kB*Tk)))
+        else: 
+            eq1=0
 
         #eq2 is (1+z)dQ/dz; Pritchard & Furlanetto (2007) eq.(11)
         #eq3 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
@@ -1024,7 +1031,6 @@ class main():
             else:
                 eq2 = 0
             eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
-        print('z, xe, Tk, QHII =', Z, xe, Tk, QHII)
         return np.array([eq1,eq2,eq3])
 
     def history_solver(self, Z_eval, xe_init = None, Tk_init = None):
