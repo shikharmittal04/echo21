@@ -65,8 +65,8 @@ A_rec,b_rec,c_rec,d_rec = 4.309, -0.6166, 0.6703, 0.53
 Feff = 1.14 #This extra factor gives the effective 3-level recombination model
 lam_alpha = 121.5682e-9 #Wavelength of Lya photon in m
 nu_alpha = cE/lam_alpha #Frequency in Hz
-B2 = 3.4*eC #Bind energy of level 2 in J
-B1 = 13.6*eC #Bind energy of level 1 in J
+B2 = 3.4*eC #Binding energy of level 2 in J
+B1 = 13.6*eC #Binding energy of level 1 in J
 Ea = B1-B2  #Energy of Lya photon in J
 A_alpha = 6.25e8 #Spontaneous emission coeffecient in Hz
 alpha_B = 1.43e-19 #Case-B recombination coefficient (m^3/s) at T=2 X 10^4 K
@@ -393,7 +393,8 @@ class main():
             The total photoionisation rate in :math:`(\\mathrm{s}^{-1})`.
             
         '''
-        return self.recomb_alpha(Tk)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B2/(kB*Tk))
+        beta = self.recomb_alpha(Tk)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B2/(kB*Tk))
+        return beta
 
     def recomb_Krr(self, Z):
         '''
@@ -912,7 +913,7 @@ class main():
 
     def heating_Ex(self,Z,xe):
         '''
-        See Eq.(11) from `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__
+        We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. However, our normalisation is smaller by a factor of 0.15 as we adopt the :math:`L_{\\mathrm{x}}/\\mathrm{SFR}` relation from `Mineo et al. (2011) <https://academic.oup.com/mnras/article/419/3/2095/1064692>`
         
         Arguments
         ---------
@@ -934,7 +935,7 @@ class main():
             return 1-(1-xe**0.2663)**1.3163
 
         
-        return 5e5*self.fX*fstar*fXh(xe)*Z*np.abs(self.hmf_dfcoll_dz(Z))
+        return -7.5e4*self.fX*fstar*fXh(xe)*Z*self.hmf_dfcoll_dz(Z)
 
     #End of functions related to heating.
     #========================================================================================================
@@ -1031,6 +1032,7 @@ class main():
             else:
                 eq2 = 0
             eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
+
         return np.array([eq1,eq2,eq3])
 
     def history_solver(self, Z_eval, xe_init = None, Tk_init = None):
@@ -1341,7 +1343,7 @@ class pipeline():
         return myfile
 
     def glob_sig(self):      
-        completed = 0
+        #completed = 0
         if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
