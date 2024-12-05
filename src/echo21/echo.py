@@ -1,124 +1,19 @@
 import scipy.special as scsp
 import scipy.integrate as scint
-from scipy.interpolate import CubicSpline
 import numpy as np
-from mpi4py import MPI
-import sys
-import time
-import os
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
-from time import localtime, strftime
-from pybaselines import Baseline
 import warnings
+
+from .const import *
+from .set_sfrd import *
 
 warnings.filterwarnings('ignore')
 
-#========================================================================================================
-#Universal constants in SI units
-GN=6.67e-11 #Gravitational constant
-cE=2.998e8  #Speed of light
-kB=1.38e-23 #Boltzmann constant
-hP=6.634e-34 #Planck's contant
-mP=1.67e-27 #Mass of proton
-me=9.1e-31 #Mass of electron
-eC=1.6e-19 #Charge of electron
-epsilon=8.85e-12 #Permittivity of free space
-
-aS=7.52e-16 #Stephan's radiation constant
-sigT=6.65e-29 #Thomson scattering cross-section, m^2
-
-fnu = 0.68 #neutrino contribution to energy density in relativistic species; 3 massless nu's
-#-------------------------------------------------------------
-#Conversions
- 
-Mpc2km = 3.0857e19
-Msolar = 1.989e30 #Mass of sun in kg
-Msolar_by_Mpc3_to_kg_by_m3 = Msolar*(1000*Mpc2km)**-3
-year = 365*86400
-Msolar_by_Mpc3_year_to_kg_by_m3_sec = Msolar*(1000*Mpc2km)**-3*year**-1
-
-#-------------------------------------------------------------
-#Hardcoded but later we want to change some of these
-
-a = 1.127
-b = 2.5
-Mdot0 = 3     #Solar mass per year
-L_UV = 8.695e20  #W/Hz/(Msun/yr)
-
-fstar = 0.1
-Nion = 7253
-
-Ji_to_Jc = 1 #Ratio of intensities of injected photons to continuum photons
-
-Zstar = 60 #redshift of the beginning of star formation
-
-Z_start = 1501
-Z_end = 6
-
-Z_default = np.concatenate((np.linspace(Z_start,Zstar+1,2000),1/np.linspace(1/Zstar,1/Z_end,200)))
-#-------------------------------------------------------------
-#Recombination related
-Lam_H = 8.22458 #The H 2s–1s two photon rate in s^−1
-A_rec,b_rec,c_rec,d_rec = 4.309, -0.6166, 0.6703, 0.53
-Feff = 1.14 #This extra factor gives the effective 3-level recombination model
-lam_alpha = 121.5682e-9 #Wavelength of Lya photon in m
-nu_alpha = cE/lam_alpha #Frequency in Hz
-B2 = 3.4*eC #Binding energy of level 2 in J
-B1 = 13.6*eC #Binding energy of level 1 in J
-Ea = B1-B2  #Energy of Lya photon in J
-A_alpha = 6.25e8 #Spontaneous emission coeffecient in Hz
-alpha_B = 1.43e-19 #Case-B recombination coefficient (m^3/s) at T=2 X 10^4 K
-#-------------------------------------------------------------
-#Others
-T_se = 0.4 #Spin exchange correction (in Kelvin; Chuzhoy & Shapiro 2006)
-Tstar = 0.068 #Hyperfine energy difference in temperature (K)
-A10 = 2.85e-15 # Einstein's spontaneous emission rate, sec^-1
-Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.3524,0.3535,0.3543,0.355,0.3556,
-    0.3561,0.3565,0.3569,0.3572,0.3575,0.3578])
-            
-#========================================================================================================
-
-def _print_banner():
-    banner = """\n\033[94m
-    ███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-    ██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-    █████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-    ██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-    ███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝
-    Copyright 2024, Shikhar Mittal.                                     
-    \033[00m\n"""
-    print(banner)
-    return None
-
-def _to_array(params):
-        for keys in params.keys():
-            if type(params[keys])==list:
-                params[keys]=np.array(params[keys])
-            elif type(params[keys])==float or type(params[keys])==int:
-                params[keys]=np.array([params[keys]])
-        return params
-
-def _to_float(params):
-    for keys in params.keys():
-        if type(params[keys])==list:
-            [params[keys]]=params[keys]
-        elif type(params[keys])==np.ndarray:
-            params[keys]=params[keys][0]
-    return params
-    
-def _no_of_mdls(params):
-    prod=1
-    for keys in params.keys():
-        if type(params[keys])==np.ndarray:
-            prod=prod*len(params[keys])
-    return prod
-
 def _gaif(xe,Q):
     '''
-    Computes the globally-averaged ionisation factor.
+    Computes the globally-averaged ionisation factor for a two-zone IGM model.
     
     Arguments
     ---------
@@ -136,20 +31,13 @@ def _gaif(xe,Q):
     '''
     return Q+(1-Q)*xe
 
-def _smoother(x,y):
-    baseline_fitter = Baseline(x_data = x)
-    y = baseline_fitter.imodpoly(y, poly_order=4)[0]
-    return y
-
 class main():
     '''
     Function names starting with 'basic_cosmo' include the basic :math:`\\Lambda`CDM-cosmology-related functions, such as Hubble function, CMB temperature, etc.
 
     Function names starting with 'recomb' include recombination-physics-related functions.
 
-    Function names starting with 'hmf' include HMF-related functions, i.e., :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`, :math:`\\mathrm{d}n/\\mathrm{d}M`, :math:`m_{\\mathrm{min}}`, :math:`f_{\\mathrm{coll}}`, :math:`\\mathrm{d}f_{\\mathrm{coll}}/\\mathrm{d}z`, and :math:`\\dot{\\rho}_{\\star}`. Use this function to set your choice of HMF model name and also the choice of star formation efficiency (SFE) model name. Eg. ``hmf.hmf_name = 'press74'`` and ``hmf.sfe_name = 'const'``. Available HMF model names:
-        - press74 (default, for Press & Schechter 1974),
-        - sheth99 (for Sheth & Tormen 1999)
+    Function names starting with 'hmf' include HMF-related functions, i.e., :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`, :math:`\\mathrm{d}n/\\mathrm{d}M`, :math:`m_{\\mathrm{min}}`, :math:`f_{\\mathrm{coll}}`, :math:`\\mathrm{d}f_{\\mathrm{coll}}/\\mathrm{d}z`, and :math:`\\dot{\\rho}_{\\star}`.
 
     Function names starting with 'heating' include all the heating (or cooling) terms. All the terms are in the form of :math:`-(1+z)\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}z` and hence in units of temperature.
     
@@ -159,7 +47,7 @@ class main():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,falp=1.0,fX=0.1,fesc=0.1,Tmin_vir=1e4,cosmo=None,astro=None, hmf_name='press74',sfe_name='const'):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=1.0,wX=1.5,fesc=0.01,sfrd_obj=phy_sfrd(),cosmo=None,astro=None):
         '''
         Ho : float, optional
             Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
@@ -182,22 +70,25 @@ class main():
         Yp : float, optional
             Primordial helium fraction by mass. Default value ``0.245``.
         
-        falp : float, optional
-            :math:`f_{\\alpha}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
+        fLy : float, optional
+            :math:`f_{\\mathrm{Ly}}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
         
+        sLy : float, optional
+            :math:`s`, spectral index of Lyman series SED, when expressed as :math:`\\epsilon\\propto E^{-s}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``2.64``.
+
         fX : float, optional
             :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value 0.1.
         
+        wX : float, optional
+            :math:`w`, spectral index of X-ray SED, when expressed as :math:`\\epsilon\\propto E^{-w}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``1.5``.
+
         fesc : float, optional
             :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionising photons. Default value 0.1.
 
-        Tmin_vir : float, optional
-            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-
         Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
 
-        hmf_name : str, option
-            HMF model name. Default 'press74' for Press & Schechter (1974).
+        sfrd_obj : SFRD class object, optional
+            Can be either phy_sfrd() or emp_sfrd(), accordingly as you want to model a physically-motivated or an empirically-motivated SFRD. Default value ``phy_sfrd()``. See also :mod:`set_sfrd` module.
         '''
         if cosmo!=None:
             Ho = cosmo['Ho']
@@ -208,10 +99,11 @@ class main():
             Tcmbo = cosmo['Tcmbo']
             Yp = cosmo['Yp']
         if astro!=None:
-            falp = astro['falp']
+            fLy = astro['fLy']
+            sLy = astro['sLy']
             fX = astro['fX']
+            wX = astro['wX']
             fesc = astro['fesc']
-            Tmin_vir = astro['Tmin_vir']
         
         self.Ho = Ho
         self.Om_m = Om_m
@@ -221,38 +113,18 @@ class main():
         self.Tcmbo = Tcmbo
         self.Yp = Yp
         
-        self.falp = falp
+        self.fLy = fLy
+        self.sLy = sLy
         self.fX = fX
+        self.wX = wX
         self.fesc = fesc
-        self.Tmin_vir = Tmin_vir
+        self.sfrd_obj = sfrd_obj
 
-        self.hmf_name=hmf_name
-        self.sfe_name=sfe_name
-
-        self.my_cosmo = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
-        cosmology.setCosmology('my_cosmo', self.my_cosmo)
+        self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
+        self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
         self.h100 = self.Ho/100
 
         return None
-
-    def basic_cosmo_mu(self,xe):
-        '''
-        Average baryon mass in amu
-
-        Arguments
-        ---------
-
-        xe : float
-            Electron fraction (dimensionless)
-           
-        Returns
-        -------
-
-        float
-            Average baryon mass in amu
-        
-        '''
-        return 4/(4-3*self.Yp+4*xe*(1-self.Yp))
 
     def basic_cosmo_xHe(self):
         '''
@@ -309,7 +181,7 @@ class main():
 
     def basic_cosmo_nH(self,Z):
         '''
-        Hydrogen number density (proper)
+        Hydrogen number density (proper).
         
         Arguments
         ---------
@@ -327,7 +199,7 @@ class main():
 
     def basic_cosmo_H(self,Z):
         '''
-        Hubble factor in SI units
+        Hubble factor in SI units.
         
         Arguments
         ---------
@@ -339,7 +211,7 @@ class main():
         -------
         
         float
-            Hubble parameter at a given redshift in units of :math:`\\mathrm{s}^{-1}`
+            Hubble parameter at a given redshift in units of :math:`\\mathrm{s}^{-1}`.
         '''
         Om_lam = 1-self.Om_m
         Om_r = (1+fnu)*aS*self.Tcmbo**4/(cE**2*self.basic_cosmo_rho_crit())
@@ -348,7 +220,9 @@ class main():
 
     #End of functions related to basic cosmology.
     #========================================================================================================
-           
+
+
+
     def recomb_alpha(self, Tk):
         '''
         :math:`\\alpha_{\\mathrm{B}}=\\alpha_{\\mathrm{B}}(T)`
@@ -464,8 +338,9 @@ class main():
 
     #End of functions related to recombination
     #========================================================================================================
-        
-    def hmf_dndlnM(self, M,Z):
+    
+    
+    def dndlnM(self, M,Z):
         '''
         The halo mass function (HMF) in the form of :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`. Note the natural logarithm.
         
@@ -484,11 +359,10 @@ class main():
         float
             HMF, :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M=M\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving Mega parsec.
         '''
-
         M_by_h = M*self.h100 #M in units of solar mass/h
-        return self.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', model = self.hmf_name)
+        return self.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', model = self.sfrd_obj.hmf)
 
-    def hmf_dndM(self,M,Z):
+    def dndM(self,M,Z):
         '''
         The halo mass function (HMF) in a different form, i.e., :math:`\\mathrm{d}n/\\mathrm{d}M`.
         
@@ -508,10 +382,10 @@ class main():
             HMF in a different form, :math:`\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}\\mathrm{M}_{\\odot}^{-1}`, where 'cMpc' represents comoving Mega parsec and :math:`\\mathrm{M}_{\\odot}` represents the solar mass.
         '''
 
-        return 1/M*self.hmf_dndlnM(M,Z)
+        return 1/M*self.dndlnM(M,Z)
 
     
-    def hmf_m_min(self,Z):
+    def m_min(self,Z):
         '''
         The minimum halo mass for which star formation is possible.
         
@@ -527,9 +401,10 @@ class main():
         float
             The mass returned is in units of :math:`\\mathrm{M}_{\\odot}/h`.
         '''
-        return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.Tmin_vir/1.98e4)**1.5
+        
+        return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.sfrd_obj.sfrd_para['Tmin_vir']/1.98e4)**1.5
 
-    def hmf_f_coll(self,Z):
+    def f_coll(self,Z):
         '''
         Collapse fraction -- fraction of total matter that collapsed into the haloes. See definition below.
         :math:`F_{\\mathrm{coll}}=\\frac{1}{\\bar{\\rho}^0_{\\mathrm{m}}}\\int_{M_{\\mathrm{min}}}^{\\infty} M\\frac{\\mathrm{d}n}{\\mathrm{d} M}\\,\\mathrm{d} M\\,,`
@@ -547,34 +422,38 @@ class main():
             Collapse fraction. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
 
-        if self.hmf_name=='press74':
-            return scsp.erfc(peaks.peakHeight(self.hmf_m_min(Z),Z-1)/np.sqrt(2))
+        def rho_dm_coll(Z):
+            #DM collapsed as haloes (in kg/m^3, comoving)
+            M_space = np.logspace(np.log10(self.m_min(Z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
+            hmf_space = self.dndlnM(M=M_space,Z=Z)    #Corresponding HMF values are in cMpc^-3 
+            return Msolar_by_Mpc3_to_kg_by_m3*np.trapezoid(hmf_space,M_space)
+        
+        hmf = self.sfrd_obj.hmf
+
+        if hmf=='press74':
+            return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
         else:
             numofZ = np.size(Z)
                 
             if numofZ == 1:
                 if type(Z)==np.ndarray: Z=Z[0]
-                M_space = np.logspace(np.log10(self.hmf_m_min(Z)/self.h100),18,1500)    #These masses are in solar mass. 
-                hmf_space = self.hmf_dndlnM(M=M_space,Z=Z)    #Corresponding HMF values are in cMpc^-3 
-                rho_halo = Msolar_by_Mpc3_to_kg_by_m3*np.trapezoid(hmf_space,M_space)    #matter density collapsed as haloes (in kg/m^3, comoving)
+                rho_halo = rho_dm_coll(Z)
             else:    
                 rho_halo = np.zeros(numofZ)
                 counter=0
                 for i in Z:
-                    M_space = np.logspace(np.log10(self.hmf_m_min(i)/self.h100),18,1500)    #These masses are in solar mass. 
-                    hmf_space = self.hmf_dndlnM(M=M_space,Z=i)    #Corresponding HMF values are in cMpc^-3 
-                    rho_halo[counter] = Msolar_by_Mpc3_to_kg_by_m3*np.trapezoid(hmf_space,M_space)    #matter density collapsed as haloes (in kg/m^3, comoving)
+                    rho_halo[i]=rho_dm_coll(i)
                     counter=counter+1
             return rho_halo/(self.Om_m*self.basic_cosmo_rho_crit())
 
-    def hmf_dfcoll_dz(self,Z):
+    def dfcoll_dz(self,Z):
         '''
         Redshift derivative of the collapse fraction, i.e., :math:`\\mathrm{d}F_{\\mathrm{coll}}/\\mathrm{d}z`
         '''
-        return (self.hmf_f_coll(Z+1e-3)-self.hmf_f_coll(Z))*1e3
+        return (self.f_coll(Z+1e-3)-self.f_coll(Z))*1e3
 
      
-    def hmf_SFRD(self,Z):
+    def sfrd(self,Z):
         '''
         This function returns the comoving star formation rate density (SFRD, :math:`\\dot{\\rho}_{\\star}`).
         
@@ -590,25 +469,33 @@ class main():
         float 
             Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
+        sfrd_name = self.sfrd_obj.name
+        
+        if sfrd_name=='phy':
+            mysfrd = -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.dfcoll_dz(Z)*self.basic_cosmo_H(Z)
+        elif sfrd_name=='emp':
+            a_sfrd = self.sfrd_obj.sfrd_para['a']
+            b_sfrd = self.sfrd_obj.sfrd_para['b']
+            c_sfrd = self.sfrd_obj.sfrd_para['c']
+            d_sfrd = self.sfrd_obj.sfrd_para['d']
+            mysfrd = a_sfrd*Z**b_sfrd/(1+(Z/c_sfrd)**d_sfrd)*Msolar_by_Mpc3_year_to_kg_by_m3_sec
 
-        return -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.hmf_dfcoll_dz(Z)*self.basic_cosmo_H(Z)
-
-    #End of functions related to HMF
+        return mysfrd
     #========================================================================================================
 
-    def luminosity(self,M,Z):
+    def luminosity(self,Z,M):
         '''
         Computes the luminosity given the halo mass and redshift.
         
         Arguments
         ---------
 
-        M : float
-            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
-
         Z : float
-            1 + z, dimensionless. Can be a single quantity or an array.
-        
+            1 + z, dimensionless. Single number only.
+
+        M : float
+            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`. Can be a range of values.
+       
         Returns
         -------
             
@@ -618,99 +505,126 @@ class main():
         
         return fstar*Mdot0*(M/1e10)**a*(Z/7)**b*L_UV
 
-    def muv2M(self,muv,Z):
+    def mag2mass(self,Z,mag,magtype='abs'):
         '''
-        For a give apparent magnitude computes the corresponding halo mass.
+        For a give magnitude compute the corresponding halo mass.
         
         Arguments
         ---------
-        
-        muv :float
-            Apparent magnitude in AB system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__.
-        
+
         Z : float
-            1 + z, dimensionless. Can be a single quantity or an array.
+            1 + z, dimensionless. Single number only.
         
+        mag : float
+            Magnitude in AB system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__. Can be a range of values.
+        
+        magtype : str, optional
+            Specify if the magnitude given is absolute or apparent. Default is absolute. 
+
         Returns
         -------
             
         float
             Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
         '''
+        if magtype=='app':   
+            DL = 3.086e22 * self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in metres.
+            Lum = 4*np.pi*DL**2*10**(-0.4*(mag+56.1)) #Halo luminosity in W/Hz
         
-        DL = 3.086e22 * self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in metres.
-        Lum = 4*np.pi*DL**2*10**(-0.4*(muv+56.1)) #Halo luminosity in W/Hz
+        elif magtype=='abs':
+            d10 = 3.086e17 #10 pc in metre
+            Lum = 4*np.pi*d10**2*10**(-0.4*(mag+56.1)) #Halo luminosity in W/Hz
+        
         return 1e10*(Lum/(fstar*Mdot0*(Z/7)**b*L_UV))**(1/a)
-
-    def MAB(self,M,Z):
+        
+    
+    def mag(self,Z,M,magtype='abs'):
         '''
-        Computes the absolute UV magnitude.
+        Computes the UV magnitude in AB system.
 
         Arguments
         ---------
 
+        Z : float
+            1 + z, dimensionless. Single number only.
+
         M : float
             Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
-
-        Z : float
-            1 + z, dimensionless. Can be a single quantity or an array.
         
+        magtype : str, optional
+            Specify if the magnitude given is absolute or apparent. Default is absolute. 
+
         Returns
         -------
 
         float
-            Absolute magnitude. We use the AB magnitude system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__.
+            Absolute or apparent magnitude accordingly as ``magtype`` is 'abs' or 'app'. We use the AB magnitude system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__.
         '''
+        if magtype=='abs':
+            distance =  3.086e17
+        elif magtype=='app':
+            distance = 3.086e22 * self.my_cosmo.luminosityDistance(Z-1)/self.h100
+        return -2.5*np.log10(self.luminosity(Z,M)/(4*np.pi*distance**2))-56.1
 
-        return -2.5*np.log10(self.luminosity(M,Z)/(4*np.pi*(10*3.086e16)**2))-56.1
-
-    def uvlf(self,M,Z):
+    def uvlf(self,Z,mag,magtype='abs'):
         '''
-        Computes the UV luminosity function for a given halo mass and redshift. Note that this model is valid when SFE is a constant.
+        Computes the UV luminosity function for a given AB magnitude and redshift. Note that this model is valid when SFE is a constant.
          
         Arguments
         ---------
-        
-        M : float
-            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
-
         Z : float
-            1 + z, dimensionless. Can be a single quantity or an array.
+            1 + z, dimensionless. Single number only.
         
+        mag : float
+            Magnitude in AB system. Can be a range of values. This can be absolute or apparent magnitude. Specify your choice with the ``magtype`` argument.
+        
+        magtype : str, optional
+            Specify if the magnitude given is absolute or apparent. Default is absolute. 
+
         Returns
         -------
         
         float
             UV LF in the same units as HMF, i.e. :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving Mega parsec.
         '''
-        return 2*np.log(10)/5/a*self.dndlnM(M,Z)
+        Mh_for_mag = self.mag2mass(Z,mag,magtype)
+        return 2*np.log(10)/5/a*self.hmf_dndlnM(Mh_for_mag,Z)
 
-    def num_gal(self,muv_lim,area,Z):
+    def num_gal(self,Z,mag_lim,magtype='abs',area=1):
         '''
-        Given a limiting apparent magnitude and survey area (in deg), what is the number of galaxies seen at z.
-        '''
-        def _num_gal(muv_lim,area,Z):
-            
-            Mh_lim = self.muv2M(self,muv_lim,Z)
-            halo_masses=np.logspace(np.log10(Mh_lim),18,2000)
-            integral = np.trapezoid(self.dndM(halo_masses,Z),halo_masses)    #number per unit cMpc^3
-            DL = self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in Mpc
-            return 1/(Mpc2km*1e3)*cE/self.basic_cosmo_H(Z)*(DL/Z)**2*(np.pi/180)**2*integral*area
+        Number of galaxies brighter than a certain limiting luminosity at z. If no survey area is given the outptu is number per unit area.
+
+        Arguments
+        ---------
+        Z : float
+            1 + z, dimensionless. Single number only.
         
-        if type(Z)==np.ndarray or type(Z)==list:
-            leng = len(Z)
-            N=np.zeros(leng)
-            count=0
-            for i in Z:
-                N[count]=_num_gal(muv_lim,area,i)
-                count=count+1
-        else:
-            N = _num_gal(muv_lim,area,Z)
-            print('For survey area =',area,'deg and limiting magnitude =',muv_lim,'there are',round(N),'galaxies at z =',Z-1)
-        return N
+        mag : float
+            Magnitude in AB system. Can be a range of values. This can be absolute or apparent magnitude. Specify your choice with the ``magtype`` argument.
+        
+        magtype : str, optional
+            Specify if the magnitude given is absolute or apparent. Default is absolute. 
+
+        area : float, optional
+            Survey area in square degrees. Default is 1 sq. deg.
+
+        Returns
+        -------
+        
+        float
+            Number of galaxies.
+        '''
+        Mh_lim = self.mag2mass(Z,mag_lim,magtype)
+        halo_masses=np.logspace(np.log10(Mh_lim),18,2000)
+        integral = np.trapezoid(self.hmf_dndM(halo_masses,Z),halo_masses)    #number per unit cMpc^3
+        DL = self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in Mpc
+        return 1/(Mpc2km*1e3)*cE/self.basic_cosmo_H(Z)*(DL/Z)**2*(np.pi/180)**2*integral*area
+
 
     #End of functions required for UV LF and related quantities.
     #========================================================================================================
+
+
 
     def _recoil(self,Tk):
         '''
@@ -726,8 +640,8 @@ class main():
 
     def _a_tau(self,Z,xe,Tk):
         '''
-        Returns the product a*tau, since all the relevant formulae require the product only.
-        a is the Voigt parameter and tau is the optical depth of Lya photons.
+        Returns the product :math:`a\\tau`, since all the relevant formulae require the product only.
+        :math:`a` is the Voigt parameter and :math:`\\tau` is the optical depth of Lya photons.
         '''
         tau = 3/(8*np.pi)*A_alpha/self.basic_cosmo_H(Z)*self.basic_cosmo_nH(Z)*(1-xe)*lam_alpha**3
         a = A_alpha/(4*np.pi*self._dopp(Tk))
@@ -750,38 +664,92 @@ class main():
         This is the scattering correction, S. I am using the approximate version from Chuzhoy & Shapiro (2006).
         '''
         return np.exp(-1.69*self._zeta(Z,xe,Tk)**0.667)
+    
+    def phi_Ly(self,E):
+        '''
+        Spectral energy distribution (SED) of Lyman series photons in units of number of photons per unit frequency per stellar baryon.
         
-    def _eps_alpha_beta(self,Z,E):
-        phi = hP/eC*2902.91*(E/13.6)**-0.86
-        return 1/(1.22*mP)*phi*self.hmf_SFRD(Z)
+        Arguments
+        ---------
+        
+        E : float
+            Energy in eV.
+        
+        Returns
+        -------
 
-    def _eps_above_beta(self,Z,E):
+        float
+            SED in dimensions :math:`\\mathrm{Hz^{-1}}`. 
         '''
-        Comoving emissivity in units of number per unit time per unit frequency per unit volume (s^-1.m^-3.Hz^-1)
-        Valid only for photons of energy above Ly beta, i.e., E > 12.089 eV
-        '''
-        phi = hP/eC*1303.34*(E/13.6)**-7.658 #this is the SED in units of number per baryon per unit frequency (Hz^-1)
-        return 1/(1.22*mP)*phi*self.hmf_SFRD(Z)
+        if self.sLy!=0:
+            return self.fLy*hP/eC*1/13.6*self.sLy*N_alpha_infty/(1.33**self.sLy-1)*(E/13.6)**(-self.sLy-1)
+        else:
+            return self.fLy*hP/eC*N_alpha_infty/np.log(4/3)*E**-1
 
-    def _lya_spec_inten(self,Z):
+    def eps_Ly(self,Z,E):
         '''
-        Specific intensity of Ly:math:`\\alpha` photons in terms of number per unit time per unit area per unit frequency per unit solid angle (:math:`\\mathrm{m^{-2}.s^{-1}.Hz^{-1}.sr^{-1}}`)
+        Emissivity of Lyman series photons in units of number of photons per unit frequency per unit comoving volume per unit time. Construction:
+        
+        :math:`\\epsilon_{\\mathrm{Ly}}=\\frac{1}{m_{\\mathrm{b}}}\\phi_{\\mathrm{Ly}}\\dot{\rho}_{\\star}`
+
+        Arguments
+        ---------
+        Z : float
+            1+z
+        
+        E : float
+            Energy in eV.
+        
+        Returns
+        -------
+
+        float
+            Emissivity in dimensions :math:`\\mathrm{m^{-3}Hz^{-1}s^{-1}}`. 
+
         '''
-        loc=0
-        flag=False
-        integ=0
-        if type(Z)==float or type(Z)==int:
-            if Z>Zstar:
-                return 0
+        return 1/(1.22*mP)*self.phi_Ly(E)*self.sfrd(Z)
+    
+    def lya_spec_inten(self,Z):
+        '''
+        Specific intensity of Ly:math:`\\alpha` photons, :math:`J_{\\mathrm{Ly}}`.
+        
+        Arguments
+        ---------
+        Z : float
+            1 + z, dimensionless. Can be array.
+        
+        Returns
+        -------
+        
+        float
+            Specific intensity in terms of number per unit time per unit area per unit frequency per unit solid angle (:math:`\\mathrm{m^{-2}.s^{-1}.Hz^{-1}.sr^{-1}}`).
+        '''
+        def _lya_spec_inten(Z):
+            integ=0
             Zmax = 32/27*Z
             temp = np.linspace(Z,Zmax,10)
-            integ = scint.trapezoid(self._eps_alpha_beta(temp,10.2*temp/Z)/self.basic_cosmo_H(temp),temp)
+            integ = scint.trapezoid(self.eps_Ly(temp,10.2*temp/Z)/self.basic_cosmo_H(temp),temp)
             for ni in np.arange(4,24):
                 Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
                 temp = np.linspace(Z,Zmax,5)
-                integ = integ+Pn[ni-4]*scint.trapezoid(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z)/self.basic_cosmo_H(temp),temp)
+                integ = integ+Pn[ni-4]*scint.trapezoid(self.eps_Ly(temp,13.6*(1-1/ni**2)*temp/Z)/self.basic_cosmo_H(temp),temp)
+            return cE/(4*np.pi)*Z**2*integ
+
+        if type(Z)==np.float64 or type(Z)==float or type(Z)==int:
+            if Z>Zstar:
+                return 0
+            else:
+                return _lya_spec_inten(Z)
+
         
         elif type(Z)==np.ndarray or type(Z)==list:
+            loc=0
+            flag=False
+            #First check if the provided Z is in descending order or not.
+            if Z[1]>Z[0]:
+                # Arranging redshifts from ascending to descending
+                Z = Z[::-1]
+
             if Z[0]>Zstar:
                 flag=True
                 loc = np.where(Z<Zstar)[0][0]
@@ -789,36 +757,27 @@ class main():
             
             counter=0
             numofZ = len(Z)
-            integ=np.zeros(numofZ)
+            J_temp=np.zeros(numofZ)
             for Z_value in Z:
-                Zmax = 32/27*Z_value
-                temp = np.linspace(Z_value,Zmax,10)
-                integ[counter] = scint.trapezoid(self._eps_alpha_beta(temp,10.2*temp/Z_value)/self.basic_cosmo_H(temp),temp)
-
-                for ni in np.arange(4,24):
-                    Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z_value
-                    temp = np.linspace(Z_value,Zmax,5)
-                    integ[counter] = integ[counter]+Pn[ni-4]*scint.trapezoid(self._eps_above_beta(temp,13.6*(1-1/ni**2)*temp/Z_value)/self.basic_cosmo_H(temp),temp)
-                
+                J_temp[counter]=_lya_spec_inten(Z_value)
                 counter=counter+1
         
-
-        J_temp = self.falp*cE/(4*np.pi)*Z**2*integ
-        if flag == True:
-            J_before_CD = np.zeros(loc)
-            J_after_CD = J_temp
-            return np.concatenate((J_before_CD,J_after_CD))
-        else:
-            return J_temp
+            if flag == True:
+                J_before_CD = np.zeros(loc)
+                J_after_CD = J_temp
+                return np.concatenate((J_before_CD,J_after_CD))
+            else:
+                return J_temp
     
-    #End of extra functions.
+    #End of functions related to Lyman-alpha photons.
     #========================================================================================================
+
 
 
     def heating_Ecomp(self,Z,xe,Tk):
         '''
         See Eq.(2.32) from Mittal et al (2022), JCAP.
-        (However, there is a minor typo in that equation; numerator has an :math:`x_{\\mathrm{e}}` missing.)
+        (However, there is a typo in that equation; numerator has an :math:`x_{\\mathrm{e}}` missing.)
         
         Arguments
         ---------
@@ -873,9 +832,9 @@ class main():
         
         Ic = eta*(2*np.pi**4*atau**2)**(1/3)*(arr[0]**2+arr[2]**2)
         Ii = eta*np.sqrt(atau/2)*scint.quad(lambda y:y**(-1/2)*np.exp(-2*eta*y-np.pi*y**3/(6*atau))*scsp.erfc(np.sqrt(np.pi*y**3/(2*atau))),0,np.inf)[0]-Scat*(1-Scat)/(2*eta)
-        J_alp = self._lya_spec_inten(Z)
+        J_Ly = self.lya_spec_inten(Z)
         nbary = (1+self.basic_cosmo_xHe())*self.basic_cosmo_nH(Z)
-        return 8*np.pi/3 * hP/(kB*lam_alpha) * J_alp*self._dopp(Tk)/nbary * (Ic+Ji_to_Jc*Ii)
+        return 8*np.pi/3 * hP/(kB*lam_alpha) * J_Ly*self._dopp(Tk)/nbary * (Ic+Ji_to_Jc*Ii)
        
     '''
     def tau(E,Z,Z1,x_HI):     #X-ray optical depth
@@ -931,14 +890,17 @@ class main():
             Net heating by the X-ray photons. Units kelvin.
             
         '''
-        def fXh(xe):
+        def _fXh(xe):
             return 1-(1-xe**0.2663)**1.3163
 
-        
-        return -7.5e4*self.fX*fstar*fXh(xe)*Z*self.hmf_dfcoll_dz(Z)
+        CX_modifier=(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
+        prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
+        return prefactor*self.fX*_fXh(xe)*self.sfrd(Z)*CX_fid*CX_modifier
 
     #End of functions related to heating.
     #========================================================================================================
+
+
 
     def reion_clump(self,Z):
         '''
@@ -1004,15 +966,14 @@ class main():
     #End of functions related to reionization.
     #========================================================================================================
     
-    def history_eqns(self, Z,V):
+    def igm_eqns(self, Z,V):
         '''
-        This function has the differential equations governing the ionisation and thermal history.
+        This function has the differential equations governing the ionisation and thermal history of the bulk of IGM.
         When solving upto the end of dark ages, only cosmological parameters will be used.
         Beyond Zstar, i.e., beginning of cosmic dawn astrophysical will also be used.
         '''
         xe = V[0]
-        QHII = V[1]
-        Tk = V[2]
+        Tk = V[1]
 
         #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS
         if xe<0.99:
@@ -1020,22 +981,16 @@ class main():
         else: 
             eq1=0
 
-        #eq2 is (1+z)dQ/dz; Pritchard & Furlanetto (2007) eq.(11)
-        #eq3 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
+        #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
         
         if Z>Zstar:
-            eq2 = 0
-            eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
         else:
-            if QHII<0.99:
-                eq2 = (1/(1-self.Yp))*fstar*self.fesc*Nion*Z*self.hmf_dfcoll_dz(Z) + (1+self.basic_cosmo_xHe())*1/self.basic_cosmo_H(Z)*(alpha_B*self.reion_clump(Z)*self.basic_cosmo_nH(Z)*QHII)
-            else:
-                eq2 = 0
-            eq3 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
 
-        return np.array([eq1,eq2,eq3])
+        return np.array([eq1,eq2])
 
-    def history_solver(self, Z_eval, xe_init = None, Tk_init = None):
+    def igm_solver(self, Z_eval, xe_init = None, Tk_init = None):
 
         #Assuming Z_eval is in decreasing order.
         Z_start = Z_eval[0]
@@ -1045,15 +1000,29 @@ class main():
             Tk_init = self.basic_cosmo_Tcmb(Z_start)
             xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
             
-        Sol = scint.solve_ivp(lambda a, Var: -self.history_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,0,Tk_init],method='Radau',t_eval=1/Z_eval)
+        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init],method='Radau',t_eval=1/Z_eval)
 
         #Obtaining the solutions ...
         xe = Sol.y[0]
-        QHII = Sol.y[1]
-        Tk = Sol.y[2]
+        #QHII = Sol.y[1]
+        Tk = Sol.y[1]
 
-        return [xe,QHII,Tk]
+        return [xe,Tk]
 
+    def reion_eqn(self,Z,QHii):
+        #eq is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2007)
+
+        if QHii<0.99:
+            eq = -1/self.basic_cosmo_H(Z)*(self.fesc*Iion*self.sfrd(Z)/self.basic_cosmo_nH(1) - (1+self.basic_cosmo_xHe())*alpha_B*self.reion_clump(Z)*self.basic_cosmo_nH(Z)*QHii)
+        else:
+            eq = 0
+        return eq
+    
+    def reion_solver(self):
+        Sol = scint.solve_ivp(lambda a, Var: -self.reion_eqn(1/a,Var)/a, [1/Zstar, 1/Z_end],[0],method='Radau',t_eval=1/Z_cd)
+        QHii = Sol.y[0]
+        return QHii
+    
     #End of functions related to history equations.
     #========================================================================================================
 
@@ -1158,11 +1127,11 @@ class main():
         -------
         
         float
-            :math:`x_{\\alpha}`, dimensionless.
+            :math:`x_{\\mathrm{Ly}}`, dimensionless.
         '''
     
         Scat = self._scatter_corr(Z,xe,Tk)
-        J_alp = self._lya_spec_inten(Z)    #'undistorted' background Spec. Inte. of Lya photons.
+        J_alp = self.lya_spec_inten(Z)    #'undistorted' background Spec. Inte. of Lya photons.
         Jo = 5.54e-8*Z         #eq.(24) in Mittal & Kulkarni (2021)
         return Scat*J_alp/Jo
 
@@ -1226,513 +1195,4 @@ class main():
 
 #End of class main.
 #========================================================================================================
-#========================================================================================================
-
-
-class pipeline():
-    '''
-    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts.
-    
-    Methods
-    ~~~~~~~
-    '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},astro= {'falp':1,'fX':0.1,'fesc':0.1,'Tmin_vir':1e4},Z_eval=None,path='', hmf_name='press74'):
-
-        self.comm = MPI.COMM_WORLD
-        self.cpu_ind = self.comm.Get_rank()
-        self.n_cpu = self.comm.Get_size()
-
-        self.cosmo=cosmo
-        self.astro=astro
-
-        self.model = 0
-        for keys in self.astro.keys():
-            if np.size(self.astro[keys])>1:
-                self.model = self.model+1
-                break
-                
-        for keys in self.cosmo.keys():
-            if np.size(self.cosmo[keys])>1:
-                self.model = self.model+2
-                break
-        
-        if self.model==0:
-            self.astro=_to_float(self.astro)
-            self.cosmo=_to_float(self.cosmo)
-        elif self.model==1:
-            self.astro=_to_array(self.astro)
-            self.cosmo=_to_float(self.cosmo)
-        elif self.model==2:
-            self.astro=_to_float(self.astro)
-            self.cosmo=_to_array(self.cosmo)
-        elif self.model==3:
-            self.astro=_to_array(self.astro)
-            self.cosmo=_to_array(self.cosmo)
-        else:
-            print('Impossible!')
-            sys.exit()
-        
-        self.Z_eval = Z_eval
-
-        if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
-            self.Z_eval=np.array(self.Z_eval)
-            if self.Z_eval[1]>self.Z_eval[0]:
-                # Arranging redshifts from ascending to descending
-                self.Z_eval = self.Z_eval[::-1]
-
-        self.Ho = cosmo['Ho']
-        self.Om_m = cosmo['Om_m']
-        self.Om_b = cosmo['Om_b']
-        self.sig8 = cosmo['sig8']
-        self.ns = cosmo['ns']
-        self.Tcmbo = cosmo['Tcmbo']
-        self.Yp = cosmo['Yp']
-        
-        self.falp = astro['falp']
-        self.fX = astro['fX']
-        self.fesc = astro['fesc']
-        self.Tmin_vir = astro['Tmin_vir']
-        
-        self.hmf_name = hmf_name
-
-        self.path=path
-        if self.cpu_ind==0:
-            if os.path.isdir(self.path)==False:
-                print('The requested directory does not exist. Creating ',self.path)
-                os.mkdir(self.path)
-            
-            self.timestamp = strftime("%Y%m%d%H%M%S", localtime())
-            self.path = self.path + 'output_'+self.timestamp+'/'
-            os.mkdir(self.path)
-
-            self.formatted_timestamp = self.timestamp[8:10]+':'+self.timestamp[10:12]+':'+self.timestamp[12:14]+' '+self.timestamp[6:8]+'/'+self.timestamp[4:6]+'/'+ self.timestamp[:4]
-        return None
-
-    def _write_summary(self, elapsed_time):
-        '''
-        Given the elapsed time of the code execution write the main summary of the run.
-        '''
-        sumfile = self.path+"summary_"+self.timestamp+".txt"
-        myfile = open(sumfile, "w")
-        myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-        myfile.write('Shikhar Mittal, 2024\n')
-        myfile.write('\nThis is output_'+self.timestamp)
-        myfile.write('\n------------------------------\n')
-        myfile.write('\nTime stamp: '+self.formatted_timestamp)
-        myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
-        myfile.write('\n')
-        myfile.write('\nParameters given:\n')
-        myfile.write('-----------------')
-        myfile.write('\nHo = {}'.format(self.Ho))
-        myfile.write('\nOm_m = {}'.format(self.Om_m))
-        myfile.write('\nOm_b = {}'.format(self.Om_b))
-        myfile.write('\nsig8 = {}'.format(self.sig8))
-        myfile.write('\nns = {}'.format(self.ns))
-        myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
-        myfile.write('\nYp = {}'.format(self.Yp))
-        myfile.write('\n\nfalp = {}'.format(self.falp))
-        myfile.write('\nfX = {}'.format(self.fX))
-        myfile.write('\nfesc = {}'.format(self.fesc))
-        myfile.write('\nmin(T_vir) = {}'.format(self.Tmin_vir))
-        myfile.write('\n')
-        return myfile
-
-    def glob_sig(self):      
-        #completed = 0
-        if self.model==0:
-        #Cosmological and astrophysical parameters are fixed.
-            if self.cpu_ind==0:
-                _print_banner()
-                print('Both cosmological and astrophysical parameters are fixed.\n')
-                
-                st = time.process_time()
-                
-                myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
-
-                Z_temp = Z_default
-
-                if self.Z_eval is not None:
-                    if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
-                        print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
-                        print('Terminating ...\033[00m')
-                        sys.exit()
-                    else:
-                        Z_temp = self.Z_eval
-                
-                print('Obtaining the thermal and ionisation history ...')
-                sol = myobj.history_solver(Z_eval=Z_default)
-                
-                xe = sol[0]
-                Q_Hii = sol[1]
-                Tk = sol[2]
-                
-                #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
-
-                Q_Hii_default = Q_Hii  #We need this for computing CMB optical depth
-
-                if self.Z_eval is not None:
-                    splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                    xe = splxe(self.Z_eval)
-                    Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                    splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                    Tk = splTk(self.Z_eval)
-
-                print('Obtaining spin temperature ...')
-                Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-
-                print('Computing the 21-cm signal ...')
-                T21_mod1 = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
-                
-                print('Done.')
-
-                xe_save_name = self.path+'xe'
-                Q_save_name = self.path+'Q'
-                Q_default_save_name = self.path+'Q_default'
-                Tk_save_name = self.path+'Tk'
-                Ts_save_name = self.path+'Ts'
-                Tcmb_save_name = self.path+'Tcmb'
-                T21_save_name = self.path+'T21'
-                z_save_name = self.path+'one_plus_z'
-                
-                np.save(xe_save_name,xe)
-                np.save(Q_save_name,Q_Hii)
-                np.save(Q_default_save_name,Q_Hii_default)
-                np.save(Tk_save_name,Tk)
-                np.save(Ts_save_name,Ts)
-                np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
-                np.save(T21_save_name,T21_mod1)
-                np.save(z_save_name,Z_temp)
-                
-                print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
-                
-                et = time.process_time()
-                # get the execution time
-                elapsed_time = et - st
-                print('\nExecution time: %.2f seconds' %elapsed_time)
-
-                #========================================================
-                #Writing to a summary file
-                max_T21 = np.min(T21_mod1)
-                max_ind = np.where(T21_mod1==max_T21)
-                [max_z] = Z_temp[max_ind]
-
-                idx = np.argmin(np.abs(Q_Hii_default-0.5))
-                z50 = Z_default[idx]-1
-                z100 = None
-                try:
-                    idx = np.where(Q_Hii_default>=0.98)[0][0]
-                    z100 = Z_default[idx]-1
-                    tau_e = myobj.reion_tau(60,Q_Hii_default)
-                except:
-                    print('\nReionisation did not complete by z=5.')
-                
-                myfile = self._write_summary(elapsed_time=elapsed_time)
-                
-                myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
-                if z100!=None:
-                    myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
-                    myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
-
-                myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
-                myfile.write('\n')
-                myfile.close()
-                #========================================================
-
-                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
-                return None
-            
-        elif self.model==1:
-        #Cosmological parameters are fixed so dark ages is solved only once.
-            if self.cpu_ind==0:
-                _print_banner()
-                print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
-                print('\nGenerating once the thermal and ionisation history for dark ages ...')
-            
-            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[0],fX=self.fX[0],fesc=self.fesc[0],Tmin_vir=self.Tmin_vir[0], hmf_name=self.hmf_name)
-
-            Z_da = np.linspace(Z_start,Zstar,2000)
-            sol_da = myobj_da.history_solver(Z_eval=Z_da)
-            xe_da = sol_da[0]
-            Tk_da = sol_da[2]
-
-            Z_cd = 1/np.linspace(1/Zstar,1/Z_end,200)
-            Z_temp = Z_cd
-            if self.Z_eval is not None:
-                if (self.Z_eval[0]>Zstar or self.Z_eval[-1]<Z_end):
-                    print('\033[31mYour requested redshift values should satisfy ',Zstar,'>1+z>',Z_end)
-                    print('Terminating ...\033[00m')
-                    sys.exit()
-                else:
-                    Z_temp = self.Z_eval
-
-            n_values = len(Z_temp)
-            
-            n_mod = _no_of_mdls(self.astro)
-            arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21_cd = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
-            
-            if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
-
-            st = time.process_time()            
-            for i in range(n_mod):
-                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                    ind=np.where(arr==i)
-
-                    myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
-                    sol_cd = myobj_cd.history_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                    
-                    xe_cd = sol_cd[0]
-                    Q_cd = sol_cd[1]
-                    Tk_cd = sol_cd[2]
-
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
-                        xe_cd = splxe(self.Z_eval)
-                        Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
-                        splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
-                        Tk_cd = splTk(self.Z_eval)
-
-                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Tk=Tk_cd)
-                    '''
-                    #    self.comm.send('done', dest=0, tag=1)
-                    #    num_models_complete +=1
-                    #    if num_models_complete==int(n_mod/self.n_cpu):
-                    #        break
-            else:
-                pbar = tqdm(total=n_mod, desc="Processing Models")
-                while completed < int(n_mod/self.n_cpu)*(self.n_cpu-1):
-                    # Receive a message from any worker
-                    status = MPI.Status()
-                    self.comm.recv(source=MPI.ANY_SOURCE, tag=1, status=status)
-                    completed += 1
-                    pbar.update(1)
-
-                for i in np.concatenate((range(int(n_mod/self.n_cpu)),range(int(n_mod/self.n_cpu)*self.n_cpu,n_mod))):
-                    ind=np.where(arr==i)
-
-                    myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
-                    sol_cd = myobj_cd.history_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                    
-                    xe_cd = sol_cd[0]
-                    Q_cd = sol_cd[1]
-                    Tk_cd = sol_cd[2]
-
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
-                        xe_cd = splxe(self.Z_eval)
-                        Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
-                        splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
-                        Tk_cd = splTk(self.Z_eval)
-
-                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Tk=Tk_cd)
-                    pbar.update(1)
-
-                pbar.close()
-            '''
-            self.comm.Barrier()
-            if self.cpu_ind!=0:
-                self.comm.send(T21_cd, dest=0)
-            else:
-                print('\nDone.')
-                for j in range(1,self.n_cpu):
-                    T21_cd = T21_cd + self.comm.recv(source=j)
-                
-                T21_save_name = self.path+'T21'
-                z_save_name = self.path+'one_plus_z'
-                
-                np.save(T21_save_name,T21_cd)
-                np.save(z_save_name,Z_temp)
-                print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
-                
-                et = time.process_time()
-                # get the execution time
-                elapsed_time = et - st
-                print('\nProcessing time: %.2f seconds' %elapsed_time)
-
-                #========================================================
-                #Writing to a summary file
-
-                myfile = self._write_summary(elapsed_time=elapsed_time)
-                myfile.write('\n{} models generated'.format(n_mod))
-                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
-                myfile.write('\n')
-                myfile.close()
-                #========================================================
-
-                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
-
-        elif self.model==2:
-
-            if self.cpu_ind==0:
-                _print_banner()
-                print('Only cosmological parameters are varied.')
-            
-
-            Z_temp = Z_default
-            if self.Z_eval is not None:
-                if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
-                    print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
-                    print('Terminating ...\033[00m')
-                    sys.exit()
-                else:
-                    Z_temp = self.Z_eval
-
-            n_values = len(Z_temp)
-            
-            n_mod = _no_of_mdls(self.cosmo)
-            arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp)])
-            T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
-            
-            if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
-            st = time.process_time()
-            
-            for i in range(n_mod):
-                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                    ind=np.where(arr==i)
-
-                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
-                    sol = myobj.history_solver(Z_eval=Z_default)
-
-                    xe = sol[0]
-                    Q_Hii = sol[1]
-                    Tk = sol[2]
-
-                    #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                    Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
-
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                        xe = splxe(self.Z_eval)
-                        Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                        splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                        Tk = splTk(self.Z_eval)
-
-                    T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
-            
-            self.comm.Barrier()
-            if self.cpu_ind!=0:
-                self.comm.send(T21_mod2, dest=0)
-            else:
-                print('Done.\n')
-                for j in range(1,self.n_cpu):
-                    T21_mod2 = T21_mod2 + self.comm.recv(source=j)
-                
-                z_save_name = self.path+'one_plus_z'
-                T21_save_name = self.path+'T21'
-                
-                np.save(T21_save_name,T21_mod2)
-                np.save(z_save_name,Z_temp)
-
-                print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
-                
-                et = time.process_time()
-                # get the execution time
-                elapsed_time = et - st
-                print('\nProcessing time: %.2f seconds' %elapsed_time)
-                #========================================================
-                #Writing to a summary file
-
-                myfile = self._write_summary(elapsed_time=elapsed_time)
-                myfile.write('\n{} models generated'.format(n_mod))
-                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
-                myfile.write('\n')
-                myfile.close()
-                #========================================================
-
-                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
-
-        elif self.model==3:
-
-            if self.cpu_ind==0:
-                _print_banner()
-                print('Both cosmological and astrophysical parameters are varied.')
-            
-
-            Z_temp = Z_default
-            if self.Z_eval is not None:
-                if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
-                    print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
-                    print('Terminating ...\033[00m')
-                    sys.exit()
-                else:
-                    Z_temp = self.Z_eval
-
-            n_values = len(Z_temp)
-            
-            n_mod = _no_of_mdls(self.astro)*_no_of_mdls(self.cosmo)
-            arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
-            
-            if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
-            st = time.process_time()
-            
-            for i in range(n_mod):
-                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                    ind=np.where(arr==i)
-
-                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],falp=self.falp[ind[7][0]],fX=self.fX[ind[8][0]],fesc=self.fesc[ind[9][0]],Tmin_vir=self.Tmin_vir[ind[10][0]], hmf_name=self.hmf_name)
-                    sol = myobj.history_solver(Z_eval=Z_default)
-
-                    xe = sol[0]
-                    Q_Hii = sol[1]
-                    Tk = sol[2]
-
-
-                    #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                    Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
-
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                        xe = splxe(self.Z_eval)
-                        Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                        splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                        Tk = splTk(self.Z_eval)
-
-                    T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]]:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
-            
-            self.comm.Barrier()
-            if self.cpu_ind!=0:
-                self.comm.send(T21_mod3, dest=0)
-            else:
-                print('Done.\n')
-                for j in range(1,self.n_cpu):
-                    T21_mod3 = T21_mod3 + self.comm.recv(source=j)
-                
-                z_save_name = self.path+'one_plus_z'
-                T21_save_name = self.path+'T21'
-                
-                np.save(z_save_name,Z_temp)
-                np.save(T21_save_name,T21_mod3)
-                
-
-                print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
-                
-                et = time.process_time()
-                # get the execution time
-                elapsed_time = et - st
-                print('\nProcessing time: %.2f seconds' %elapsed_time)
-                #========================================================
-                #Writing to a summary file
-
-                myfile = self._write_summary(elapsed_time=elapsed_time)
-                myfile.write('\n{} models generated'.format(n_mod))
-                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
-                myfile.write('\n')
-                myfile.close()
-                #========================================================
-
-                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
-        return None
-    #End of function glob_sig               
-
-#End of class pipeline
 #========================================================================================================
