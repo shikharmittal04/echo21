@@ -168,9 +168,10 @@ class pipeline():
         myfile.write('\n  Type = '+self.sfrd_obj.name)
         try:
             myfile.write('\n  HMF = '+self.sfrd_obj.hmf)
+            myfile.write('\n  mdef = '+self.sfrd_obj.mdef)
         except:
             pass
-        myfile.write('\n  Parameters = {}'.format(self.sfrd_obj.sfrd_para))
+        myfile.write('\n  Parameters = {}'.format(self.sfrd_obj.para))
         myfile.write('\n')
         return myfile
 
@@ -221,7 +222,7 @@ class pipeline():
                 Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
 
                 print('Computing the 21-cm signal ...')
-                T21_mod1 = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
+                T21_mod1 = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
                 
                 print('Done.')
 
@@ -256,22 +257,27 @@ class pipeline():
                 max_ind = np.where(T21_mod1==max_T21)
                 [max_z] = Z_temp[max_ind]
 
-                idx = np.argmin(np.abs(Q_Hii_default-0.5))
-                z50 = Z_default[idx]-1
-                z100 = None
+                z50 = None
                 try:
-                    idx = np.where(Q_Hii_default>=0.98)[0][0]
-                    z100 = Z_default[idx]-1
-                    tau_e = myobj.reion_tau(60,Q_Hii_default)
+                    idx = np.argmin(np.abs(Q_Hii_default-0.5))
+                    z50 = Z_default[idx]-1
+                    z100 = None
+                    try:
+                        idx = np.where(Q_Hii_default>=0.98)[0][0]
+                        z100 = Z_default[idx]-1
+                        tau_e = myobj.reion_tau(60,Q_Hii_default)
+                    except:
+                        print('\n{:.1f} % universe reionised'.format(100*Q_Hii_default[-1]))
                 except:
-                    print('\nReionisation did not complete by z=5.')
-                
+                    print('\nNote even 50% reionisation complete until today!')
+
                 myfile = self._write_summary(elapsed_time=elapsed_time)
                 
-                myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
-                if z100!=None:
-                    myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
-                    myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
+                if z50!=None:
+                    myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
+                    if z100!=None:
+                        myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
+                        myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
 
                 myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
                 myfile.write('\n')
@@ -288,7 +294,13 @@ class pipeline():
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
                 print('\nGenerating once the thermal and ionisation history for dark ages ...')
             
-            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[0],fX=self.fX[0],fesc=self.fesc[0],Tmin_vir=self.Tmin_vir[0], hmf_name=self.hmf_name)
+            if self.sfrd_obj.name=='emp':
+                sfrd_obj = phy_sfrd()
+            else:
+                sfrd_obj = emp_sfrd()
+            
+            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,
+            fLy=self.fLy[0],sLy=self.sLy[0],fX=self.fX[0],wX=self.wX[0],fesc=self.fesc[0],sfrd_obj=self.sfrd_obj)
 
             Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.igm_solver(Z_eval=Z_da)
@@ -334,7 +346,8 @@ class pipeline():
                         splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
                         Tk_cd = splTk(self.Z_eval)
 
-                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Tk=Tk_cd)
+                    Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
+                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
                     '''
                     #    self.comm.send('done', dest=0, tag=1)
                     #    num_models_complete +=1
@@ -452,7 +465,8 @@ class pipeline():
                         splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
                         Tk = splTk(self.Z_eval)
 
-                    T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
+                    Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                    T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
             
             self.comm.Barrier()
             if self.cpu_ind!=0:
@@ -535,7 +549,8 @@ class pipeline():
                         splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
                         Tk = splTk(self.Z_eval)
 
-                    T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]]:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Tk=Tk)
+                    Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                    T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]]:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
             
             self.comm.Barrier()
             if self.cpu_ind!=0:

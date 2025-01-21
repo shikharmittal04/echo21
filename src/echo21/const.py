@@ -37,7 +37,7 @@ L_UV = 8.695e20  #W/Hz/(Msun/yr)
 fstar = 0.1
 Iion = 10**53.44/Msolar_by_year_to_kg_by_sec #Yield of ionising photons. From Madau & Fragos (2017).
 
-Ji_to_Jc = 1 #Ratio of intensities of injected photons to continuum photons
+Ji_to_Jc = 0.2 #Ratio of intensities of injected photons to continuum photons
 N_alpha_infty = 10000   #Total number of Lyman series photons between Ly-alpha and Ly-limit lines.
 
 tilda_E1, tilda_E0, E1, E0 = 30,0.2,8,0.5 #Energies in keV
@@ -47,10 +47,10 @@ CX_fid = 2.61e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^
 Zstar = 60 #redshift of the beginning of star formation
 
 Z_start = 1501
-Z_end = 6
+Z_end = 1
 
-Z_cd = 1/np.linspace(1/Zstar,1/Z_end,200)
-Z_default = np.concatenate((np.linspace(Z_start,Zstar+1,2000),Z_cd))
+Z_cd = np.concatenate((1/np.linspace(1/Zstar,1/5.05,200),1/np.linspace(1/5,1/Z_end,100)))
+Z_default = np.concatenate((np.linspace(Z_start,Zstar+0.1,2000),Z_cd))
 #-----------------------------------------------------------------------
 
 #Recombination related

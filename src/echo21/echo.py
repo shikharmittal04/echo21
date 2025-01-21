@@ -9,7 +9,7 @@ import warnings
 from .const import *
 from .set_sfrd import *
 
-warnings.filterwarnings('ignore')
+#warnings.filterwarnings('ignore')
 
 def _gaif(xe,Q):
     '''
@@ -118,7 +118,18 @@ class main():
         self.fX = fX
         self.wX = wX
         self.fesc = fesc
+        
         self.sfrd_obj = sfrd_obj
+        self.sfrd_type = sfrd_obj.name
+        try:
+            self.mdef = sfrd_obj.mdef
+            self.hmf = sfrd_obj.hmf
+            self.Tmin_vir = sfrd_obj.para['Tmin_vir']
+        except:
+            self.a_sfrd = sfrd_obj.para['a']
+            self.b_sfrd = sfrd_obj.para['b']
+            self.c_sfrd = sfrd_obj.para['c']
+            self.d_sfrd = sfrd_obj.para['d']
 
         self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
         self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
@@ -223,7 +234,7 @@ class main():
 
 
 
-    def recomb_alpha(self, Tk):
+    def recomb_alpha(self, T):
         '''
         :math:`\\alpha_{\\mathrm{B}}=\\alpha_{\\mathrm{B}}(T)`
         
@@ -232,8 +243,8 @@ class main():
         Arguments
         ---------
         
-        Tk : float
-            Gas temperature in units of kelvin.
+        T : float
+            Temperature in units of kelvin.
         
         Returns
         -------
@@ -242,10 +253,10 @@ class main():
             The effective case-B recombination coefficient for hydrogen :math:`(\\mathrm{m}^3\\mathrm{s}^{-1})`.
             
         '''
-        t=Tk/10000
+        t=T/10000
         return (1e-19)*Feff*A_rec*t**b_rec/(1+c_rec*t**d_rec)
 
-    def recomb_beta(self, Tk):
+    def recomb_beta(self, T):
         '''
         :math:`\\beta=\\beta(T)`
         
@@ -257,8 +268,8 @@ class main():
         Arguments
         ---------
         
-        Tk : float
-            Gas temperature in units of kelvin.
+        T : float
+            Temperature in units of kelvin.
         
         Returns
         -------
@@ -267,7 +278,7 @@ class main():
             The total photoionisation rate in :math:`(\\mathrm{s}^{-1})`.
             
         '''
-        beta = self.recomb_alpha(Tk)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B2/(kB*Tk))
+        beta = self.recomb_alpha(T)*(2*np.pi*me*kB*T/hP**2)**1.5*np.exp(-B2/(kB*T))
         return beta
 
     def recomb_Krr(self, Z):
@@ -314,7 +325,7 @@ class main():
         
         return (1+self.recomb_Krr(Z)*Lam_H*self.basic_cosmo_nH(Z)*(1-xe))/(1+self.recomb_Krr(Z)*(Lam_H+self.recomb_beta(Tk))*self.basic_cosmo_nH(Z)*(1-xe))
 
-    def recomb_Saha_xe(self,Z,Tk):
+    def recomb_Saha_xe(self,Z,T):
         '''
         Electron fraction predicted by the Saha's equation. This is important to initialise the differential equation for :math:`x_{\\mathrm{e}}`. At high redshift such as :math:`z\\approx1500`, Saha's equation gives accurate estimate of :math:`x_{\\mathrm{e}}`.
         
@@ -324,8 +335,8 @@ class main():
         Z : float
             1 + redshift, dimensionless
           
-        Tk : float
-            Gas temperature in units of kelvin
+        T : float
+            Temperature in units of kelvin
         
         Returns
         -------
@@ -333,7 +344,7 @@ class main():
         float
             Electron fraction predicted by Saha's equation.
         '''
-        Saha=1/self.basic_cosmo_nH(Z)*(2*np.pi*me*kB*Tk/hP**2)**1.5*np.exp(-B1/(kB*Tk))
+        Saha=1/self.basic_cosmo_nH(Z)*(2*np.pi*me*kB*T/hP**2)**1.5*np.exp(-B1/(kB*T))
         return (np.sqrt(Saha**2+4*Saha)-Saha)/2
 
     #End of functions related to recombination
@@ -360,7 +371,7 @@ class main():
             HMF, :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M=M\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving Mega parsec.
         '''
         M_by_h = M*self.h100 #M in units of solar mass/h
-        return self.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', model = self.sfrd_obj.hmf)
+        return self.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', mdef = self.mdef, model = self.hmf)
 
     def dndM(self,M,Z):
         '''
@@ -402,7 +413,7 @@ class main():
             The mass returned is in units of :math:`\\mathrm{M}_{\\odot}/h`.
         '''
         
-        return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.sfrd_obj.sfrd_para['Tmin_vir']/1.98e4)**1.5
+        return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.Tmin_vir/1.98e4)**1.5
 
     def f_coll(self,Z):
         '''
@@ -428,9 +439,7 @@ class main():
             hmf_space = self.dndlnM(M=M_space,Z=Z)    #Corresponding HMF values are in cMpc^-3 
             return Msolar_by_Mpc3_to_kg_by_m3*np.trapezoid(hmf_space,M_space)
         
-        hmf = self.sfrd_obj.hmf
-
-        if hmf=='press74':
+        if self.hmf=='press74':
             return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
         else:
             numofZ = np.size(Z)
@@ -442,7 +451,7 @@ class main():
                 rho_halo = np.zeros(numofZ)
                 counter=0
                 for i in Z:
-                    rho_halo[i]=rho_dm_coll(i)
+                    rho_halo[counter]=rho_dm_coll(i)
                     counter=counter+1
             return rho_halo/(self.Om_m*self.basic_cosmo_rho_crit())
 
@@ -469,16 +478,11 @@ class main():
         float 
             Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
-        sfrd_name = self.sfrd_obj.name
         
-        if sfrd_name=='phy':
+        if self.sfrd_type=='phy':
             mysfrd = -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.dfcoll_dz(Z)*self.basic_cosmo_H(Z)
-        elif sfrd_name=='emp':
-            a_sfrd = self.sfrd_obj.sfrd_para['a']
-            b_sfrd = self.sfrd_obj.sfrd_para['b']
-            c_sfrd = self.sfrd_obj.sfrd_para['c']
-            d_sfrd = self.sfrd_obj.sfrd_para['d']
-            mysfrd = a_sfrd*Z**b_sfrd/(1+(Z/c_sfrd)**d_sfrd)*Msolar_by_Mpc3_year_to_kg_by_m3_sec
+        elif self.sfrd_type=='emp':
+            mysfrd = self.a_sfrd*Z**self.b_sfrd/(1+(Z/self.c_sfrd)**self.d_sfrd)*Msolar_by_Mpc3_year_to_kg_by_m3_sec
 
         return mysfrd
     #========================================================================================================
@@ -711,7 +715,7 @@ class main():
     
     def lya_spec_inten(self,Z):
         '''
-        Specific intensity of Ly:math:`\\alpha` photons, :math:`J_{\\mathrm{Ly}}`.
+        Specific intensity of Ly:math:`\\alpha` photons, :math:`J_{\\mathrm{Ly}}`, due to continuum and injected photons.
         
         Arguments
         ---------
@@ -722,22 +726,25 @@ class main():
         -------
         
         float
-            Specific intensity in terms of number per unit time per unit area per unit frequency per unit solid angle (:math:`\\mathrm{m^{-2}.s^{-1}.Hz^{-1}.sr^{-1}}`).
+            Specific intensity in terms of number per unit time per unit area per unit frequency per unit solid angle (:math:`\\mathrm{m^{-2}.s^{-1}.Hz^{-1}.sr^{-1}}`). Two values are returned; intensity due to continuum and injected photons, respectively.
         '''
         def _lya_spec_inten(Z):
-            integ=0
+            prefac = cE/(4*np.pi)*Z**2
+
             Zmax = 32/27*Z
             temp = np.linspace(Z,Zmax,10)
-            integ = scint.trapezoid(self.eps_Ly(temp,10.2*temp/Z)/self.basic_cosmo_H(temp),temp)
+            continuum = scint.trapezoid(self.eps_Ly(temp,10.2*temp/Z)/self.basic_cosmo_H(temp),temp)
+
+            injected = 0
             for ni in np.arange(4,24):
                 Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
                 temp = np.linspace(Z,Zmax,5)
-                integ = integ+Pn[ni-4]*scint.trapezoid(self.eps_Ly(temp,13.6*(1-1/ni**2)*temp/Z)/self.basic_cosmo_H(temp),temp)
-            return cE/(4*np.pi)*Z**2*integ
+                injected = injected+Pn[ni-4]*scint.trapezoid(self.eps_Ly(temp,13.6*(1-1/ni**2)*temp/Z)/self.basic_cosmo_H(temp),temp)
+            return prefac*continuum,prefac*injected
 
         if type(Z)==np.float64 or type(Z)==float or type(Z)==int:
             if Z>Zstar:
-                return 0
+                return 0.0,0.0
             else:
                 return _lya_spec_inten(Z)
 
@@ -757,13 +764,13 @@ class main():
             
             counter=0
             numofZ = len(Z)
-            J_temp=np.zeros(numofZ)
+            J_temp=np.zeros((numofZ,2))
             for Z_value in Z:
-                J_temp[counter]=_lya_spec_inten(Z_value)
+                J_temp[counter,:]=_lya_spec_inten(Z_value)
                 counter=counter+1
         
             if flag == True:
-                J_before_CD = np.zeros(loc)
+                J_before_CD = np.zeros((loc,2))
                 J_after_CD = J_temp
                 return np.concatenate((J_before_CD,J_after_CD))
             else:
@@ -832,9 +839,9 @@ class main():
         
         Ic = eta*(2*np.pi**4*atau**2)**(1/3)*(arr[0]**2+arr[2]**2)
         Ii = eta*np.sqrt(atau/2)*scint.quad(lambda y:y**(-1/2)*np.exp(-2*eta*y-np.pi*y**3/(6*atau))*scsp.erfc(np.sqrt(np.pi*y**3/(2*atau))),0,np.inf)[0]-Scat*(1-Scat)/(2*eta)
-        J_Ly = self.lya_spec_inten(Z)
+        Jc,Ji = self.lya_spec_inten(Z)
         nbary = (1+self.basic_cosmo_xHe())*self.basic_cosmo_nH(Z)
-        return 8*np.pi/3 * hP/(kB*lam_alpha) * J_Ly*self._dopp(Tk)/nbary * (Ic+Ji_to_Jc*Ii)
+        return 8*np.pi/3 * hP/(kB*lam_alpha) * self._dopp(Tk)/nbary * (Jc*Ic+Ji*Ii)
        
     '''
     def tau(E,Z,Z1,x_HI):     #X-ray optical depth
@@ -872,7 +879,7 @@ class main():
 
     def heating_Ex(self,Z,xe):
         '''
-        We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. However, our normalisation is smaller by a factor of 0.15 as we adopt the :math:`L_{\\mathrm{x}}/\\mathrm{SFR}` relation from `Mineo et al. (2011) <https://academic.oup.com/mnras/article/419/3/2095/1064692>`
+        We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. However, our normalisation is smaller by a factor of 0.14 as we adopt the :math:`L_{\\mathrm{x}}/\\mathrm{SFR}` relation from `Lehmer et al. (2024) <>`
         
         Arguments
         ---------
@@ -893,7 +900,8 @@ class main():
         def _fXh(xe):
             return 1-(1-xe**0.2663)**1.3163
 
-        CX_modifier=(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
+        if self.wX!=1: CX_modifier=(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
+        else: CX_modifier= np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
         prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
         return prefactor*self.fX*_fXh(xe)*self.sfrd(Z)*CX_fid*CX_modifier
 
@@ -953,7 +961,7 @@ class main():
         Zreion = Z_default[idx1]
         
         
-        if type(Z) == int or type(Z)==float:
+        if type(Z) == int or type(Z)==float or type(Z)==np.float64:
             return _reion(Z)
         elif type(Z)==np.ndarray or type(Z)==list:
             i = 0
@@ -975,11 +983,11 @@ class main():
         xe = V[0]
         Tk = V[1]
 
-        #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS
+        #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).
         if xe<0.99:
-            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tk)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tk)*(1-xe)*np.exp(-Ea/(kB*Tk)))
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
         else: 
-            eq1=0
+            eq1 = np.array([0.0])
 
         #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
         
@@ -1004,7 +1012,6 @@ class main():
 
         #Obtaining the solutions ...
         xe = Sol.y[0]
-        #QHII = Sol.y[1]
         Tk = Sol.y[1]
 
         return [xe,Tk]
@@ -1012,10 +1019,10 @@ class main():
     def reion_eqn(self,Z,QHii):
         #eq is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2007)
 
-        if QHii<0.99:
+        if QHii<0.999:
             eq = -1/self.basic_cosmo_H(Z)*(self.fesc*Iion*self.sfrd(Z)/self.basic_cosmo_nH(1) - (1+self.basic_cosmo_xHe())*alpha_B*self.reion_clump(Z)*self.basic_cosmo_nH(Z)*QHii)
         else:
-            eq = 0
+            eq = np.array([0.0])
         return eq
     
     def reion_solver(self):
@@ -1131,9 +1138,9 @@ class main():
         '''
     
         Scat = self._scatter_corr(Z,xe,Tk)
-        J_alp = self.lya_spec_inten(Z)    #'undistorted' background Spec. Inte. of Lya photons.
+        J_Ly = self.lya_spec_inten(Z)    #'undistorted' background Spec. Inte. of Lya photons.
         Jo = 5.54e-8*Z         #eq.(24) in Mittal & Kulkarni (2021)
-        return Scat*J_alp/Jo
+        return Scat*(J_Ly[:,0]+J_Ly[:,1])/Jo
 
     def hyfi_spin_temp(self,Z,xe,Tk):
         '''
@@ -1163,7 +1170,7 @@ class main():
         Ts = ( 1  + xa + xk*Tk/(Tk+T_se))/(1/self.basic_cosmo_Tcmb(Z) +  xk/Tk + xa/(Tk+T_se) )
         return Ts
 
-    def hyfi_twentyone_cm(self,Z,xe, Q,Tk):
+    def hyfi_twentyone_cm(self,Z,xe, Q,Ts):
         '''
         The global (sky-averaged) 21-cm signal.
         
@@ -1179,8 +1186,8 @@ class main():
         Q : float
             Volume-filling factor.
         
-        Tk : float
-            Gas kinetic temperature.
+        Ts : float
+            Spin temperature.
         
         Returns
         -------
@@ -1190,7 +1197,6 @@ class main():
         '''
         #Get the two-zone model averaged ionisation fraction.
         xHI = 1-_gaif(xe,Q)
-        Ts = self.hyfi_spin_temp(Z,xe,Tk)
         return 27*xHI*((1-self.Yp)/0.76)*(self.Om_b*self.h100**2/0.023)*np.sqrt(0.15*Z/(10*self.Om_m*self.h100**2))*(1-self.basic_cosmo_Tcmb(Z)/Ts)
 
 #End of class main.
