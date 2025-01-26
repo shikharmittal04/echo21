@@ -7,9 +7,9 @@ from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from pybaselines import Baseline
 
-from .const import Zstar, Z_start, Z_end, Z_default, Z_cd
+from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, phy_sfrd_default_model, emp_sfrd_default_model
 from .echo import main
-from .set_sfrd import *
+
 
 def _print_banner():
     banner = """\n\033[94m
@@ -25,19 +25,31 @@ def _print_banner():
     return None
 
 def _to_array(params):
-        for keys in params.keys():
-            if type(params[keys])==list:
-                params[keys]=np.array(params[keys])
-            elif type(params[keys])==float or type(params[keys])==int:
-                params[keys]=np.array([params[keys]])
+        try:
+            for keys in params.keys():
+                if type(params[keys])==list:
+                    params[keys]=np.array(params[keys])
+                elif type(params[keys])==float or type(params[keys])==int:
+                    params[keys]=np.array([params[keys]])
+        except:
+            if type(params)==list:
+                    params=np.array(params)
+            elif type(params)==float or type(params)==int:
+                params=np.array([params])        
         return params
 
 def _to_float(params):
-    for keys in params.keys():
-        if type(params[keys])==list:
-            [params[keys]]=params[keys]
-        elif type(params[keys])==np.ndarray:
-            params[keys]=params[keys][0]
+    try:
+        for keys in params.keys():
+            if type(params[keys])==list:
+                [params[keys]]=params[keys]
+            elif type(params[keys])==np.ndarray:
+                params[keys]=params[keys][0]
+    except:
+        if type(params)==list:
+                [params]=params
+        elif type(params)==np.ndarray:
+            params=params[0]
     return params
     
 def _no_of_mdls(params):
@@ -59,7 +71,63 @@ class pipeline():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},astro= {'fLy':1,'sLy':2.64,'fX':0.1,'wX':1.5,'fesc':0.1}, sfrd_obj=phy_sfrd(),Z_eval=None,path=''):
+    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},astro= {'fLy':1,'sLy':2.64,'fX':0.1,'wX':1.5,'fesc':0.1}, sfrd_dic={'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4},Z_eval=None,path=''):
+        '''
+        Ho : float, optional
+            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
+        
+        Om_m : float, optical
+            Relative matter density. Default value ``0.315``.
+        
+        Om_b : float, optical
+            Relative baryon density. Default value ``0.049``.            
+        
+        sig8: float, optional
+            Amplitude of density fluctuations. Default value ``0.811``.
+        
+        ns: float, optional
+            Spectral index of the primordial scalar spectrum. Default value ``0.965``. 
+
+        Tcmbo : float, optional
+            CMB temperature today in kelvin. Default value ``2.725``.
+        
+        Yp : float, optional
+            Primordial helium fraction by mass. Default value ``0.245``.
+        
+        fLy : float, optional
+            :math:`f_{\\mathrm{Ly}}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
+        
+        sLy : float, optional
+            :math:`s`, spectral index of Lyman series SED, when expressed as :math:`\\epsilon\\propto E^{-s}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``2.64``.
+
+        fX : float, optional
+            :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value 0.1.
+        
+        wX : float, optional
+            :math:`w`, spectral index of X-ray SED, when expressed as :math:`\\epsilon\\propto E^{-w}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``1.5``.
+
+        fesc : float, optional
+            :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionising photons. Default value 0.1.
+
+        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
+
+        sfrd_dic : SFRD dictionary, optional
+            This should be a dictionary containing all the details of SFRD.
+            hmf : str, optional
+            HMF model to use. Default value ``press74``. Other commonly used HMFs are
+            - sheth99 (for Sheth & Tormen 1999)
+            - tinker08 (for Tinker et al 2008)
+
+            For the full list see `colossus <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#lss.mass_function.massFunction>`__ page.
+
+            mdef: str, optional
+                Definition for halo mass. Default is ``fof``. For most HMFs such as Press-Schechter or Sheth-Tormen friends-of-friends (``fof``) algorithm is used. For Tinker, it is an integer times mean matter density (``<int>m``). See colossus definition `page <https://bdiemer.bitbucket.io/colossus/halo_mass.html>`_
+                
+            Tmin_vir : float, optional
+                Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
+            
+            Use this class to set your parameters for an empirically-motivated SFRD. See eq.(15) from `Madau & Dickinson (2014) <https://www.annualreviews.org/content/journals/10.1146/annurev-astro-081811-125615>`__.
+        '''
 
         self.comm = MPI.COMM_WORLD
         self.cpu_ind = self.comm.Get_rank()
@@ -68,12 +136,30 @@ class pipeline():
         self.cosmo=cosmo
         self.astro=astro
 
+        
+        
         self.model = 0
         for keys in self.astro.keys():
             if np.size(self.astro[keys])>1:
-                self.model = self.model+1
+                self.model = 1
                 break
-                
+        
+        self.sfrd_type = sfrd_dic['type']
+        if self.sfrd_type == 'phy':
+            sfrd_dic={**phy_sfrd_default_model,**sfrd_dic}
+            self.hmf = sfrd_dic['hmf']
+            self.mdef = sfrd_dic['mdef']
+            self.Tmin_vir = sfrd_dic['Tmin_vir']
+            if self.model==0:
+                if np.size(self.Tmin_vir)>1:
+                    self.model=1
+        elif self.sfrd_type == 'emp':
+            sfrd_dic={**emp_sfrd_default_model,**sfrd_dic}
+            self.a_sfrd = sfrd_dic['a']
+            if self.model==0:
+                if np.size(self.a_sfrd)>1:
+                    self.model=1
+
         for keys in self.cosmo.keys():
             if np.size(self.cosmo[keys])>1:
                 self.model = self.model+2
@@ -82,15 +168,23 @@ class pipeline():
         if self.model==0:
             self.astro=_to_float(self.astro)
             self.cosmo=_to_float(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = _to_float(self.Tmin_vir)
+            else: self.a_sfrd = _to_float(self.a_sfrd)
         elif self.model==1:
             self.astro=_to_array(self.astro)
             self.cosmo=_to_float(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = _to_array(self.Tmin_vir)
+            else: self.a_sfrd = _to_array(self.a_sfrd)
         elif self.model==2:
             self.astro=_to_float(self.astro)
             self.cosmo=_to_array(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = _to_float(self.Tmin_vir)
+            else: self.a_sfrd = _to_float(self.a_sfrd)
         elif self.model==3:
             self.astro=_to_array(self.astro)
             self.cosmo=_to_array(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = _to_array(self.Tmin_vir)
+            else: self.a_sfrd = _to_array(self.a_sfrd)
         else:
             print('Impossible!')
             sys.exit()
@@ -117,7 +211,11 @@ class pipeline():
         self.wX = astro['wX']
         self.fesc = astro['fesc']
         
-        self.sfrd_obj = sfrd_obj
+
+
+        
+
+
 
         self.path=path
         if self.cpu_ind==0:
@@ -165,13 +263,14 @@ class pipeline():
         myfile.write('\nwX = {}'.format(self.wX))
         myfile.write('\nfesc = {}'.format(self.fesc))
         myfile.write('\n\nSFRD')
-        myfile.write('\n  Type = '+self.sfrd_obj.name)
+        myfile.write('\n  Type = '+self.sfrd_type)
         try:
-            myfile.write('\n  HMF = '+self.sfrd_obj.hmf)
-            myfile.write('\n  mdef = '+self.sfrd_obj.mdef)
+            myfile.write('\n  HMF = '+self.hmf)
+            myfile.write('\n  mdef = '+self.mdef)
+            myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
         except:
-            pass
-        myfile.write('\n  Parameters = {}'.format(self.sfrd_obj.para))
+            myfile.write('\n  a = {}'.format(self.a_sfrd))
+        
         myfile.write('\n')
         return myfile
 
@@ -185,8 +284,11 @@ class pipeline():
                 
                 st = time.process_time()
                 
-                myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,sfrd_obj=self.sfrd_obj)
-
+                if self.sfrd_type == 'phy':
+                    myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                else:
+                    myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
+                
                 Z_temp = Z_default
 
                 if self.Z_eval is not None:
@@ -294,13 +396,7 @@ class pipeline():
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
                 print('\nGenerating once the thermal and ionisation history for dark ages ...')
             
-            if self.sfrd_obj.name=='emp':
-                sfrd_obj = phy_sfrd()
-            else:
-                sfrd_obj = emp_sfrd()
-            
-            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,
-            fLy=self.fLy[0],sLy=self.sLy[0],fX=self.fX[0],wX=self.wX[0],fesc=self.fesc[0],sfrd_obj=self.sfrd_obj)
+            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
 
             Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.igm_solver(Z_eval=Z_da)
@@ -319,71 +415,78 @@ class pipeline():
             n_values = len(Z_temp)
             
             n_mod = _no_of_mdls(self.astro)
-            arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21_cd = np.zeros((np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            if self.sfrd_type=='phy':
+                n_mod = n_mod * np.size(self.Tmin_vir)
+                arr = np.arange(n_mod)
+                arr = np.reshape(arr,[np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)])
+                T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            elif self.sfrd_type=='emp':
+                n_mod = n_mod * np.size(self.a_sfrd)
+                arr = np.arange(n_mod)
+                arr = np.reshape(arr,[np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd)])
+                arr = np.reshape(arr,[np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd)])
+                T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
+
             
             if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
 
             st = time.process_time()            
-            for i in range(n_mod):
-                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                    ind=np.where(arr==i)
+            
+            
+            
+            
+            if self.sfrd_type == 'phy':
+            #This is the case for physically motivated SFRD.
+                for i in range(n_mod):
+                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                        ind=np.where(arr==i)
 
-                    myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
-                    
-                    sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                    
-                    xe_cd = sol_cd[0]
-                    Tk_cd = sol_cd[1]
+                        myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
+                        
+                        sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
+                        
+                        xe_cd = sol_cd[0]
+                        Tk_cd = sol_cd[1]
 
-                    Q_cd = myobj_cd.reion_solver()
+                        Q_cd = myobj_cd.reion_solver()
 
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
-                        xe_cd = splxe(self.Z_eval)
-                        Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
-                        splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
-                        Tk_cd = splTk(self.Z_eval)
+                        if self.Z_eval is not None:
+                            splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
+                            xe_cd = splxe(self.Z_eval)
+                            Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
+                            splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
+                            Tk_cd = splTk(self.Z_eval)
 
-                    Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
-                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
-                    '''
-                    #    self.comm.send('done', dest=0, tag=1)
-                    #    num_models_complete +=1
-                    #    if num_models_complete==int(n_mod/self.n_cpu):
-                    #        break
+                        Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
+                        T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],ind[4][0],ind[5][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
             else:
-                pbar = tqdm(total=n_mod, desc="Processing Models")
-                while completed < int(n_mod/self.n_cpu)*(self.n_cpu-1):
-                    # Receive a message from any worker
-                    status = MPI.Status()
-                    self.comm.recv(source=MPI.ANY_SOURCE, tag=1, status=status)
-                    completed += 1
-                    pbar.update(1)
+            #This is the case for empirically motivated SFRD.
+                for i in range(n_mod):
+                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                        ind=np.where(arr==i)
 
-                for i in np.concatenate((range(int(n_mod/self.n_cpu)),range(int(n_mod/self.n_cpu)*self.n_cpu,n_mod))):
-                    ind=np.where(arr==i)
+                        myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type = 'emp', a=self.a_sfrd[ind[5][0]])
+                        
+                        sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
+                        
+                        xe_cd = sol_cd[0]
+                        Tk_cd = sol_cd[1]
 
-                    myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp[ind[0][0]],fX=self.fX[ind[1][0]],fesc=self.fesc[ind[2][0]],Tmin_vir=self.Tmin_vir[ind[3][0]], hmf_name=self.hmf_name)
-                    sol_cd = myobj_cd.history_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                    
-                    xe_cd = sol_cd[0]
-                    Q_cd = sol_cd[1]
-                    Tk_cd = sol_cd[2]
+                        Q_cd = myobj_cd.reion_solver()
 
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
-                        xe_cd = splxe(self.Z_eval)
-                        Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
-                        splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
-                        Tk_cd = splTk(self.Z_eval)
+                        if self.Z_eval is not None:
+                            splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
+                            xe_cd = splxe(self.Z_eval)
+                            Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
+                            splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
+                            Tk_cd = splTk(self.Z_eval)
 
-                    T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Tk=Tk_cd)
-                    pbar.update(1)
+                        Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
+                        T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],ind[4][0],ind[5][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
 
-                pbar.close()
-            '''
+
+
+
             self.comm.Barrier()
             if self.cpu_ind!=0:
                 self.comm.send(T21_cd, dest=0)
@@ -442,31 +545,60 @@ class pipeline():
             if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
             
-            for i in range(n_mod):
-                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                    ind=np.where(arr==i)
+            if self.sfrd_type == 'phy':
+            #This is the case for physically motivated SFRD.
+                for i in range(n_mod):
+                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                        ind=np.where(arr==i)
 
-                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
-                    sol = myobj.history_solver(Z_eval=Z_default)
+                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
+                        sol = myobj.history_solver(Z_eval=Z_default)
 
-                    xe = sol[0]
-                    Tk = sol[1]
+                        xe = sol[0]
+                        Tk = sol[1]
 
-                    Q_Hii = myobj.reion_solver()
-                    Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+                        Q_Hii = myobj.reion_solver()
+                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
-                    #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                    Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
 
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                        xe = splxe(self.Z_eval)
-                        Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                        splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                        Tk = splTk(self.Z_eval)
+                        if self.Z_eval is not None:
+                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                            xe = splxe(self.Z_eval)
+                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
+                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                            Tk = splTk(self.Z_eval)
 
-                    Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                    T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                        T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+            else:
+            #This is the case for empirically motivated SFRD.
+                for i in range(n_mod):
+                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                        ind=np.where(arr==i)
+
+                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='emp', a=self.a_sfrd)
+                        sol = myobj.history_solver(Z_eval=Z_default)
+
+                        xe = sol[0]
+                        Tk = sol[1]
+
+                        Q_Hii = myobj.reion_solver()
+                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+
+                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+
+                        if self.Z_eval is not None:
+                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                            xe = splxe(self.Z_eval)
+                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
+                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                            Tk = splTk(self.Z_eval)
+
+                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                        T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
             
             self.comm.Barrier()
             if self.cpu_ind!=0:
@@ -519,39 +651,74 @@ class pipeline():
             n_values = len(Z_temp)
             
             n_mod = _no_of_mdls(self.astro)*_no_of_mdls(self.cosmo)
-            arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir)])
-            T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.falp),np.size(self.fX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+
+            if self.sfrd_type=='phy':
+                n_mod = n_mod * np.size(self.Tmin_vir)
+                arr = np.arange(n_mod)
+                arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)])
+                T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            else:
+                arr = np.arange(n_mod)
+                arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd)])
+                T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
             
             if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
             
-            for i in range(n_mod):
-                if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                    ind=np.where(arr==i)
+            if self.sfrd_type=='phy':
+                for i in range(n_mod):
+                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                        ind=np.where(arr==i)
 
-                    myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],falp=self.falp[ind[7][0]],fX=self.fX[ind[8][0]],fesc=self.fesc[ind[9][0]],Tmin_vir=self.Tmin_vir[ind[10][0]], hmf_name=self.hmf_name)
-                    sol = myobj.history_solver(Z_eval=Z_default)
+                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],Tmin_vir=self.Tmin_vir[ind[12][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
+                        sol = myobj.history_solver(Z_eval=Z_default)
 
-                    xe = sol[0]
-                    Tk = sol[1]
+                        xe = sol[0]
+                        Tk = sol[1]
 
-                    Q_Hii = myobj.reion_solver()
-                    Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+                        Q_Hii = myobj.reion_solver()
+                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
-                    #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                    Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
 
-                    if self.Z_eval is not None:
-                        splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                        xe = splxe(self.Z_eval)
-                        Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                        splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                        Tk = splTk(self.Z_eval)
+                        if self.Z_eval is not None:
+                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                            xe = splxe(self.Z_eval)
+                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
+                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                            Tk = splTk(self.Z_eval)
 
-                    Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                    T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]]:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
-            
+                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                        T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]],[ind[11][0]],[ind[12][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+            else:
+                for i in range(n_mod):
+                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                        ind=np.where(arr==i)
+
+                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],a=self.a_sfrd[ind[12][0]], type = 'emp')
+                        sol = myobj.history_solver(Z_eval=Z_default)
+
+                        xe = sol[0]
+                        Tk = sol[1]
+
+                        Q_Hii = myobj.reion_solver()
+                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+
+                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+
+                        if self.Z_eval is not None:
+                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                            xe = splxe(self.Z_eval)
+                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
+                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                            Tk = splTk(self.Z_eval)
+
+                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                        T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]],[ind[11][0]],[ind[12][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+
+
             self.comm.Barrier()
             if self.cpu_ind!=0:
                 self.comm.send(T21_mod3, dest=0)

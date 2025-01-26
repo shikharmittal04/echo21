@@ -7,7 +7,6 @@ from colossus.lss import mass_function
 import warnings
 
 from .const import *
-from .set_sfrd import *
 
 #warnings.filterwarnings('ignore')
 
@@ -47,48 +46,9 @@ class main():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=1.0,wX=1.5,fesc=0.01,sfrd_obj=phy_sfrd(),cosmo=None,astro=None):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=0.1,wX=1.5,fesc=0.1,cosmo=None,astro=None,**kwargs):
         '''
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
         
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        sig8: float, optional
-            Amplitude of density fluctuations. Default value ``0.811``.
-        
-        ns: float, optional
-            Spectral index of the primordial scalar spectrum. Default value ``0.965``. 
-
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``.
-        
-        fLy : float, optional
-            :math:`f_{\\mathrm{Ly}}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-        
-        sLy : float, optional
-            :math:`s`, spectral index of Lyman series SED, when expressed as :math:`\\epsilon\\propto E^{-s}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``2.64``.
-
-        fX : float, optional
-            :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value 0.1.
-        
-        wX : float, optional
-            :math:`w`, spectral index of X-ray SED, when expressed as :math:`\\epsilon\\propto E^{-w}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``1.5``.
-
-        fesc : float, optional
-            :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionising photons. Default value 0.1.
-
-        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
-
-        sfrd_obj : SFRD class object, optional
-            Can be either phy_sfrd() or emp_sfrd(), accordingly as you want to model a physically-motivated or an empirically-motivated SFRD. Default value ``phy_sfrd()``. See also :mod:`set_sfrd` module.
         '''
         if cosmo!=None:
             Ho = cosmo['Ho']
@@ -119,17 +79,13 @@ class main():
         self.wX = wX
         self.fesc = fesc
         
-        self.sfrd_obj = sfrd_obj
-        self.sfrd_type = sfrd_obj.name
-        try:
-            self.mdef = sfrd_obj.mdef
-            self.hmf = sfrd_obj.hmf
-            self.Tmin_vir = sfrd_obj.para['Tmin_vir']
-        except:
-            self.a_sfrd = sfrd_obj.para['a']
-            self.b_sfrd = sfrd_obj.para['b']
-            self.c_sfrd = sfrd_obj.para['c']
-            self.d_sfrd = sfrd_obj.para['d']
+
+        self.sfrd_type = kwargs.pop('type', 'phy')
+        self.mdef = kwargs.pop('mdef','fof')
+        self.hmf = kwargs.pop('hmf','press74')
+        self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
+        self.a_sfrd = kwargs.pop('a',0.257)
+        self.b_sfrd = kwargs.pop('b',4)
 
         self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
         self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
@@ -300,7 +256,7 @@ class main():
         '''
         return lam_alpha**3/(8*np.pi*self.basic_cosmo_H(Z))
 
-    def recomb_Peebles_C(self,Z,xe,Tk):
+    def recomb_Peebles_C(self,Z,xe,T):
         '''
         :math:`C_{\\mathrm{P}}`
         
@@ -314,7 +270,7 @@ class main():
             Electron fraction, dimensionless
             
         Tk : float
-            Gas temperature in units of kelvin
+            Temperature in units of kelvin.
         
         Returns
         -------
@@ -323,7 +279,7 @@ class main():
             Peebles 'C' factor appearing in Eq. (71) from `Seager et al (2000) <https://iopscience.iop.org/article/10.1086/313388>`__, dimensionless.
         '''
         
-        return (1+self.recomb_Krr(Z)*Lam_H*self.basic_cosmo_nH(Z)*(1-xe))/(1+self.recomb_Krr(Z)*(Lam_H+self.recomb_beta(Tk))*self.basic_cosmo_nH(Z)*(1-xe))
+        return (1+self.recomb_Krr(Z)*Lam_H*self.basic_cosmo_nH(Z)*(1-xe))/(1+self.recomb_Krr(Z)*(Lam_H+self.recomb_beta(T))*self.basic_cosmo_nH(Z)*(1-xe))
 
     def recomb_Saha_xe(self,Z,T):
         '''
@@ -478,11 +434,22 @@ class main():
         float 
             Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
+        def _sfrd(Z):
+            if Z<1+self.b_sfrd: return 0.015*Z**2.73/(1+(Z/3)**6.2)
+            else: return 0.015*(1+self.b_sfrd)**2.73/(1+((1+self.b_sfrd)/3)**6.2)*10**(self.a_sfrd*(1+self.b_sfrd-Z))
         
         if self.sfrd_type=='phy':
             mysfrd = -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.dfcoll_dz(Z)*self.basic_cosmo_H(Z)
         elif self.sfrd_type=='emp':
-            mysfrd = self.a_sfrd*Z**self.b_sfrd/(1+(Z/self.c_sfrd)**self.d_sfrd)*Msolar_by_Mpc3_year_to_kg_by_m3_sec
+            NumZ = np.size(Z)
+            
+            if NumZ>1:
+                mysfrd = np.zeros(NumZ)
+                for i in range(NumZ):
+                    mysfrd[i] = _sfrd(Z[i])
+            else: mysfrd = _sfrd(Z)
+
+            mysfrd = mysfrd*Msolar_by_Mpc3_year_to_kg_by_m3_sec
 
         return mysfrd
     #========================================================================================================

@@ -37,7 +37,6 @@ L_UV = 8.695e20  #W/Hz/(Msun/yr)
 fstar = 0.1
 Iion = 10**53.44/Msolar_by_year_to_kg_by_sec #Yield of ionising photons. From Madau & Fragos (2017).
 
-Ji_to_Jc = 0.2 #Ratio of intensities of injected photons to continuum photons
 N_alpha_infty = 10000   #Total number of Lyman series photons between Ly-alpha and Ly-limit lines.
 
 tilda_E1, tilda_E0, E1, E0 = 30,0.2,8,0.5 #Energies in keV
@@ -72,5 +71,12 @@ T_se = 0.4 #Spin exchange correction (in Kelvin; Chuzhoy & Shapiro 2006)
 Tstar = 0.068 #Hyperfine energy difference in temperature (K)
 A10 = 2.85e-15 # Einstein's spontaneous emission rate, sec^-1
 Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.3524,0.3535,0.3543,0.355,0.3556,0.3561,0.3565,0.3569,0.3572,0.3575,0.3578])
-            
+
+#------------------------------------------------------------------------------
+# Star formation related defaults
+
+phy_sfrd_default_model = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
+emp_sfrd_default_model = {'type':'emp','a':0.257,'b':4}
+
+
 #========================================================================================================
