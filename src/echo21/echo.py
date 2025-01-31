@@ -8,7 +8,7 @@ import warnings
 
 from .const import *
 
-#warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore')
 
 def _gaif(xe,Q):
     '''
@@ -563,7 +563,7 @@ class main():
 
     def num_gal(self,Z,mag_lim,magtype='abs',area=1):
         '''
-        Number of galaxies brighter than a certain limiting luminosity at z. If no survey area is given the outptu is number per unit area.
+        Number of galaxies brighter than a certain limiting luminosity at z. If no survey area is given the output is number per unit area.
 
         Arguments
         ---------

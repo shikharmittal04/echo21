@@ -19,7 +19,7 @@ def _print_banner():
     ██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
     ███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
     ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝
-    Copyright 2024, Shikhar Mittal.                                     
+    Copyright 2025, Shikhar Mittal.                                     
     \033[00m\n"""
     print(banner)
     return None
@@ -552,7 +552,7 @@ class pipeline():
                         ind=np.where(arr==i)
 
                         myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
-                        sol = myobj.history_solver(Z_eval=Z_default)
+                        sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
                         Tk = sol[1]
@@ -579,7 +579,7 @@ class pipeline():
                         ind=np.where(arr==i)
 
                         myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='emp', a=self.a_sfrd)
-                        sol = myobj.history_solver(Z_eval=Z_default)
+                        sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
                         Tk = sol[1]
@@ -671,7 +671,7 @@ class pipeline():
                         ind=np.where(arr==i)
 
                         myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],Tmin_vir=self.Tmin_vir[ind[12][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
-                        sol = myobj.history_solver(Z_eval=Z_default)
+                        sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
                         Tk = sol[1]
@@ -697,7 +697,7 @@ class pipeline():
                         ind=np.where(arr==i)
 
                         myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],a=self.a_sfrd[ind[12][0]], type = 'emp')
-                        sol = myobj.history_solver(Z_eval=Z_default)
+                        sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
                         Tk = sol[1]
