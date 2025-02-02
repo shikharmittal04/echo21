@@ -46,7 +46,7 @@ class main():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=0.1,wX=1.5,fesc=0.1,cosmo=None,astro=None,**kwargs):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.1,cosmo=None,astro=None,**kwargs):
         '''
         
         '''
@@ -595,8 +595,12 @@ class main():
     #End of functions required for UV LF and related quantities.
     #========================================================================================================
 
+    def _fXh(self,xe):
+        return 1-(1-xe**0.2663)**1.3163
 
-
+    def _fXion(self,xe):
+        return 0.3908*(1-xe**0.4092)**1.7592
+    
     def _recoil(self,Tk):
         '''
         The recoil parameter. Eq.(15) in Mittal & Kulkarni (2021).
@@ -807,42 +811,8 @@ class main():
         Ic = eta*(2*np.pi**4*atau**2)**(1/3)*(arr[0]**2+arr[2]**2)
         Ii = eta*np.sqrt(atau/2)*scint.quad(lambda y:y**(-1/2)*np.exp(-2*eta*y-np.pi*y**3/(6*atau))*scsp.erfc(np.sqrt(np.pi*y**3/(2*atau))),0,np.inf)[0]-Scat*(1-Scat)/(2*eta)
         Jc,Ji = self.lya_spec_inten(Z)
-        nbary = (1+self.basic_cosmo_xHe())*self.basic_cosmo_nH(Z)
+        nbary = (1+self.basic_cosmo_xHe()+xe)*self.basic_cosmo_nH(Z)
         return 8*np.pi/3 * hP/(kB*lam_alpha) * self._dopp(Tk)/nbary * (Jc*Ic+Ji*Ii)
-       
-    '''
-    def tau(E,Z,Z1,x_HI):     #X-ray optical depth
-            Z2=np.linspace(Z,Z1[1:,],20)
-            taux=(Z/E)**3*7341856114*x_HI**(1/3)*scint.trapz(1/(Z2*H(Z2)) ,Z2,axis=0)
-            return np.insert(taux,0,0)
-
-    def Jx(E,Z,x_HI):        #Number of X-ray photons/(area-time-solid angle-energy(in eV))
-            Steps=int(5*(31-Z))
-            Z1=np.linspace(Z,31,Steps+1)
-            return 944580047*Z**2*scint.trapz(epsilon_x(E*Z1/Z,Z1)*np.exp(-tau(E,Z,Z1,x_HI))/H(Z1),Z1)
-
-    def epsilon_x(E,Z):
-            return 10**log_fx*(w-1)/Eo*(E/Eo)**(-1-w)*SFRD(Z)/(1-(Eo/3e4)**(w-1))
-
-    def sig(E):           #Phototionisation cross section of hydrogen, but took the constant factor into Γx and Ex
-            X=E/0.4298
-            return (X-1)**2*X**-4.0185/(1+np.sqrt(X/32.88))**2.963
-
-    def Gam_and_Ex(Z,x_e):      #Photoheating
-            mu=4/(4-3*Yp+4*x_e*(1-Yp))
-            x_HI=1-x_e
-            if x_e<1.0:
-                    f_heat=1-(1-x_e**0.2663)**1.3163
-            else:
-                    f_heat=1
-
-            f_ion=0.3908*(1-x_e**0.4092)**1.7592
-            Γx=4*np.pi*scint.quad(lambda E: sig(E)*Jx(E,Z,x_HI),Eo,30000)[0]
-            Hx=4*np.pi*scint.quad(lambda E:(E-Ei)*sig(E)*Jx(E,Z,x_HI),Eo,30000)[0]
-            Gam_x=(Γx+f_ion*Hx/Ei)*168.94/mu
-            Ex=f_heat*1306992.8*(1-Yp)/H(Z)*(1-x_e)*Hx
-            return np.array([Gam_x,Ex])
-    '''
 
     def heating_Ex(self,Z,xe):
         '''
@@ -862,21 +832,41 @@ class main():
         
         float
             Net heating by the X-ray photons. Units kelvin.
-            
+           
         '''
-        def _fXh(xe):
-            return 1-(1-xe**0.2663)**1.3163
 
         if self.wX!=1: CX_modifier=(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
         else: CX_modifier= np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
         prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
-        return prefactor*self.fX*_fXh(xe)*self.sfrd(Z)*CX_fid*CX_modifier
+        return prefactor*self.fX*self._fXh(xe)*self.sfrd(Z)*CX_fid*CX_modifier
 
     #End of functions related to heating.
     #========================================================================================================
+    def Gamma_x(self,Z,xe):
+        '''
+        Ioinzation (of bulk IGM) rate due to X-ray photons.
+        
+        Z : float
+            1 + z, dimensionless.
+        
+        xe : float
+            Electron fraction.
+        
+        Returns
+        -------    
+        
+        float
+            Ionization due to X-ray photons in uniyts of sec^-1.
+        '''
+        prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
+        qX = self.heating_Ex(Z,xe)/prefactor
+        HX = qX/(self._fXh(xe)*(1-xe)*self.basic_cosmo_nH(Z))
+        Ew = 1e3*((tilda_E1**(-self.wX-2.4)-tilda_E0**(-self.wX-2.4))/(tilda_E1**(-self.wX-3.4)-tilda_E0**(-self.wX-3.4)))*(self.wX+3.4)/(self.wX+2.4)-13.6
+        secondary_ionization = self._fXion(xe)/13.6
+        ionization_rate = HX*(1/Ew+secondary_ionization)/eC
+        return ionization_rate
 
-
-
+    #========================================================================================================
     def reion_clump(self,Z):
         '''
         Clumping factor for the ionisation of hydrogen. From `Shull et al. (2012) <https://iopscience.iop.org/article/10.1088/0004-637X/747/2/100>`__.
@@ -950,17 +940,19 @@ class main():
         xe = V[0]
         Tk = V[1]
 
-        #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).
-        if xe<0.99:
-            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
-        else: 
-            eq1 = np.array([0.0])
+        #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).            
 
         #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
         
         if Z>Zstar:
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
+
             eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
         else:
+            if xe<0.99:
+                eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
+            else:
+                eq1 = 0.0
             eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
 
         return np.array([eq1,eq2])
