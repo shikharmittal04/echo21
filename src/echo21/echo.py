@@ -844,7 +844,7 @@ class main():
     #========================================================================================================
     def Gamma_x(self,Z,xe):
         '''
-        Ioinzation (of bulk IGM) rate due to X-ray photons.
+        Ionization (of bulk IGM) rate due to X-ray photons.
         
         Z : float
             1 + z, dimensionless.
@@ -856,7 +856,7 @@ class main():
         -------    
         
         float
-            Ionization due to X-ray photons in uniyts of sec^-1.
+            Ionization due to X-ray photons in units of sec^-1.
         '''
         prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
         qX = self.heating_Ex(Z,xe)/prefactor
@@ -953,7 +953,7 @@ class main():
                 eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
             else:
                 eq1 = 0.0
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
 
         return np.array([eq1,eq2])
 
