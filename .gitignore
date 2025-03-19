@@ -3,3 +3,4 @@ __pycache__
 _build
 _template
 _static
+.ipynb_checkpoints
