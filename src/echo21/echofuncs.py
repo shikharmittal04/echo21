@@ -8,8 +8,7 @@ import warnings
 
 import os
 import sys
-sys.path.insert(0,os.path.abspath('..'))
-from const import *
+from .const import *
 warnings.filterwarnings('ignore')
 
 def _gaif(xe,Q):
