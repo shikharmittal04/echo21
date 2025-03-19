@@ -6,8 +6,10 @@
 import os
 import sys
 sys.path.insert(0,os.path.abspath('../src/echo21/'))
+sys.path.append('../src/echo21/')
 
 
+print(sys.executable)
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
@@ -18,7 +20,7 @@ release = '1.0.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
+#autoapi_dirs = ["../src"]
 extensions = ['sphinx.ext.autodoc','sphinx.ext.mathjax']
 
 source_suffix = '.rst'
@@ -29,6 +31,7 @@ master_doc = 'index'
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
+autodoc_member_order = 'bysource'
 
 
 # -- Options for HTML output -------------------------------------------------

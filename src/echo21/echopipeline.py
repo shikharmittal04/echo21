@@ -8,7 +8,7 @@ from time import localtime, strftime
 from pybaselines import Baseline
 
 from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, phy_sfrd_default_model, emp_sfrd_default_model
-from .echo import main
+from .echofuncs import funcs
 
 
 def _print_banner():
@@ -68,66 +68,69 @@ class pipeline():
     '''
     This class runs the cosmic history solver and produces the global signal and the corresponding redshifts.
     
+    Parameters
+    ~~~~~~~~~~
+
+    Ho : float, optional
+        Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
+    
+    Om_m : float, optional
+        Relative matter density. Default value ``0.315``.
+    
+    Om_b : float, optional
+        Relative baryon density. Default value ``0.049``.            
+    
+    sig8 : float, optional
+        Amplitude of density fluctuations. Default value ``0.811``.
+    
+    ns : float, optional
+        Spectral index of the primordial scalar spectrum. Default value ``0.965``. 
+
+    Tcmbo : float, optional
+        CMB temperature today in kelvin. Default value ``2.725``.
+    
+    Yp : float, optional
+        Primordial helium fraction by mass. Default value ``0.245``.
+    
+    fLy : float, optional
+        :math:`f_{\\mathrm{Ly}}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value ``1.0``.
+    
+    sLy : float, optional
+        :math:`s`, spectral index of Lyman series SED, when expressed as :math:`\\epsilon\\propto E^{-s}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``2.64``.
+
+    fX : float, optional
+        :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value ``1``.
+    
+    wX : float, optional
+        :math:`w`, spectral index of X-ray SED, when expressed as :math:`\\epsilon\\propto E^{-w}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``1.5``.
+
+    fesc : float, optional
+        :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionizing photons. Default value ``0.01``.
+
+    sfrd_dic : dictionary, optional
+        
+        This should be a dictionary containing all the details of SFRD.
+        
+        hmf : str, optional
+            HMF model to use. Default value ``press74``. Other commonly used HMFs are
+            
+            - sheth99 (for Sheth & Tormen 1999)
+            
+            - tinker08 (for Tinker et al 2008)
+
+        For the full list see `colossus <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`__ page.
+
+        mdef: str, optional
+            Definition for halo mass. Default is ``fof``. For most HMFs such as Press-Schechter or Sheth-Tormen friends-of-friends (``fof``) algorithm is used. For Tinker, it is an integer times mean matter density (``<int>m``). See colossus definition `page <https://bdiemer.bitbucket.io/colossus/halo_mass.html>`_
+            
+        Tmin_vir : float, optional
+            Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
+
+
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},astro= {'fLy':1,'sLy':2.64,'fX':0.1,'wX':1.5,'fesc':0.1}, sfrd_dic={'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4},Z_eval=None,path=''):
-        '''
-        Ho : float, optional
-            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-        
-        Om_m : float, optical
-            Relative matter density. Default value ``0.315``.
-        
-        Om_b : float, optical
-            Relative baryon density. Default value ``0.049``.            
-        
-        sig8: float, optional
-            Amplitude of density fluctuations. Default value ``0.811``.
-        
-        ns: float, optional
-            Spectral index of the primordial scalar spectrum. Default value ``0.965``. 
-
-        Tcmbo : float, optional
-            CMB temperature today in kelvin. Default value ``2.725``.
-        
-        Yp : float, optional
-            Primordial helium fraction by mass. Default value ``0.245``.
-        
-        fLy : float, optional
-            :math:`f_{\\mathrm{Ly}}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value 1.
-        
-        sLy : float, optional
-            :math:`s`, spectral index of Lyman series SED, when expressed as :math:`\\epsilon\\propto E^{-s}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``2.64``.
-
-        fX : float, optional
-            :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value 0.1.
-        
-        wX : float, optional
-            :math:`w`, spectral index of X-ray SED, when expressed as :math:`\\epsilon\\propto E^{-w}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``1.5``.
-
-        fesc : float, optional
-            :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionising photons. Default value 0.1.
-
-        Note: cosmological and astrophysical parameters can also be supplied through dictionaries ``cosmo`` and ``astro``.
-
-        sfrd_dic : SFRD dictionary, optional
-            This should be a dictionary containing all the details of SFRD.
-            hmf : str, optional
-            HMF model to use. Default value ``press74``. Other commonly used HMFs are
-            - sheth99 (for Sheth & Tormen 1999)
-            - tinker08 (for Tinker et al 2008)
-
-            For the full list see `colossus <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#lss.mass_function.massFunction>`__ page.
-
-            mdef: str, optional
-                Definition for halo mass. Default is ``fof``. For most HMFs such as Press-Schechter or Sheth-Tormen friends-of-friends (``fof``) algorithm is used. For Tinker, it is an integer times mean matter density (``<int>m``). See colossus definition `page <https://bdiemer.bitbucket.io/colossus/halo_mass.html>`_
-                
-            Tmin_vir : float, optional
-                Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
-            
-            Use this class to set your parameters for an empirically-motivated SFRD. See eq.(15) from `Madau & Dickinson (2014) <https://www.annualreviews.org/content/journals/10.1146/annurev-astro-081811-125615>`__.
-        '''
+    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},astro= {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}, sfrd_dic={'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4},Z_eval=None,path='echo21_outputs/'):
 
         self.comm = MPI.COMM_WORLD
         self.cpu_ind = self.comm.Get_rank()
@@ -242,7 +245,7 @@ class pipeline():
 ██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
 ███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
 ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-        myfile.write('Shikhar Mittal, 2024\n')
+        myfile.write('Shikhar Mittal, 2025\n')
         myfile.write('\nThis is output_'+self.timestamp)
         myfile.write('\n------------------------------\n')
         myfile.write('\nTime stamp: '+self.formatted_timestamp)
@@ -274,7 +277,10 @@ class pipeline():
         myfile.write('\n')
         return myfile
 
-    def glob_sig(self):      
+    def glob_sig(self):
+        '''
+        This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts.  Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
+        ''' 
         #completed = 0
         if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
@@ -285,9 +291,9 @@ class pipeline():
                 st = time.process_time()
                 
                 if self.sfrd_type == 'phy':
-                    myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
                 else:
-                    myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
                 
                 Z_temp = Z_default
 
@@ -396,7 +402,7 @@ class pipeline():
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
                 print('\nGenerating once the thermal and ionisation history for dark ages ...')
             
-            myobj_da = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
+            myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
 
             Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.igm_solver(Z_eval=Z_da)
@@ -441,7 +447,7 @@ class pipeline():
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
 
-                        myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
+                        myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
                         
                         sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
                         
@@ -465,7 +471,7 @@ class pipeline():
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
 
-                        myobj_cd = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type = 'emp', a=self.a_sfrd[ind[5][0]])
+                        myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type = 'emp', a=self.a_sfrd[ind[5][0]])
                         
                         sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
                         
@@ -551,7 +557,7 @@ class pipeline():
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
 
-                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
+                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
                         sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
@@ -578,7 +584,7 @@ class pipeline():
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
 
-                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='emp', a=self.a_sfrd)
+                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='emp', a=self.a_sfrd)
                         sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
@@ -670,7 +676,7 @@ class pipeline():
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
 
-                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],Tmin_vir=self.Tmin_vir[ind[12][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
+                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],Tmin_vir=self.Tmin_vir[ind[12][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
                         sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
@@ -696,7 +702,7 @@ class pipeline():
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
 
-                        myobj = main(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],a=self.a_sfrd[ind[12][0]], type = 'emp')
+                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],a=self.a_sfrd[ind[12][0]], type = 'emp')
                         sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
@@ -753,70 +759,5 @@ class pipeline():
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
         return None
     #End of function glob_sig               
-
-    def gal_sur(self,Z, mag, mag_lim=None, magtype='abs', area=1):
-        '''
-        Arguments
-        ---------
-
-        Z : float
-
-        '''
-        _print_banner()
-
-        print('Running the galaxy survey function ...')
-
-        myobj = main(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,falp=self.falp,fX=self.fX,fesc=self.fesc,Tmin_vir=self.Tmin_vir, hmf_name=self.hmf_name)
-
-        if type(Z)==np.ndarray or type(Z)==list:
-            leng = len(Z)
-            lf = np.zeros((leng,len(mag)))
-            count=0
-            for i in Z:
-                lf[count,:]=myobj.uvlf(i,mag,magtype)
-                count=count+1
-        else:
-            lf = myobj.uvlf(Z,mag,magtype)                
-
-        z_save_name = self.path+'one_plus_z'
-        mag_save_name = self.path+'mag'
-        lf_save_name = self.path+'lf'
-                
-        np.save(z_save_name,Z)
-        np.save(mag_save_name,mag)
-        np.save(lf_save_name,lf)
-        print('Done.\n')
-        
-        if mag_lim is not None:
-            print('Counting the number of galaxies ...')
-            if type(Z)==np.ndarray or type(Z)==list:
-                leng = len(Z)
-                N = np.zeros(leng)
-                count=0
-                for i in Z:
-                    N[count]=myobj.num_gal(i,mag_lim,magtype,area)
-                    count=count+1
-                print('Done.\n')
-            else:
-                N = myobj.num_gal(Z,mag_lim,magtype,area)
-                print('For survey area =',area,'deg and limiting magnitude =',mag_lim,'there are',round(N),'galaxies at z =',Z-1)
-
-        sumfile = self.path+"gal_sur_"+self.timestamp+".txt"
-        myfile = open(sumfile, "w")
-        myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-        myfile.write('Shikhar Mittal, 2024\n')
-        myfile.write('\nThis is output_'+self.timestamp)
-        myfile.write('\n------------------------------\n')
-        myfile.write('\nTime stamp: '+self.formatted_timestamp)
-        myfile.write('\n\nmag_lim = {}'.format(mag_lim))
-        myfile.write('\nmagtype = {}'.format(magtype))
-        myfile.write('\narea = {} sq. deg.'.format(area))
-        myfile.close()
-        return None
 #End of class pipeline
 #========================================================================================================

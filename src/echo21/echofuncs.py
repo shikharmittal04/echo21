@@ -6,8 +6,10 @@ from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings
 
-from .const import *
-
+import os
+import sys
+sys.path.insert(0,os.path.abspath('..'))
+from const import *
 warnings.filterwarnings('ignore')
 
 def _gaif(xe,Q):
@@ -30,23 +32,21 @@ def _gaif(xe,Q):
     '''
     return Q+(1-Q)*xe
 
-class main():
+class funcs():
     '''
-    Function names starting with 'basic_cosmo' include the basic :math:`\\Lambda`CDM-cosmology-related functions, such as Hubble function, CMB temperature, etc.
+    Function names starting with 'basic_cosmo' include the basic :math:`\\Lambda` CDM-cosmology-related functions, such as Hubble function, CMB temperature, etc.
 
     Function names starting with 'recomb' include recombination-physics-related functions.
 
-    Function names starting with 'hmf' include HMF-related functions, i.e., :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`, :math:`\\mathrm{d}n/\\mathrm{d}M`, :math:`m_{\\mathrm{min}}`, :math:`f_{\\mathrm{coll}}`, :math:`\\mathrm{d}f_{\\mathrm{coll}}/\\mathrm{d}z`, and :math:`\\dot{\\rho}_{\\star}`.
-
-    Function names starting with 'heating' include all the heating (or cooling) terms. All the terms are in the form of :math:`-(1+z)\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}z` and hence in units of temperature.
+    Function names starting with 'heating' include all the heating terms. All the terms are in the form of :math:`-(1+z)\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}z` and hence, in units of temperature.
     
-    Function names starting with 'hyfi' include all the functions related to computation of 21-cm signal. These are
-    :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\alpha}, T_{\\mathrm{s}}` and :math:`T_{21}`.
+    Function names starting with 'hyfi' include all the functions related to the computation of 21-cm signal. These are
+    :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\mathrm{Ly}}, T_{\\mathrm{s}}` and :math:`T_{21}`.
 
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.1,cosmo=None,astro=None,**kwargs):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
         '''
         
         '''
@@ -216,8 +216,7 @@ class main():
         '''
         :math:`\\beta=\\beta(T)`
         
-        The total photoionisation rate. See description below Eq. (71) from `Seager et al (2000) <https://iopscience.iop.org/article/10.1086/313388>`__
-        Relation between :math:`\\alpha_{\\mathrm{B}}` and :math:`\\beta`:
+        The total photoionization rate. See description below Eq. (71) from `Seager et al (2000) <https://iopscience.iop.org/article/10.1086/313388>`__. Relation between :math:`\\alpha_{\\mathrm{B}}` and :math:`\\beta`:
         
         :math:`\\beta=\\alpha_{\\mathrm{B}}\\left(\\frac{2\\pi m_{\\mathrm{e}}k_{\\mathrm{B}}T}{h_{\\mathrm{P}}^2}\\right)^{3/2}\\exp\\left(-\\frac{B_2}{k_{\\mathrm{B}}T}\\right)`
         
@@ -231,7 +230,7 @@ class main():
         -------
         
         float
-            The total photoionisation rate in :math:`(\\mathrm{s}^{-1})`.
+            The total photoionization rate in :math:`(\\mathrm{s}^{-1})`.
             
         '''
         beta = self.recomb_alpha(T)*(2*np.pi*me*kB*T/hP**2)**1.5*np.exp(-B2/(kB*T))
@@ -283,7 +282,7 @@ class main():
 
     def recomb_Saha_xe(self,Z,T):
         '''
-        Electron fraction predicted by the Saha's equation. This is important to initialise the differential equation for :math:`x_{\\mathrm{e}}`. At high redshift such as :math:`z\\approx1500`, Saha's equation gives accurate estimate of :math:`x_{\\mathrm{e}}`.
+        Electron fraction predicted by the Saha's equation. This is important to initialize the differential equation for :math:`x_{\\mathrm{e}}`. At high redshift such as :math:`z=1500`, Saha's equation gives accurate estimate of :math:`x_{\\mathrm{e}}`.
         
         Arguments
         ---------
@@ -298,7 +297,7 @@ class main():
         -------
         
         float
-            Electron fraction predicted by Saha's equation.
+            Electron fraction predicted by Saha's equation. Dimensionless.
         '''
         Saha=1/self.basic_cosmo_nH(Z)*(2*np.pi*me*kB*T/hP**2)**1.5*np.exp(-B1/(kB*T))
         return (np.sqrt(Saha**2+4*Saha)-Saha)/2
@@ -324,7 +323,7 @@ class main():
         -------
         
         float
-            HMF, :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M=M\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving Mega parsec.
+            HMF, :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M=M\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving mega parsec.
         '''
         M_by_h = M*self.h100 #M in units of solar mass/h
         return self.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', mdef = self.mdef, model = self.hmf)
@@ -346,7 +345,7 @@ class main():
         -------
         
         float
-            HMF in a different form, :math:`\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}\\mathrm{M}_{\\odot}^{-1}`, where 'cMpc' represents comoving Mega parsec and :math:`\\mathrm{M}_{\\odot}` represents the solar mass.
+            HMF in a different form, :math:`\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}\\mathrm{M}_{\\odot}^{-1}`, where 'cMpc' represents comoving mega parsec and :math:`\\mathrm{M}_{\\odot}` represents the solar mass.
         '''
 
         return 1/M*self.dndlnM(M,Z)
@@ -452,147 +451,7 @@ class main():
             mysfrd = mysfrd*Msolar_by_Mpc3_year_to_kg_by_m3_sec
 
         return mysfrd
-    #========================================================================================================
 
-    def luminosity(self,Z,M):
-        '''
-        Computes the luminosity given the halo mass and redshift.
-        
-        Arguments
-        ---------
-
-        Z : float
-            1 + z, dimensionless. Single number only.
-
-        M : float
-            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`. Can be a range of values.
-       
-        Returns
-        -------
-            
-        float
-            Luminosity in W/Hz.
-        '''
-        
-        return fstar*Mdot0*(M/1e10)**a*(Z/7)**b*L_UV
-
-    def mag2mass(self,Z,mag,magtype='abs'):
-        '''
-        For a give magnitude compute the corresponding halo mass.
-        
-        Arguments
-        ---------
-
-        Z : float
-            1 + z, dimensionless. Single number only.
-        
-        mag : float
-            Magnitude in AB system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__. Can be a range of values.
-        
-        magtype : str, optional
-            Specify if the magnitude given is absolute or apparent. Default is absolute. 
-
-        Returns
-        -------
-            
-        float
-            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
-        '''
-        if magtype=='app':   
-            DL = 3.086e22 * self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in metres.
-            Lum = 4*np.pi*DL**2*10**(-0.4*(mag+56.1)) #Halo luminosity in W/Hz
-        
-        elif magtype=='abs':
-            d10 = 3.086e17 #10 pc in metre
-            Lum = 4*np.pi*d10**2*10**(-0.4*(mag+56.1)) #Halo luminosity in W/Hz
-        
-        return 1e10*(Lum/(fstar*Mdot0*(Z/7)**b*L_UV))**(1/a)
-        
-    
-    def mag(self,Z,M,magtype='abs'):
-        '''
-        Computes the UV magnitude in AB system.
-
-        Arguments
-        ---------
-
-        Z : float
-            1 + z, dimensionless. Single number only.
-
-        M : float
-            Halo mass in units of solar mass, :math:`\\mathrm{M}_{\\odot}`.
-        
-        magtype : str, optional
-            Specify if the magnitude given is absolute or apparent. Default is absolute. 
-
-        Returns
-        -------
-
-        float
-            Absolute or apparent magnitude accordingly as ``magtype`` is 'abs' or 'app'. We use the AB magnitude system `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/1974ApJS...27...21O/abstract>`__.
-        '''
-        if magtype=='abs':
-            distance =  3.086e17
-        elif magtype=='app':
-            distance = 3.086e22 * self.my_cosmo.luminosityDistance(Z-1)/self.h100
-        return -2.5*np.log10(self.luminosity(Z,M)/(4*np.pi*distance**2))-56.1
-
-    def uvlf(self,Z,mag,magtype='abs'):
-        '''
-        Computes the UV luminosity function for a given AB magnitude and redshift. Note that this model is valid when SFE is a constant.
-         
-        Arguments
-        ---------
-        Z : float
-            1 + z, dimensionless. Single number only.
-        
-        mag : float
-            Magnitude in AB system. Can be a range of values. This can be absolute or apparent magnitude. Specify your choice with the ``magtype`` argument.
-        
-        magtype : str, optional
-            Specify if the magnitude given is absolute or apparent. Default is absolute. 
-
-        Returns
-        -------
-        
-        float
-            UV LF in the same units as HMF, i.e. :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving Mega parsec.
-        '''
-        Mh_for_mag = self.mag2mass(Z,mag,magtype)
-        return 2*np.log(10)/5/a*self.hmf_dndlnM(Mh_for_mag,Z)
-
-    def num_gal(self,Z,mag_lim,magtype='abs',area=1):
-        '''
-        Number of galaxies brighter than a certain limiting luminosity at z. If no survey area is given the output is number per unit area.
-
-        Arguments
-        ---------
-        Z : float
-            1 + z, dimensionless. Single number only.
-        
-        mag : float
-            Magnitude in AB system. Can be a range of values. This can be absolute or apparent magnitude. Specify your choice with the ``magtype`` argument.
-        
-        magtype : str, optional
-            Specify if the magnitude given is absolute or apparent. Default is absolute. 
-
-        area : float, optional
-            Survey area in square degrees. Default is 1 sq. deg.
-
-        Returns
-        -------
-        
-        float
-            Number of galaxies.
-        '''
-        Mh_lim = self.mag2mass(Z,mag_lim,magtype)
-        halo_masses=np.logspace(np.log10(Mh_lim),18,2000)
-        integral = np.trapezoid(self.hmf_dndM(halo_masses,Z),halo_masses)    #number per unit cMpc^3
-        DL = self.my_cosmo.luminosityDistance(Z-1)/self.h100 #luminosity distance in Mpc
-        return 1/(Mpc2km*1e3)*cE/self.basic_cosmo_H(Z)*(DL/Z)**2*(np.pi/180)**2*integral*area
-
-
-    #End of functions required for UV LF and related quantities.
     #========================================================================================================
 
     def _fXh(self,xe):
@@ -665,7 +524,7 @@ class main():
         '''
         Emissivity of Lyman series photons in units of number of photons per unit frequency per unit comoving volume per unit time. Construction:
         
-        :math:`\\epsilon_{\\mathrm{Ly}}=\\frac{1}{m_{\\mathrm{b}}}\\phi_{\\mathrm{Ly}}\\dot{\rho}_{\\star}`
+        :math:`\\epsilon_{\\mathrm{Ly}}=\\frac{1}{m_{\\mathrm{b}}}\\phi_{\\mathrm{Ly}}\\dot{\\rho}_{\\star}`
 
         Arguments
         ---------
@@ -686,7 +545,7 @@ class main():
     
     def lya_spec_inten(self,Z):
         '''
-        Specific intensity of Ly:math:`\\alpha` photons, :math:`J_{\\mathrm{Ly}}`, due to continuum and injected photons.
+        Specific intensity of Ly :math:`\\alpha` photons, :math:`J_{\\mathrm{Ly}}`, due to continuum and injected photons.
         
         Arguments
         ---------
@@ -697,7 +556,7 @@ class main():
         -------
         
         float
-            Specific intensity in terms of number per unit time per unit area per unit frequency per unit solid angle (:math:`\\mathrm{m^{-2}.s^{-1}.Hz^{-1}.sr^{-1}}`). Two values are returned; intensity due to continuum and injected photons, respectively.
+            Specific intensity in terms of number per unit time per unit area per unit frequency per unit solid angle (:math:`\\mathrm{m^{-2}s^{-1}Hz^{-1}sr^{-1}}`). Two values are returned, namely intensity due to continuum and injected photons, respectively.
         '''
         def _lya_spec_inten(Z):
             prefac = cE/(4*np.pi)*Z**2
@@ -782,7 +641,7 @@ class main():
 
     def heating_Elya(self,Z,xe,Tk):
         '''
-        Ly-:math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__
+        Ly :math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__
         
         Arguments
         ---------
@@ -816,7 +675,7 @@ class main():
 
     def heating_Ex(self,Z,xe):
         '''
-        We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. However, our normalisation is smaller by a factor of 0.14 as we adopt the :math:`L_{\\mathrm{x}}/\\mathrm{SFR}` relation from `Lehmer et al. (2024) <>`
+        We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. However, our normalisation is smaller by a factor of 0.14 as we adopt the :math:`L_{\\mathrm{X}}/\\mathrm{SFR}` relation from `Lehmer et al. (2024) <https://iopscience.iop.org/article/10.3847/1538-4357/ad8de7>`__.
         
         Arguments
         ---------
@@ -856,7 +715,7 @@ class main():
         -------    
         
         float
-            Ionization due to X-ray photons in units of sec^-1.
+            Ionization due to X-ray photons in units of :math:`\\mathrm{s}^{-1}`.
         '''
         prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
         qX = self.heating_Ex(Z,xe)/prefactor
@@ -869,7 +728,7 @@ class main():
     #========================================================================================================
     def reion_clump(self,Z):
         '''
-        Clumping factor for the ionisation of hydrogen. From `Shull et al. (2012) <https://iopscience.iop.org/article/10.1088/0004-637X/747/2/100>`__.
+        Clumping factor for the ionization of hydrogen. From `Shull et al. (2012) <https://iopscience.iop.org/article/10.1088/0004-637X/747/2/100>`__.
         '''
         return 20.81*Z**-1.1
 
@@ -880,7 +739,7 @@ class main():
         Arguments
         ---------
         Z : float
-            The 1+redshift to which you want to calculate :math:`\\tau_{\\mathrm{e}}}`.
+            1+z to which you want to calculate :math:`\\tau_{\\mathrm{e}}`.
         
         Q : float
             The volume-filling factor. This should be the solution for default redshift range; in the output folder it would be saved as ``Q_default``.
@@ -889,7 +748,7 @@ class main():
         -------
 
         float
-            :math:`\\tau_{\\mathrm{e}}}`
+            :math:`\\tau_{\\mathrm{e}}`
 
         '''
         prefac = cE*sigT*self.basic_cosmo_nH(1)
@@ -933,9 +792,8 @@ class main():
     
     def igm_eqns(self, Z,V):
         '''
-        This function has the differential equations governing the ionisation and thermal history of the bulk of IGM.
-        When solving upto the end of dark ages, only cosmological parameters will be used.
-        Beyond Zstar, i.e., beginning of cosmic dawn astrophysical will also be used.
+        This function has the differential equations governing the ionisation and thermal history of the bulk of IGM. When solving upto the end of dark ages, only cosmological parameters will be used.
+        Beyond ``Zstar``, i.e., beginning of cosmic dawn astrophysical will also be used.
         '''
         xe = V[0]
         Tk = V[1]
@@ -1075,7 +933,7 @@ class main():
 
     def hyfi_lya_coup(self,Z,xe,Tk):
         '''
-        Ly:math:`\\alpha` coupling or the Wouthuysen--Field coupling.
+        Ly :math:`\\alpha` coupling or the Wouthuysen--Field coupling.
         
         Arguments
         ---------

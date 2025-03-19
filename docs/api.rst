@@ -3,7 +3,13 @@
 API Reference
 =============
 
-.. automodule:: echo
 
-.. autoclass:: echo
+.. automodule:: echofuncs
+
+.. autoclass:: funcs
     :members:
+
+.. automodule:: echopipeline
+
+.. autoclass:: pipeline
+        :members:

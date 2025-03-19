@@ -1,161 +1,140 @@
 .. _detexp:
 
-Detailed explanation
---------------------
+In-depth usage
+--------------
 
-This package can be used to generate the number density maps for the extragalactic point sources, angular power spectrum of number overdensity, brightness temperature map corresponding to extragalactic point (radio) sources and the antenna temperature. Hence, one can reproduce results similar to the ones seen in figures 1, 2, 3, 4, and 5 from our paper. Given the beam directivity one can also add to the sky-averaged foregrounds due to extragalactic point sources plot, the antenna temperature (as in the upper panel of figure 8). [#f1]_
+``ECHO21`` can be used to generate the thermal and ionization history of the intergalactic medium and hence, the cosmological global 21-cm signal. Addionally, one can use this code to study a simple analytical model of reionization and compute the CMB optical depth.
 
+Single realization of 21-cm signal
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In general, there are two main steps to use ``ECHO21``:
 
-Although, in our paper we have simulated for the both kinds of point sources, resolved and unresolved, as such there is no difference between the mechanics of them except on their detectability. Unresolved point sources are discrete sources on the sky which are usually smaller than the telescope beam width. Typically, the bright resolved source will be trivial to peel off the foregrounds. It is usually the unresolved sources that are problematic. Thus, if users are only interested in unresolved radio sources then simply changing the value of :math:`S_{\mathrm{max}}`, which demarcates the unresolved and resolved sources, will suffice.
+-  Give your choice of parameters
+-  Run the solver
 
+Thus, you first set up your cosmological and astrophysical parameters. These have to be supplied as a dictionary. Then specify your star formation rate density (SFRD) model, again as a dictionary. Our setup is done so that we can move on to creating a :class:`pipeline` object. Finally, the function :func:`glob_sig` in the :class:`pipeline` object runs the code and produces the outputs. The following script (say ``my_echo_script.py``) helps you get started.
 
-Initialisation
-^^^^^^^^^^^^^^
-The first step to use this package is to initialise the properties of the extragalactic point sources. This is done using the class :class:`meps.eps`. If you give no arguments default settings are assumed.
+.. code:: python
+   
+   from echo21 import echopipeline
 
-There are total 11 available optional arguments which include all of the six physical parameters listed in table 2 from our paper. If you want to choose a different set of parameters, then your python script should have the following initialisation
+   #Step-1 Set you parameter choices
+   cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245}
+   astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}
+
+   #and choose your SFRD model type by defining a dictionary
+   sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
+
+   #Step-2 Create an object and run
+   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd_dic=sfrd,path='/path/where/you/want/your/outputs/')
+   myobj.glob_sig()
+
+   #That's it.
+
+Running the above script will generate an output folder in the path you gave in the ``path`` argument. Suppose you ran the script at 3:00:00 PM on 26th February 2025, then the output folder will have the name ``output_20250226-150000``. To understand output structure, see :ref:`output_format` below.
+
+.. _multi:
+
+Exploring a large space of 21-cm signals: running ECHO21 in parallel mode
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Now suppose you want to generate thousands of 21-cm signal for different astrophysical or cosmological parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays. The following example shows you how. You simply have to replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}`` in ``my_echo_script.py`` by
 
 .. code:: python
 
-   from epspy import meps
-   obj = meps.eps(log2Nside=6, logSmin=-2,logSmax=-1,dndS_form=0, nu_o=150e6, beta_o=2.681,sigma_beta=0.5, amp=7.8e-3,gam=0.821, path='', lbl='')
+   astro = {'fLy':np.logspace(-2,2,5),'sLy':[-1,0,1],'fX':np.logspace(-2,2,5),'wX':[0,1,2],'fesc':[0.01,0.1,1]}
 
-Replace the above values by values of your choice. For more details see the :ref:`api`.
+For minimum virial temperature you should modify the SFRD dictionary. So now instead of ``sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}`` you should have something like this
 
-.. _ref-freq:
+.. code:: python
 
+   sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,5)}
+
+Thus, **the complete script to generate a large space of 21-cm signals** now looks like
+
+.. code:: python
+   
+   import numpy as np
+   from echo21 import echopipeline
+
+   #Step-1 Set you parameter choices
+   cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245}
+   astro = {'fLy':np.logspace(-2,2,5),'sLy':[-1,0,1],'fX':np.logspace(-2,2,5),'wX':[0,1,2],'fesc':[0.01,0.1,1]}
+
+   #and choose your SFRD model type by defining a dictionary
+   sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,5)}
+
+   #Step-2 Create an object and run
+   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd_dic=sfrd,path='/path/where/you/want/your/outputs/')
+   myobj.glob_sig()
+
+Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be generated corresponding to 5 values of :math:`f_{\mathrm{Ly}}`, 3 values of :math:`s_{\mathrm{Ly}}`, 5 values of :math:`f_{\mathrm{X}}`, 3 values of :math:`w_{\mathrm{X}}`, 3 values of :math:`f_{\mathrm{esc}}`, and 5 values of :math:`T_{\mathrm{vir}}`. (In the paper, I have used :math:`s` for :math:`s_{\mathrm{Ly}}` and :math:`w` for :math:`w_{\mathrm{X}}`.)
+
+Similarly, you can set your cosmological parameters as well.
+
+You can run the above script on your local PC as usual. However, generating these many models on a single CPU can be time consuming. To save time, you should utilize the **parallel** feature of ``ECHO21`` and run the script ``my_echo_script.py`` as (say on four CPUs)
 
 .. code:: bash
-
-    mpirun -np 4 python eg_script.py
-
-However, in general, and for more realistic flux density ranges and high-resolution maps, we recommend using the package on HPCs.
-
-
-Reference frequency
-^^^^^^^^^^^^^^^^^^^
-
-The next step is to run :func:`ref_freq`. The function :func:`ref_freq` does 3 tasks:-
-
-1. It calculates the total number of point sources (according to equation 6 from the paper) corresponding to your specified ``logSmin`` and ``logSmax``. Then it creates a 'clustered' number density of point sources on the sky (according to equation 9 from the paper), fluctuation for which follows the 2PACF whose parameters are set by ``amp`` and ``gam``.
    
-2. Next, it visits each pixel on the sky and assigns each source a flux density chosen from a flux density distribution function, :math:`\mathrm{d}n/\mathrm{d}S`. The default choice of the form of :math:`\mathrm{d}n/\mathrm{d}S` is the sum-of-two-inverse-double-power-laws by `Gervasi et al (2008) <https://iopscience.iop.org/article/10.1086/588628>`_. However, the package gives one the functionality to work with a different form of :math:`\mathrm{d}n/\mathrm{d}S`. Currently, there are 2 additional available forms, namely the :math:`5^{\mathrm{th}}` `(Intema et al 2017) <https://www.aanda.org/articles/aa/full_html/2017/02/aa28536-16/aa28536-16.html>`_ and :math:`7^{\mathrm{th}}` `(Mandal et al 2021) <https://www.aanda.org/articles/aa/full_html/2021/04/aa39998-20/aa39998-20.html>`_ order log-log polynomial fit to :math:`S^{-2.5}\mathrm{d}n/\mathrm{d}S`. (The quantity :math:`S^{-2.5}\mathrm{d}n/\mathrm{d}S` is called the Euclidean number count).
+   mpirun -np 4 python eg_script.py
 
-3. Finally, it assigns a spectral index to each source from a normal distribution (see equation 5 from the paper). The normal distribution is set by ``beta_o`` and ``sigma_beta``.
+Using a similar strategy you can now generate thousands of models in a few minutes with an appropriate choice of HPC resources.
 
-The function does not return anything, but produces four files, namely ``n_ps.npy``, ``Tb_o_individual.npy``, ``Tb_o_map.npy``, and ``beta.npy``. The files will be put in the path specified by the keyword argument ``path`` during initialisation. The files are described below.
 
-- ``n_ps.npy`` is a 1D array which stores number density of the point sources in units of number per pixel. ``n_ps[i]`` gives the number of sources on the :math:`i^{\mathrm{th}}` pixel, where :math:`i=0,1,\ldots,N_{\mathrm{pix}}-1`. Throughout this package we work with the standard ``HEALPix`` RING-ordered format. Following the notation of our paper, ``n_ps`` represents :math:`n_{\mathrm{ps}}(\hat{n})`, LHS in equation (9). (Note that in general ``n_ps[i]`` will not be a natural number; we simulate for a rounded-off value.)
+Choosing a different HMF
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``Tb_o_individual.npy`` is an array of arrays of unequal size. For 'realistic' values of point sources parameters, this files will be huge (but for default settings it will of size ~ 17 MB each). Each of ``Tb_o_individual[0]``, ``Tb_o_individual[1]``, ..., is an array and they are total :math:`N_{\mathrm{pix}}` in number corresponding to :math:`N_{\mathrm{pix}}` pixels. The last array is ``Tb_o_individual[Npix-1]``. The length of array ``Tb_o_individual[i]`` is equal to the number of sources on the :math:`i^{\mathrm{th}}` pixel, which is ``round(n_ps[i])``. The values itself are the brightness temperature contributed by each source in kelvin at reference frequency, :math:`\nu_0`. Following the notation of our paper, it represents :math:`T_{\mathrm{ps},ij}(\nu_0)`, LHS in equation (10).
+Until now we have been using the Press & Schechter (1974) HMF. In ``ECHO21`` you can choose a different HMF also. Suppose you want to generate a signal for Sheth & Tormen (1999) HMF. Then set ``'sheth99'`` for the ``hmf`` keyword in the SFRD dictionary. For some HMFs you will have to change your definition of HMF which is done by the keyword ``mdef``. For example both Press & Schechter (1974) and Sheth & Tormen (1999) are based on the friends-of-friends defintion (which is why we set ``'fof'`` as the ``mdef``), but Tinker et al. (2008) is based on an integer multiple of mean matter density of the Universe. So you can give, say, ``'200m'`` for ``mdef``. For a complete list of available HMFs see the `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_ page.
 
-- The structure of ``beta.npy`` is same as ``Tb_o_individual.npy``. The values itself are the spectral indices assigned to each source. Following the notation of our paper, it represents :math:`\beta_{ij}`. (Note that both ``Tb_o_individual.npy`` and ``beta.npy`` are 'Object' arrays. If you want to load them yourself then set ``allow_pickle=True`` in ``numpy.load()``.)
-
-- ``Tb_o_map`` is an array similar in structure to ``n_ps``. It is the pixel wise brightness temperature contributed by the extragalactic point sources at the reference frequency, :math:`\nu_0`. Following the notation of our paper, it represents :math:`T_{\mathrm{ps},i}(\nu_0)`. Thus, ``Tb_o_map[i] = numpy.sum(Tb_o_individual[i])``.
-
-To run up to :func:`ref_freq` the following should be your python script
+Below is an example syntax for SFRD dictionary using Tinker et al. (2008) HMF.
 
 .. code:: python
 
-   from epspy import meps
-   
-   obj = meps.eps()
-   
-   obj.ref_freq()
+   sfrd = {'type':'phy','hmf':'tinker08','mdef':'200m','Tmin_vir':1e4}
 
 
-Note that the default value of :math:`S_{\mathrm{min}}` and the number of pixels in the package are different from the fiducial model values used in our paper, which are :math:`S_{\mathrm{min}}=10^{-6}\,\mathrm{Jy}` and :math:`N_{\mathrm{pix}}=3145728`. This is done so as to lessen the cost of default runs and enable the user to try out the package on a personal computer. Accordingly, in the package we have set :math:`S_{\mathrm{min}}=0.01\,\mathrm{Jy}` and ``nside`` :math:`=2^6` so that :math:`N_{\mathrm{pix}}=49152`. However, to simulate a realistic scenario we recommend setting these parameters to the fiducial values as in our paper. Since fiducial run can be expensive, the code should be run on high performance clusters. We have made this package parallel with message passing interface (MPI).
+Choosing a different SFRD model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-
-.. _gen-freq:
-
-General frequency
-^^^^^^^^^^^^^^^^^
-
-The next important task is performed by the function :func:`gen_freq`. It scales the brightness temperature at reference frequency for each source according to a power law to a desired range of frequencies. The desired frequencies should be supplied (in Hz) as a :mod:`numpy` array to this function. For example, the following should be your python script
-
-.. code:: python
-
-   from epspy import meps
-   
-   obj = meps.eps()
-   
-   obj.ref_freq()
-
-   obj.gen_freq(nu = 1e6*numpy.arange(50,201))
-
-The default value of frequencies at which :func:`gen_freq` will scale is :math:`\nu=50,51,\ldots,200\,` MHz. This function does not return anything but produces three files namely ``Tb_nu_map.npy``, ``Tb_nu_glob.npy``, and ``nu_glob.npy`` in the path specified by the keyword argument ``path`` during initialisation. The files are described below.
-
-1. ``Tb_nu_map`` is a 2D array of shape :math:`N_{\mathrm{pix}}\times N_{\nu}`, so that ``Tb_nu_map[i,k]`` gives the brightness temperature due to extragalactic point sources on the :math:`i^{\mathrm{th}}` pixel at ``nu[k]`` frequency. :math:`N_{\nu}` is the number of frequencies. Following the notation of our paper, it represents :math:`T_{\mathrm{ps}}(\hat{n},\nu)`, the LHS in equation (11). This quantity is perhaps the most important output of this package. This is the quantity data analysts from different 21-cm experiments can to add to their simulated foregrounds model.
-
-2. ``Tb_nu_glob`` is derived directly from ``Tb_nu_map``. It is the sky average of the map at each frequency and is thus a 1D array. It is calculated as ``Tb_nu_glob = numpy.mean(Tb_nu_map,axis=0)``. Following the notation of our paper, it represents :math:`\langle T_{\mathrm{ps}}\rangle(\nu)`, the LHS in equation (12).
-
-3. ``nu_glob.npy`` is simply the frequency array you gave, else it is the default value.
-
-Note that :func:`ref_freq` and :func:`gen_freq` functions deal with ``Tb_o_individual.npy`` and ``beta.npy``. These data can easily be 10s of GB in size for 'realistic' ``logSmin`` and ``logSmax``. Common PCs have at least ~ 4 GB RAM. We therefore recommend to run this package on supercomputers. For users who use a slurm job schedular must specify ``#SBATCH --mem-per-cpu=[size in MB]`` in their job submission scipt. A recommendation for 'size in MB' will be printed when you initialise your class object if the requirements are more than 2 GB. We emphasize that the default values are chosen such that the package can be run on a PC. In the paper we worked with ``logSmin=-6`` for which both ``Tb_o_individual`` and ``beta`` are ~ 34 GB in size. We used ``mem-per-cpu=80000``.
-
-
-Chromatic distortions
-^^^^^^^^^^^^^^^^^^^^^
-
-Until now the results generated have been experiment independent. So ``Tb_nu_map`` and hence ``Tb_nu_glob`` generated do NOT account for chromatic distortions. They are simply the model outputs for foregrounds due to extragalactic point sources. However, in reality because of the chromatic nature of the antenna beam the actual foregrounds spectrum registered will be different. Use the function :func:`couple2D()` to account for the chromaticity. It essentially couples the foregrounds to the beam directivity, i.e., it will multiply the point sources map to beam directivity, and average over the pixels. See equation (14) from our paper.
-
-Since the antenna temperature is experiment specific, you will need to provide an external data file: the beam directivity pattern, :math:`D=D(\hat{n},\nu)`. Its structure should be the same as ``Tb_nu_map``, i.e., it should be a 2D array of shape :math:`N_{\mathrm{pix}}\times N_{\nu}`, such that ``D[i,k]`` should give the beam directivity at :math:`i^{\mathrm{th}}` pixel at ``nu[k]`` frequency. The pixel ordering should be the standard HEALPix RING ordering. The frequencies at which you generate your data :math:`D` should be the same as the frequencies you gave in ``gen_freq()``. (In case you forgot, :func:`gen_freq` will have saved the frequency array in your ``obj.path`` path by the name of ``nu_glob.npy``.) Put this array :math:`D` in your ``obj.path`` path by the name of ``D.npy``. ``obj.path`` is the default path where the code will look for a file named 'D.npy'. You can always choose a different path and name; use the optional argument ``bd`` for this purpose.
-
-As a consistency check it should be noted that 
-
-.. math::
-
-   \frac{1}{4\pi}\int D(\hat{n},\nu)\,\mathrm{d}\Omega=1\,,
-
-for any frequency in the range.
-
-Only after running :func:`ref_freq` and :func:`gen_freq`, run :func:`couple2D` as
-
-.. code:: python
-
-   from epspy import meps
-
-   obj = meps.eps()
-
-   obj.ref_freq()
-
-   obj.gen_freq()
-   
-   #If you have already ran ref_freq and gen_freq previously then comment
-   #obj.ref_freq() and obj.gen_freq(). 
-   obj.couple2D(bd='full/path/to/beam_directivity.npy')
-
-The return value is ``None``. This function will generate a file called ``T_ant.npy`` in your ``obj.path``. Following our notation from the paper the obtained quantity is :math:`T_{\mathrm{A,ps}}(\nu)`, the LHS in equation (14). This will be a 1D array with length being the number of frequencies, :math:`N_{\nu}`. 
-
-This function will also print the best-fitting parameters (along with :math:`1\sigma` uncertainty) :math:`T_{\mathrm{f}}, \beta_{\mathrm{f}}` and :math:`\Delta\beta_{\mathrm{f}}` based on a simple least-squares fitting of power-law-with-a-running-spectral-index function (given in equation 15 in our paper) to the antenna temperature data :math:`T_{\mathrm{A,ps}}(\nu)`.
-
-Visualisation
-^^^^^^^^^^^^^
-
-The final part of the package is to visualise the results. Users can always write their own scripts to produce figures. However, best efforts have been made as part of this package to produce publication-ready plots. Main data for inspection is in the file ``Tb_nu_map.npy``. Each of ``Tb_nu_map[:,k]`` is an array in the standard RING-ordered ``HEALPix`` format and is thus ready for visualisation as a Mollweide projection. If you are interested in inspecting the global spectrum of extragalactic emission, i.e, temperature as a function of frequency check for the data file ``Tb_nu_glob.npy`` which was generated by :func:`gen_freq`.
-
-Use the function :func:`visual` for both the above purposes. It is possible to make several other additional figures by simply setting the optional arguments to ``True``. This function is again a method of class object :class:`meps.eps` and thus your python script should contain
+Until now we have been working with physically-motivated SFRD models, which is why we had ``'phy'`` for ``type`` in the SFRD dictionary. Let us now implement empirically-motivated SFRD model. For this you simply need to set your type as ``'emp'`` and choose the :math:`a` parameter. See my paper for the definition. 
 
 .. code:: python
    
-   from epspy import meps
+   sfrd = {'type':'emp','a':0.257}
+
+
+Choosing the redshifts at which you want to evaluate global signal
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When you do not specify the redshift range the code will evaluate the quantities at default redshifts. This default has 2300 values defined by the array ``Z_default``.
+
+.. code:: python
    
-   obj = meps.eps()
+   import numpy as np
+   Z_cd = np.concatenate((1/np.linspace(1/60,1/5.05,200),1/np.linspace(1/5,1,100)))
+   Z_default = np.concatenate((np.linspace(1501,60.1,2000),Z_cd))
 
-   obj.ref_freq()
+When you run the code for a single set of parameters or vary cosmological parameters (irrespective of astrophysical ones) then the code will output the signal at redshits defined by ``Z_default`` by default. When you vary only astrophysical parameters then the code will output the signals at cosmic dawn redshifts defined by ``Z_cd``.
 
-   obj.gen_freq()
+How to give redshift values of your choice? Simple, just give your choice through the argument ``Z_eval`` when defining the ``pipeline`` object. For example, if you want to generate signal between :math:`1+z=30` and :math:`1+z=10` with 100 evenly spaced values then you should do the following
 
-   obj.couple2D()
+.. code:: python
 
-   #comment out obj.ref_freq(), obj.gen_freq(), obj.couple2D() if you have already run them.
-   obj.visual()
+   myzs = np.linspace(30,10,100)
+   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd_dic=sfrd,path='/path/where/you/want/your/outputs/',Z_eval=myzs)
 
-For all the available options for this function see the :ref:`api`. This function will produce figures in the path specified during initialisation.
+Note: when you are varying the astrophysical parameters only, the highest values of :math:`1+z` should not be above 60. 
+
+.. _output_format:
+Output structure
+^^^^^^^^^^^^^^^^
+
+When you run ECHO21 for a single parameter the output folder will contain 9 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), and a text file glob_sig_20250226-150000.txt. All .npy files are 1D arrays. They are evaluated at redshifts in the .npy file one_plus_z.npy. The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file also contains the redshift when the Universe was 50% ionized and 100% ionized, and the total CMB optical depth. Also, the file mentions the strongest 21-cm signal and the corresponding redshift.
 
 
-.. rubric:: Footnotes
 
-.. [#f1] Note that this package does not contain the functionality for generating the brightness temperature corresponding to galactic emission, using the customary Global Sky Maps (GSM) modelling. Also, Bayesian inference is not a part of this package. For these we used the *REACH* data analysis pipeline developed by `Anstey et al (2021) <https://academic.oup.com/mnras/article/506/2/2041/6307526?login=true>`_.
+In case of multiple values of parameter(s), only global signal, redshift, and the text file is generated. When you vary astrophysical parameter(s), then T21.py will be a 7D array. Consider the example in section :ref:`multi`. In this case T21 will be of shape :math:`5\times3\times5\times3\times3\times5\times300` (assuming you did not give your own redshift values. If you did, then instead of 300 it will be your number of values.). The first dimension will correspond to ``fLy``, second to ``sLy``, third to ``fX``, fourth to ``wX``, fifth to ``fesc``, and sixth to ``Tmin_vir`` (if you choose the physically-motivated SFRD model, otherwise it will correspond to ``a``). Seventh index corresponds to global signal values.
 
+Similarly, when you vary only the cosmological parameters, the global signal will be an 8D array. The first to 7th dimension will correspond to parameters ``Ho``, ``Om_m``, ``Om_b``, ``sig8``, ``ns``, ``Tcmbo``, and ``Yp``, respectively.
+
+Finally, if you vary cosmological as well as astrophysical parameters then the output will be a 14D array. As before, first 7 dimensions will correspond to cosmological parameters, next 6 dimensions will correspond to astrophysical parameters and finally the last dimension corresponds to the 21-cm signal.

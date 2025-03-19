@@ -6,7 +6,6 @@ Overview
 
 :Name: Exploring Cosmos with Hydrogen Observation
 :Author: `Shikhar Mittal <https://sites.google.com/view/shikharmittal/home>`_
-:Homepage: https://github.com/shikharmittal04/echo21
 :Paper: `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_
 
 Why do you need this code?
@@ -50,9 +49,14 @@ Save the above code as (say) ``my_echo_script.py`` and run it as
 
     python my_echo_script.py
 
-Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains several files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see :ref:`detexp`. To learn about the physics of this package see our `paper <https://arxiv.org/abs/2503.11762>`_. 
+Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains several files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see the documentation. To learn about the physics of this package see our `paper <https://arxiv.org/abs/2503.11762>`_. 
 
 Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebook `make_figures.ipynb` in the example folder.
+
+Documentation
+-------------
+For more details on the working of the package and understanding the output files refer to the 
+`documentation <https://echo21.readthedocs.io/en/latest/index.html>`_.
 
 License and citation
 --------------------
