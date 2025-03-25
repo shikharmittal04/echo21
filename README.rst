@@ -7,6 +7,7 @@ Overview
 :Name: Exploring Cosmos with Hydrogen Observation
 :Author: `Shikhar Mittal <https://sites.google.com/view/shikharmittal/home>`_
 :Paper: `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_
+:Documentation: `echo21.readthedocs.io <https://echo21.readthedocs.io/en/latest/index.html>`_
 
 Why do you need this code?
 --------------------------

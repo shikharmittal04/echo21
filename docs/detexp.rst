@@ -12,7 +12,7 @@ In general, there are two main steps to use ``ECHO21``:
 -  Give your choice of parameters
 -  Run the solver
 
-Thus, you first set up your cosmological and astrophysical parameters. These have to be supplied as a dictionary. Then specify your star formation rate density (SFRD) model, again as a dictionary. Our setup is done so that we can move on to creating a :class:`pipeline` object. Finally, the function :func:`glob_sig` in the :class:`pipeline` object runs the code and produces the outputs. The following script (say ``my_echo_script.py``) helps you get started.
+Thus, you first set up your cosmological and astrophysical parameters. These have to be supplied as a dictionary. Then specify your star formation rate density (SFRD) model, again as a dictionary. Once this is done, we can move on to creating a :class:`pipeline` object. Finally, the function :func:`glob_sig` in the :class:`pipeline` object runs the code and produces the outputs. The following script (say ``my_echo_script.py``) helps you get started.
 
 .. code:: python
    
@@ -33,12 +33,14 @@ Thus, you first set up your cosmological and astrophysical parameters. These hav
 
 Running the above script will generate an output folder in the path you gave in the ``path`` argument. Suppose you ran the script at 3:00:00 PM on 26th February 2025, then the output folder will have the name ``output_20250226-150000``. To understand output structure, see :ref:`output_format` below.
 
+Please see the paper for an understanding of parameters ``fLy``, ``sLy``, etc. In brief, ``fLy``,``sLy``,``fX``,``wX``, and ``fesc``, are the Ly :math:`\alpha` emissivity normalisation, power-law index of Ly :math:`\alpha` SED, X-ray emissivity normalisation, power-law index of X-ray SED, and escape fraction of ionizing photons. 
+
 .. _multi:
 
 Exploring a large space of 21-cm signals: running ECHO21 in parallel mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Now suppose you want to generate thousands of 21-cm signal for different astrophysical or cosmological parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays. The following example shows you how. You simply have to replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}`` in ``my_echo_script.py`` by
+Now suppose you want to generate many 21-cm signals for different astrophysical (or cosmological)parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays. The following example shows you how. You simply have to replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}`` in ``my_echo_script.py`` by
 
 .. code:: python
 
@@ -50,7 +52,7 @@ For minimum virial temperature you should modify the SFRD dictionary. So now ins
 
    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,5)}
 
-Thus, **the complete script to generate a large space of 21-cm signals** now looks like
+Thus, **the complete script to generate a large space of 21-cm signals with varying astrophysical parameters** now looks like
 
 .. code:: python
    
@@ -68,15 +70,17 @@ Thus, **the complete script to generate a large space of 21-cm signals** now loo
    myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd_dic=sfrd,path='/path/where/you/want/your/outputs/')
    myobj.glob_sig()
 
-Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be generated corresponding to 5 values of :math:`f_{\mathrm{Ly}}`, 3 values of :math:`s_{\mathrm{Ly}}`, 5 values of :math:`f_{\mathrm{X}}`, 3 values of :math:`w_{\mathrm{X}}`, 3 values of :math:`f_{\mathrm{esc}}`, and 5 values of :math:`T_{\mathrm{vir}}`. (In the paper, I have used :math:`s` for :math:`s_{\mathrm{Ly}}` and :math:`w` for :math:`w_{\mathrm{X}}`.)
+Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be generated corresponding to 5 values of :math:`f_{\mathrm{Ly}}`, 3 values of :math:`s_{\mathrm{Ly}}`, 5 values of :math:`f_{\mathrm{X}}`, 3 values of :math:`w_{\mathrm{X}}`, 3 values of :math:`f_{\mathrm{esc}}`, and 5 values of :math:`T_{\mathrm{vir}}`. (In the paper, I have used :math:`s` for ``sLy`` and :math:`w` for ``wX``.)
 
-Similarly, you can set your cosmological parameters as well.
+Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of 21-cm signals with varying cosmological parameters**.[#f1]_ Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
+
+
 
 You can run the above script on your local PC as usual. However, generating these many models on a single CPU can be time consuming. To save time, you should utilize the **parallel** feature of ``ECHO21`` and run the script ``my_echo_script.py`` as (say on four CPUs)
 
 .. code:: bash
    
-   mpirun -np 4 python eg_script.py
+   mpirun -np 4 python my_echo_script.py
 
 Using a similar strategy you can now generate thousands of models in a few minutes with an appropriate choice of HPC resources.
 
@@ -84,7 +88,7 @@ Using a similar strategy you can now generate thousands of models in a few minut
 Choosing a different HMF
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Until now we have been using the Press & Schechter (1974) HMF. In ``ECHO21`` you can choose a different HMF also. Suppose you want to generate a signal for Sheth & Tormen (1999) HMF. Then set ``'sheth99'`` for the ``hmf`` keyword in the SFRD dictionary. For some HMFs you will have to change your definition of HMF which is done by the keyword ``mdef``. For example both Press & Schechter (1974) and Sheth & Tormen (1999) are based on the friends-of-friends defintion (which is why we set ``'fof'`` as the ``mdef``), but Tinker et al. (2008) is based on an integer multiple of mean matter density of the Universe. So you can give, say, ``'200m'`` for ``mdef``. For a complete list of available HMFs see the `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_ page.
+Until now we have been using the Press & Schechter (1974) HMF. In ``ECHO21`` you can choose a different HMF also. Suppose you want to generate a signal for Sheth & Tormen (1999) HMF. Then set ``'sheth99'`` for the ``hmf`` keyword in the SFRD dictionary. For some HMFs you will have to change your definition of halo mass which is done by the keyword ``mdef``. For example both Press & Schechter (1974) and Sheth & Tormen (1999) are based on the friends-of-friends defintion (which is why we set ``'fof'`` for  ``mdef``), but Tinker et al. (2008) is based on an integer multiple of mean matter density of the Universe. So you can give, say, ``'200m'`` for ``mdef``. For a complete list of available HMFs see the `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_ page.
 
 Below is an example syntax for SFRD dictionary using Tinker et al. (2008) HMF.
 
@@ -96,7 +100,7 @@ Below is an example syntax for SFRD dictionary using Tinker et al. (2008) HMF.
 Choosing a different SFRD model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Until now we have been working with physically-motivated SFRD models, which is why we had ``'phy'`` for ``type`` in the SFRD dictionary. Let us now implement empirically-motivated SFRD model. For this you simply need to set your type as ``'emp'`` and choose the :math:`a` parameter. See my paper for the definition. 
+Until now we have been working with physically-motivated SFRD models, which is why we had ``'phy'`` for ``type`` in the SFRD dictionary. Let us now implement an empirically-motivated SFRD model. For this you simply need to set your type as ``'emp'`` and choose the :math:`a` parameter. See my paper for the definition. 
 
 .. code:: python
    
@@ -106,7 +110,9 @@ Until now we have been working with physically-motivated SFRD models, which is w
 Choosing the redshifts at which you want to evaluate global signal
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When you do not specify the redshift range the code will evaluate the quantities at default redshifts. This default has 2300 values defined by the array ``Z_default``.
+Before anything I want to clarify that I always work with :math:`1+z` and NOT :math:`z`. So wherever, I write redshift I talk about :math:`1+z`. To avoid confusion I have used the capital letter zed ('Z') to represent :math:`1+z`.
+
+Moving on to the main content of this section, when you do not specify the redshift range the code will evaluate the quantities at default redshifts. This default has 2300 values defined by the array ``Z_default`` given below.
 
 .. code:: python
    
@@ -123,18 +129,29 @@ How to give redshift values of your choice? Simple, just give your choice throug
    myzs = np.linspace(30,10,100)
    myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd_dic=sfrd,path='/path/where/you/want/your/outputs/',Z_eval=myzs)
 
-Note: when you are varying the astrophysical parameters only, the highest values of :math:`1+z` should not be above 60. 
+Note: you don't have to worry about giving redshifts in decreasing order. Whichever order you give, ``ECHO21`` will always generate outputs for decreasing redshifts. When you are varying the astrophysical parameters only, the highest value of :math:`1+z` should not be above 60. 
 
 .. _output_format:
 Output structure
 ^^^^^^^^^^^^^^^^
 
-When you run ECHO21 for a single parameter the output folder will contain 9 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), and a text file glob_sig_20250226-150000.txt. All .npy files are 1D arrays. They are evaluated at redshifts in the .npy file one_plus_z.npy. The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file also contains the redshift when the Universe was 50% ionized and 100% ionized, and the total CMB optical depth. Also, the file mentions the strongest 21-cm signal and the corresponding redshift.
+When you run ECHO21 for a single parameter the output folder will contain 9 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), and a text file glob_sig_20250226-150000.txt. All ``.npy`` files are 1D arrays. They are evaluated at redshifts in the .npy file one_plus_z.npy. The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file also contains the redshift when the Universe was 50% ionized and 100% ionized, and the total CMB optical depth. Also, the file mentions the strongest 21-cm signal and the corresponding redshift.
 
 
 
-In case of multiple values of parameter(s), only global signal, redshift, and the text file is generated. When you vary astrophysical parameter(s), then T21.py will be a 7D array. Consider the example in section :ref:`multi`. In this case T21 will be of shape :math:`5\times3\times5\times3\times3\times5\times300` (assuming you did not give your own redshift values. If you did, then instead of 300 it will be your number of values.). The first dimension will correspond to ``fLy``, second to ``sLy``, third to ``fX``, fourth to ``wX``, fifth to ``fesc``, and sixth to ``Tmin_vir`` (if you choose the physically-motivated SFRD model, otherwise it will correspond to ``a``). Seventh index corresponds to global signal values.
+In case of multiple values of parameter(s), only global signal, redshift, and the text file is generated. When you vary astrophysical parameter(s), then T21.py will be a 7D array. Consider the example in section :ref:`multi`. In this case T21 will be of shape :math:`5\times3\times5\times3\times3\times5\times300` (assuming you did not give your own redshift values. If you did, then in the last dimension, instead of 300 it will be your number of values.). The first dimension will correspond to ``fLy``, second to ``sLy``, third to ``fX``, fourth to ``wX``, fifth to ``fesc``, and sixth to ``Tmin_vir``. The sixth dimension will correspond to ``Tmin_vir`` if you choose the physically-motivated SFRD model, otherwise the sixth dimension will correspond to ``a`` -- relevant to empirically-motivated SFRD. Seventh index corresponds to global signal values. Continuing with the example in section :ref:`multi`, suppose you want to access the global signal corresponding to :math:`f_{\mathrm{Ly}} = 10^{-1}`, :math:`s = 1`, :math:`f_{\mathrm{X}}=10^2`, :math:`w=0`, :math:`f_{\mathrm{esc}}=1`, and min(:math:`T_{\mathrm{vir}}=10^5\,`K), then should do
+
+.. code:: python
+
+   import numpy as np
+   T21 = np.load('T21.npy') # or whatever is the path to your output_* folder.
+   T21[1,2,4,0,2,3,:] # is the required signal.
+
 
 Similarly, when you vary only the cosmological parameters, the global signal will be an 8D array. The first to 7th dimension will correspond to parameters ``Ho``, ``Om_m``, ``Om_b``, ``sig8``, ``ns``, ``Tcmbo``, and ``Yp``, respectively.
 
 Finally, if you vary cosmological as well as astrophysical parameters then the output will be a 14D array. As before, first 7 dimensions will correspond to cosmological parameters, next 6 dimensions will correspond to astrophysical parameters and finally the last dimension corresponds to the 21-cm signal.
+
+.. rubric:: Footnotes
+
+.. [#f1] Note that currently, it is not possible to change the cosmological model itself in ``ECHO21``. So you will always be running a standard :math:`\Lambda` CDM cosmology.
