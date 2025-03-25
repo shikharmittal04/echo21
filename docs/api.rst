@@ -4,12 +4,12 @@ API Reference
 =============
 
 
-.. automodule:: echofuncs
+.. automodule:: echo21.echofuncs
 
 .. autoclass:: funcs
     :members:
 
-.. automodule:: echopipeline
+.. automodule:: echo21.echopipeline
 
 .. autoclass:: pipeline
-        :members:
+    :members:

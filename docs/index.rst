@@ -16,4 +16,4 @@ Welcome to echo21's documentation!
    
    Additional features <add>
 
-   _rst/echo21
+   API Reference <api>
