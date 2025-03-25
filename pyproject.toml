@@ -7,7 +7,7 @@ name = "echo21"
 version = "1.0.2"
 dependencies = [
   "colossus",
-  "mpi4py"
+  "pybaselines"
 ]
 requires-python = ">=3.8"
 authors = [{name = "Shikhar Mittal", email = "shikhar.mittal4@gmail.com"}]
