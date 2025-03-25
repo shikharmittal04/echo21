@@ -14,6 +14,6 @@ Welcome to echo21's documentation!
    
    In-depth usage <detexp>
    
-   Additional feature <add>
+   Additional features <add>
 
-   API Reference <api>
+   _rst/echo21

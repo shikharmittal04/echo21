@@ -33,14 +33,14 @@ Thus, you first set up your cosmological and astrophysical parameters. These hav
 
 Running the above script will generate an output folder in the path you gave in the ``path`` argument. Suppose you ran the script at 3:00:00 PM on 26th February 2025, then the output folder will have the name ``output_20250226-150000``. To understand output structure, see :ref:`output_format` below.
 
-Please see the paper for an understanding of parameters ``fLy``, ``sLy``, etc. In brief, ``fLy``,``sLy``,``fX``,``wX``, and ``fesc``, are the Ly :math:`\alpha` emissivity normalisation, power-law index of Ly :math:`\alpha` SED, X-ray emissivity normalisation, power-law index of X-ray SED, and escape fraction of ionizing photons. 
+Please see the paper for an understanding of parameters ``fLy``, ``sLy``, etc. In brief, ``fLy``, ``sLy``, ``fX``, ``wX``, and ``fesc``, are the Ly :math:`\alpha` emissivity normalisation, power-law index of Ly :math:`\alpha` SED, X-ray emissivity normalisation, power-law index of X-ray SED, and escape fraction of ionizing photons. ``Tmin_vir`` is the minimum virial temperature of the star forming haloes.
 
 .. _multi:
 
 Exploring a large space of 21-cm signals: running ECHO21 in parallel mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Now suppose you want to generate many 21-cm signals for different astrophysical (or cosmological)parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays. The following example shows you how. You simply have to replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}`` in ``my_echo_script.py`` by
+Now suppose you want to generate many 21-cm signals for different astrophysical (or cosmological) parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays. The following example shows you how. You simply have to replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}`` in ``my_echo_script.py`` by
 
 .. code:: python
 
@@ -72,7 +72,7 @@ Thus, **the complete script to generate a large space of 21-cm signals with vary
 
 Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be generated corresponding to 5 values of :math:`f_{\mathrm{Ly}}`, 3 values of :math:`s_{\mathrm{Ly}}`, 5 values of :math:`f_{\mathrm{X}}`, 3 values of :math:`w_{\mathrm{X}}`, 3 values of :math:`f_{\mathrm{esc}}`, and 5 values of :math:`T_{\mathrm{vir}}`. (In the paper, I have used :math:`s` for ``sLy`` and :math:`w` for ``wX``.)
 
-Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of 21-cm signals with varying cosmological parameters**.[#f1]_ Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
+Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of 21-cm signals with varying cosmological parameters**. [#f1]_ Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
 
 
 
@@ -122,12 +122,12 @@ Moving on to the main content of this section, when you do not specify the redsh
 
 When you run the code for a single set of parameters or vary cosmological parameters (irrespective of astrophysical ones) then the code will output the signal at redshits defined by ``Z_default`` by default. When you vary only astrophysical parameters then the code will output the signals at cosmic dawn redshifts defined by ``Z_cd``.
 
-How to give redshift values of your choice? Simple, just give your choice through the argument ``Z_eval`` when defining the ``pipeline`` object. For example, if you want to generate signal between :math:`1+z=30` and :math:`1+z=10` with 100 evenly spaced values then you should do the following
+**How to give redshift values of your choice?** Simple, just give your choice through the argument ``Z_eval`` when defining the ``pipeline`` object. For example, if you want to generate signal between :math:`1+z=30` and :math:`1+z=10` with 100 evenly spaced values then you should do the following
 
 .. code:: python
 
-   myzs = np.linspace(30,10,100)
-   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd_dic=sfrd,path='/path/where/you/want/your/outputs/',Z_eval=myzs)
+   myZs = np.linspace(30,10,100)
+   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd_dic=sfrd,path='/path/where/you/want/your/outputs/',Z_eval=myZs)
 
 Note: you don't have to worry about giving redshifts in decreasing order. Whichever order you give, ``ECHO21`` will always generate outputs for decreasing redshifts. When you are varying the astrophysical parameters only, the highest value of :math:`1+z` should not be above 60. 
 
@@ -135,11 +135,11 @@ Note: you don't have to worry about giving redshifts in decreasing order. Whiche
 Output structure
 ^^^^^^^^^^^^^^^^
 
-When you run ECHO21 for a single parameter the output folder will contain 9 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), and a text file glob_sig_20250226-150000.txt. All ``.npy`` files are 1D arrays. They are evaluated at redshifts in the .npy file one_plus_z.npy. The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file also contains the redshift when the Universe was 50% ionized and 100% ionized, and the total CMB optical depth. Also, the file mentions the strongest 21-cm signal and the corresponding redshift.
+When you run ECHO21 for a single parameter the output folder will contain 9 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), and a text file glob_sig_20250226-150000.txt. All ``.npy`` files are 1D arrays. They are evaluated at redshifts in the ``.npy`` file one_plus_z.npy. The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file also contains the redshift when the Universe was 50% ionized and 100% ionized, and the total CMB optical depth. Also, the file mentions the strongest 21-cm signal and the corresponding redshift.
 
 
 
-In case of multiple values of parameter(s), only global signal, redshift, and the text file is generated. When you vary astrophysical parameter(s), then T21.py will be a 7D array. Consider the example in section :ref:`multi`. In this case T21 will be of shape :math:`5\times3\times5\times3\times3\times5\times300` (assuming you did not give your own redshift values. If you did, then in the last dimension, instead of 300 it will be your number of values.). The first dimension will correspond to ``fLy``, second to ``sLy``, third to ``fX``, fourth to ``wX``, fifth to ``fesc``, and sixth to ``Tmin_vir``. The sixth dimension will correspond to ``Tmin_vir`` if you choose the physically-motivated SFRD model, otherwise the sixth dimension will correspond to ``a`` -- relevant to empirically-motivated SFRD. Seventh index corresponds to global signal values. Continuing with the example in section :ref:`multi`, suppose you want to access the global signal corresponding to :math:`f_{\mathrm{Ly}} = 10^{-1}`, :math:`s = 1`, :math:`f_{\mathrm{X}}=10^2`, :math:`w=0`, :math:`f_{\mathrm{esc}}=1`, and min(:math:`T_{\mathrm{vir}}=10^5\,`K), then should do
+In case of multiple values of parameter(s), only global signal, redshift, and the text file is generated. When you vary astrophysical parameter(s), then T21.py will be a 7D array. Consider the example in section :ref:`multi`. In this case T21 will be of shape :math:`5\times3\times5\times3\times3\times5\times300` (assuming you did not give your own redshift values. If you did, then in the last dimension, instead of 300 it will be your number of values.). The first dimension will correspond to ``fLy``, second to ``sLy``, third to ``fX``, fourth to ``wX``, fifth to ``fesc``, and sixth to ``Tmin_vir``. The sixth dimension will correspond to ``Tmin_vir`` if you choose the physically-motivated SFRD model, otherwise the sixth dimension will correspond to ``a`` -- relevant to empirically-motivated SFRD. Seventh index corresponds to global signal values. Continuing with the example in section :ref:`multi`, suppose you want to access the global signal corresponding to :math:`f_{\mathrm{Ly}} = 10^{-1}`, :math:`s = 1`, :math:`f_{\mathrm{X}}=10^2`, :math:`w=0`, :math:`f_{\mathrm{esc}}=1`, and min (:math:`T_{\mathrm{vir}}=10^5\,` K), then should do
 
 .. code:: python
 
