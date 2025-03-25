@@ -14,9 +14,9 @@ print(sys.executable)
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'echo21'
-copyright = '2024, Shikhar Mittal'
+copyright = '2025, Shikhar Mittal'
 author = 'Shikhar Mittal'
-release = '1.0.0'
+release = '1.0.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
