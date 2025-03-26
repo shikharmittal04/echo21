@@ -3,9 +3,6 @@
 API Reference
 =============
 
-.. autosummary::
-   :toctree: generated
-   
 .. automodule:: echo21.echofuncs
 
 .. autoclass:: funcs

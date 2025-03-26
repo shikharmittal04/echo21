@@ -20,7 +20,7 @@ release = '1.0.2'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 #autoapi_dirs = ["../src"]
-extensions = ['sphinx.ext.autodoc','sphinx.ext.mathjax','sphinx.ext.autosummary']
+extensions = ['sphinx.ext.autodoc','sphinx.ext.mathjax']
 
 source_suffix = '.rst'
 
