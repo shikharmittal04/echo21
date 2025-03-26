@@ -13,7 +13,7 @@ Welcome to echo21's documentation!
    Basics <basics>
    
    In-depth usage <detexp>
-   
+
    Additional features <add>
 
    API Reference <api>
