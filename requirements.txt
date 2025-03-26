@@ -1,4 +1,5 @@
 numpy
 scipy
 colossus
+mpi4py
 pybaselines
