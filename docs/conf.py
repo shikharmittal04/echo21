@@ -38,3 +38,15 @@ autodoc_member_order = 'bysource'
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+
+
+
+def run_apidoc(_):
+	from sphinx.ext.apidoc import main
+	sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+	cur_dir = os.path.abspath(os.path.dirname(__file__))
+	module = os.path.join(cur_dir,"..","src/echo21")
+	main(['-e', '-o', cur_dir, module, '--force'])
+
+def setup(app):
+	app.connect('builder-inited', run_apidoc)
