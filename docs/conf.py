@@ -9,7 +9,6 @@ sys.path.insert(0,os.path.abspath('../src/echo21/'))
 sys.path.append('../src/echo21/')
 
 
-print(sys.executable)
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
