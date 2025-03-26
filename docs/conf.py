@@ -5,25 +5,8 @@
 
 import os
 import sys
-from unittest.mock import MagicMock
-sys.path.insert(0,os.path.abspath('../src/echo21/'))
-sys.path.append('../src/echo21/')
-
-class Mock(MagicMock):
-    """Make a Mock so that a package doesn't have to actually exist."""
-
-    @classmethod
-    def __getattr__(cls, name):
-        """Get stuff."""
-        return MagicMock()
-
-
-MOCK_MODULES = [
-    "echo21",
-    "mpi4py",
-    "colossus"
-]
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+sys.path.insert(0,os.path.abspath('../src'))
+# sys.path.append('../src/echo21/')
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
