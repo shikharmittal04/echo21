@@ -66,7 +66,7 @@ def _smoother(x,y):
     return y
 
 #--------------------------------------------------------------------------------------------
-#The following 2 functions will be useful if you want to save and load your class object.
+#The following 2 functions will be useful if you want to save and load `pipeline`` object.
 def save_pipeline(obj, filename):
     '''Saves the class object :class:`pipeline`.
     
@@ -79,7 +79,7 @@ def save_pipeline(obj, filename):
         This should be the class object you want to save.
         
     filename : str
-        Give a filename to your object. It will be saved in the ``obj.path`` directory.
+        Give a file name only to your object, not the full path. obj will be saved in the ``obj.path`` directory.
     
     '''
     try:
@@ -93,7 +93,6 @@ def save_pipeline(obj, filename):
         fullpath = obj.path+filename
         with open(fullpath, 'wb') as outp:  # Overwrites any existing file.
             pickle.dump(obj, outp, pickle.HIGHEST_PROTOCOL)
-        print('\033[32m',filename,'saved as',fullpath,'\033[00m\n')
     return None
     
 def load_pipeline(filename):
@@ -290,6 +289,8 @@ class pipeline():
             os.mkdir(self.path)
 
             self.formatted_timestamp = self.timestamp[9:11]+':'+self.timestamp[11:13]+':'+self.timestamp[13:15]+' '+self.timestamp[6:8]+'/'+self.timestamp[4:6]+'/'+ self.timestamp[:4]
+
+            save_pipeline(self,'pipe')
         return None
 
     def _write_summary(self, elapsed_time):

@@ -5,6 +5,7 @@ In-depth usage
 
 ``ECHO21`` can be used to generate the thermal and ionization history of the intergalactic medium and hence, the cosmological global 21-cm signal. Addionally, one can use this code to study a simple analytical model of reionization and compute the CMB optical depth.
 
+.. _single:
 Single realization of 21-cm signal
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In general, there are two main steps to use ``ECHO21``:
@@ -12,7 +13,7 @@ In general, there are two main steps to use ``ECHO21``:
 -  Give your choice of parameters
 -  Run the solver
 
-Thus, you first set up your cosmological and astrophysical parameters. These have to be supplied as a dictionary. Then specify your star formation rate density (SFRD) model, again as a dictionary. Once this is done, we can move on to creating a :class:`pipeline` object. Finally, the function :py:func:`glob_sig` in the :class:`pipeline` object runs the code and produces the outputs. The following script (say ``my_echo_script.py``) helps you get started.
+Thus, you first set up your cosmological and astrophysical parameters. These have to be supplied as a dictionary. Then specify your star formation rate density (SFRD) model, again as a dictionary. Once this is done, we can move on to creating a :class:`pipeline` object. Finally, the function :py:func:`glob_sig()` in the :class:`pipeline` object runs the code and produces the outputs. The following script (say ``my_echo_script.py``) helps you get started.
 
 .. code:: python
    
@@ -135,11 +136,11 @@ Note: you don't have to worry about giving redshifts in decreasing order. Whiche
 Output structure
 ^^^^^^^^^^^^^^^^
 
-When you run ECHO21 for a single parameter the output folder will contain 9 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), and a text file glob_sig_20250226-150000.txt. All ``.npy`` files are 1D arrays. They are evaluated at redshifts in the ``.npy`` file one_plus_z.npy. The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file also contains the redshift when the Universe was 50% ionized and 100% ionized, and the total CMB optical depth. Also, the file mentions the strongest 21-cm signal and the corresponding redshift.
+When you run ECHO21 for a single parameter the output folder will contain 10 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), a text file glob_sig_20250226-150000.txt, and the class object ``myobj`` used in the examples on this page, as ``pipe.pkl``. All ``.npy`` files are 1D arrays. They are evaluated at redshifts in the ``.npy`` file one_plus_z.npy. The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file also contains the redshift when the Universe was 50% ionized and 100% ionized, and the total CMB optical depth. Also, the file mentions the strongest 21-cm signal and the corresponding redshift.
 
 
 
-In case of multiple values of parameter(s), only global signal, redshift, and the text file are generated. When you vary astrophysical parameter(s), then T21.py will be a 7D array. Consider the example in section :ref:`multi`. In this case T21 will be of shape :math:`5\times3\times5\times3\times3\times5\times300` (assuming you did not give your own redshift values. If you did, then in the last dimension, instead of 300 it will be your number of values.). The first dimension will correspond to ``fLy``, second to ``sLy``, third to ``fX``, fourth to ``wX``, fifth to ``fesc``, and sixth to ``Tmin_vir``. The sixth dimension will correspond to ``Tmin_vir`` if you choose the physically-motivated SFRD model, otherwise the sixth dimension will correspond to ``a`` -- relevant to empirically-motivated SFRD. Seventh index corresponds to global signal values. Continuing with the example in section :ref:`multi`, suppose you want to access the global signal corresponding to :math:`f_{\mathrm{Ly}} = 10^{-1}`, :math:`s = 1`, :math:`f_{\mathrm{X}}=10^2`, :math:`w=0`, :math:`f_{\mathrm{esc}}=1`, and min (:math:`T_{\mathrm{vir}})=10^5\,` K, then you should do
+In case of multiple values of parameter(s), only global signal, redshift, the text file, and the object file are generated. When you vary astrophysical parameter(s), then T21.py will be a 7D array. Consider the example in section :ref:`multi`. In this case T21 will be of shape :math:`5\times3\times5\times3\times3\times5\times300` (assuming you did not give your own redshift values. If you did, then in the last dimension, instead of 300 it will be your number of values.). The first dimension will correspond to ``fLy``, second to ``sLy``, third to ``fX``, fourth to ``wX``, fifth to ``fesc``, and sixth to ``Tmin_vir``. The sixth dimension will correspond to ``Tmin_vir`` if you choose the physically-motivated SFRD model, otherwise the sixth dimension will correspond to ``a`` -- relevant to empirically-motivated SFRD. Seventh index corresponds to global signal values. Continuing with the example in section :ref:`multi`, suppose you want to access the global signal corresponding to :math:`f_{\mathrm{Ly}} = 10^{-1}`, :math:`s = 1`, :math:`f_{\mathrm{X}}=10^2`, :math:`w=0`, :math:`f_{\mathrm{esc}}=1`, and min (:math:`T_{\mathrm{vir}})=10^5\,` K, then you should do
 
 .. code:: python
 
