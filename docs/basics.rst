@@ -55,6 +55,8 @@ Running the above will generate an output folder with the name `output_<YYYYMMDD
 
 Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebook `make_figures.ipynb` in the example folder.
 
+To see what parameters you are running for, you can add ``pipe.print_input()`` to ``my_echo_script.py``.
+
 License and citation
 --------------------
 The software is free to use on the MIT open-source license. If you use the software then please consider citing `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_.

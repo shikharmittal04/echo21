@@ -337,6 +337,33 @@ class pipeline():
         myfile.write('\n')
         return myfile
 
+    def print_input(self):
+        '''Prints the input parameters you gave.'''
+
+        print('\n\033[93mParameters given:\n')
+        print('-----------------')
+        print('\nHo = {}'.format(self.Ho))
+        print('Om_m = {}'.format(self.Om_m))
+        print('Om_b = {}'.format(self.Om_b))
+        print('sig8 = {}'.format(self.sig8))
+        print('ns = {}'.format(self.ns))
+        print('Tcmbo = {}'.format(self.Tcmbo))
+        print('Yp = {}'.format(self.Yp))
+        print('\n\nfLy = {}'.format(self.fLy))
+        print('sLy = {}'.format(self.sLy))
+        print('fX = {}'.format(self.fX))
+        print('wX = {}'.format(self.wX))
+        print('fesc = {}'.format(self.fesc))
+        print('\n\nSFRD')
+        print('  Type = '+self.sfrd_type)
+        try:
+            print('  HMF = '+self.hmf)
+            print('  mdef = '+self.mdef)
+            print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
+        except:
+            print('  a = {}\033[00m\n'.format(self.a_sfrd))
+
+        return None
     def glob_sig(self):
         '''
         This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts.  Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
