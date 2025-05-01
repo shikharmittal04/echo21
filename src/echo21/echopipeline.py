@@ -533,7 +533,7 @@ class pipeline():
                 for i in range(n_mod):
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
-
+                        print(self.fLy[ind[0][0]],self.sLy[ind[1][0]],self.fX[ind[2][0]],self.wX[ind[3][0]],self.fesc[ind[4][0]],self.Tmin_vir[ind[5][0]])
                         myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
                         
                         sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
