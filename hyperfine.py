@@ -47,7 +47,8 @@ def col_coup(Z,xe,Tk, Ho=67.4,Om_b=0.049,Tcmbo=2.725,Yp=0.245,cosmo=None):
 		Om_b = cosmo['Om_b']
 		Tcmbo = cosmo['Tcmbo']
 		Yp = cosmo['Yp']
-
+	
+	#return 0
 	return Tstar*nH(Z,Ho,Om_b,Yp)*((1-xe)*kHH(Tk)+xe*keH(Tk))/(A10*Tcmb(Z,Tcmbo))
 
 def lya_coup(Z,xe,Tk, Ho=67.4,Om_m=0.315,Om_b=0.049,Tcmbo=2.725,Yp=0.245,falp=1,fstar=0.1,Tmin_vir=1e4,cosmo=None,astro=None):

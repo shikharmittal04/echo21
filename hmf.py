@@ -89,7 +89,8 @@ def hmf_hdf_file(mx_gev,sigma45):
 	spline2 = RectBivariateSpline(redshifts2, halo_mass2, halo_mass_functions2)
 	'''
 	
-	hdf_file_path = f'/home/prakharb16/galacticus-master/{mx_gev}GeV_{sigma45*1e-41}cm2_hmf.hdf5'
+	hdf_file_path = f'/home/prakharb16//21cm-cosmology/echo/echo_hdf_files_new/{mx_gev}GeV_{sigma45*1e-41}cm2_hmf.hdf5'
+	#hdf_file_path = f'/home/prakharb16/galacticus-master/{mx_gev}GeV_{sigma45*1e-41}cm2_hmf_z0.hdf5'
 	if (os.path.exists(hdf_file_path)!=True):
 		print(f'hdf file {mx_gev}GeV_{sigma45*1e-41}cm2_hmf.hdf5 does not exist. Using default file')
 		hdf_file_path = '/home/prakharb16/galacticus-master/haloMassFunction_main.hdf5'

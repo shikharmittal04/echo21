@@ -102,7 +102,7 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 				sys.exit()
 			
 			st = time.process_time()
-			
+			hmf_hdf_file(mx_gev,sigma45) 
 			print('Obtaining the thermal and ionisation history ...')
 			sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,falp,fX,fstar,Tmin_vir,fdm,mx_gev,sigma45,Z_eval=Z_eval)
 			
@@ -150,6 +150,8 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 		arr = np.arange(n_mod)
 		arr = np.reshape(arr,[np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),np.size(fdm),np.size(mx_gev),np.size(sigma45)])
 		T21 = np.zeros((np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),np.size(fdm),np.size(mx_gev),np.size(sigma45),n_values))
+		TK = np.zeros((np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),np.size(fdm),np.size(mx_gev),np.size(sigma45),n_values))
+		xe = np.zeros((np.size(falp),np.size(fX),np.size(fstar),np.size(Tmin_vir),np.size(fdm),np.size(mx_gev),np.size(sigma45),n_values))
 		
 		if cpu_ind==0: print('Generating',n_mod,'models ...')
 		st = time.process_time()
@@ -160,25 +162,40 @@ def glob_sig(cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'Tcmbo':2.725,'Yp':0.245
 				
 				hmf_hdf_file(mx_gev[ind[5][0]],sigma45[ind[6][0]])  
 				''' hdf file for halo mass function data'''
-				
+				print(f"The following parameter set is being evaluated {falp[ind[0][0]],fX[ind[1][0]],fstar[ind[2][0]],Tmin_vir[ind[3][0]],fdm[ind[4][0]],mx_gev[ind[5][0]],sigma45[ind[6][0]]}")
+				time1 = time.process_time()
 				sol = run_solver(Ho,Om_m,Om_b,Tcmbo,Yp,
 				falp[ind[0][0]],fX[ind[1][0]],fstar[ind[2][0]],Tmin_vir[ind[3][0]],fdm[ind[4][0]],mx_gev[ind[5][0]],sigma45[ind[6][0]],
 				Z_start=1501,Z_end=6,Z_eval=Z_eval)
-				
 				T21[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
 				[ind[6][0]],:] = twentyone_cm(Z_eval,sol.xe,sol.Tk,Ho,Om_m,Om_b,Tcmbo,Yp,falp[ind[0][0]],fstar[ind[2][0]],Tmin_vir[ind[3][0]])
+				TK[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
+				[ind[6][0]],:] = sol.Tk
+				xe[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],
+				[ind[6][0]],:] = sol.xe
+				print(i)
+				#print(sol.Tk)
+				time2 = time.process_time()
+				print(f"time taken: {np.round(time2-time1,2)}s")
 		
 		comm.Barrier()
 		if cpu_ind!=0:
 			comm.send(T21, dest=0)
+			comm.send(TK, dest=0)
+			comm.send(xe, dest=0)
 		else:
 			print('Done.')
 			for j in range(1,n_cpu):
 				T21 = T21 + comm.recv(source=j)
+				TK = TK + comm.recv(source=j)
+				xe = xe + comm.recv(source=j)
 			save_name = path+'T21_'+str(np.size(falp))+str(np.size(fX))+str(np.size(fstar))+str(np.size(Tmin_vir))+str(np.size(fdm))+str(np.size(mx_gev))+str(np.size(sigma45))+'.npy'
 			np.save(save_name,T21)
-			
-			print('Your T21s have been saved into file:',save_name)
+			save_name = path+'TK_'+str(np.size(falp))+str(np.size(fX))+str(np.size(fstar))+str(np.size(Tmin_vir))+str(np.size(fdm))+str(np.size(mx_gev))+str(np.size(sigma45))+'.npy'
+			np.save(save_name,TK)
+			save_name = path+'xe_'+str(np.size(falp))+str(np.size(fX))+str(np.size(fstar))+str(np.size(Tmin_vir))+str(np.size(fdm))+str(np.size(mx_gev))+str(np.size(sigma45))+'.npy'
+			np.save(save_name,xe)
+			print('Your T21s and TKs have been saved into file:',save_name)
 			
 			et = time.process_time()
 			# get the execution time
