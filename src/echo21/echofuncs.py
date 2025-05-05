@@ -324,7 +324,7 @@ class funcs():
         float
             HMF, :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M=M\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving mega parsec.
         '''
-        M_by_h = M*self.h100 #M in units of solar mass/h
+        M_by_h = M*self.h100 #M is in solar mass units and M_by_h is in units of solar mass/h.
         return self.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', mdef = self.mdef, model = self.hmf)
 
     def dndM(self,M,Z):
@@ -674,7 +674,7 @@ class funcs():
 
     def heating_Ex(self,Z,xe):
         '''
-        We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. However, our normalisation is smaller by a factor of 0.14 as we adopt the :math:`L_{\\mathrm{X}}/\\mathrm{SFR}` relation from `Lehmer et al. (2024) <https://iopscience.iop.org/article/10.3847/1538-4357/ad8de7>`__.
+        We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. We adopt the :math:`L_{\\mathrm{X}}/\\mathrm{SFR}` relation from `Lehmer et al. (2024) <https://iopscience.iop.org/article/10.3847/1538-4357/ad8de7>`__.
         
         Arguments
         ---------
@@ -693,8 +693,8 @@ class funcs():
            
         '''
 
-        if self.wX!=1: CX_modifier=(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
-        else: CX_modifier= np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
+        if self.wX!=1: CX_modifier=10*(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
+        else: CX_modifier= 10*np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
         prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
         return prefactor*self.fX*self._fXh(xe)*self.sfrd(Z)*CX_fid*CX_modifier
 

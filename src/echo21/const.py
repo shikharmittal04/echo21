@@ -40,6 +40,8 @@ Iion = 10**53.44/Msolar_by_year_to_kg_by_sec #Yield of ionising photons. From Ma
 N_alpha_infty = 10000   #Total number of Lyman series photons between Ly-alpha and Ly-limit lines.
 
 tilda_E1, tilda_E0, E1, E0 = 30,0.2,8,0.5 #Energies in keV
+
+#Local value of X-ray luminosity to SFR (Lehmer et al 2024):
 CX_fid = 2.61e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^2.
 #--------------------------------------------------------------------------------------------------
 
