@@ -693,9 +693,9 @@ class funcs():
            
         '''
 
-        if self.wX!=1: CX_modifier=10*(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
-        else: CX_modifier= 10*np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
-        prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
+        if self.wX!=1: CX_modifier=(tilda_E1**(1-self.wX)-tilda_E0**(1-self.wX))/(E1**(1-self.wX)-E0**(1-self.wX))
+        else: CX_modifier= np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
+        prefactor = 2/(3*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
         return prefactor*self.fX*self._fXh(xe)*self.sfrd(Z)*CX_fid*CX_modifier
 
     #End of functions related to heating.
@@ -716,9 +716,9 @@ class funcs():
         float
             Ionization due to X-ray photons in units of :math:`\\mathrm{s}^{-1}`.
         '''
-        prefactor = 2/(3*self.basic_cosmo_nH(Z)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
+        prefactor = 2/(3*self.basic_cosmo_nH(1)*(1+self.basic_cosmo_xHe()+xe)*kB*self.basic_cosmo_H(Z))
         qX = self.heating_Ex(Z,xe)/prefactor
-        HX = qX/(self._fXh(xe)*(1-xe)*self.basic_cosmo_nH(Z))
+        HX = qX/(self._fXh(xe)*(1-xe)*self.basic_cosmo_nH(1))
         Ew = 1e3*((tilda_E1**(-self.wX-2.4)-tilda_E0**(-self.wX-2.4))/(tilda_E1**(-self.wX-3.4)-tilda_E0**(-self.wX-3.4)))*(self.wX+3.4)/(self.wX+2.4)-13.6
         secondary_ionization = self._fXion(xe)/13.6
         ionization_rate = HX*(1/Ew+secondary_ionization)/eC
