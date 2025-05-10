@@ -45,7 +45,7 @@ class funcs():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,mx_gev=1.0,sigma45=1.0,fdm=1.0,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
         '''
         
         '''
@@ -90,8 +90,28 @@ class funcs():
         self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
         self.h100 = self.Ho/100
 
+        self.mx = mx_gev*GeV2kg #Now mx is in kg
+        self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
+        self.fdm = fdm #Fraction of DM that is Coloumb-like
         return None
 
+    def basic_cosmo_mu(self,xe):
+        '''
+        The average baryon mass.
+
+        Arguments
+        ---------
+
+        xe : float
+            Electron fraction, dimensionless
+
+        Returns
+        -------
+            :math:`\\mu`, dimensionless
+        '''
+        
+        return 4/(4-3*self.Yp+4*xe*(1-self.Yp))
+    
     def basic_cosmo_xHe(self):
         '''
         Ratio of helium number density to hydrogen number density
@@ -700,6 +720,205 @@ class funcs():
 
     #End of functions related to heating.
     #========================================================================================================
+
+    # The following functions are relevant to Coloumb-like DM particles.
+ 
+    def u_t(self, xe,Tk,Tx, target='p'):
+        '''
+        The characteristic thermal sound speed of the DM-baryon fluid.
+        
+        Arguments
+        ---------
+        
+        xe : float
+            Electron fraction.
+        
+        Tk : float
+            Gas kinetic temperature (K).
+        
+        Tx : float
+            DM temperature (K).
+
+        Returns
+        -------    
+        
+        float
+            :math:`u_{\\mathrm{th}}`, m/s.
+        '''
+        
+        if (target == 'e'):
+            return np.sqrt(kB*Tk/me+kB*Tx/self.mx)
+        if (target == 'p'):
+            return np.sqrt(kB*Tk/(self.basic_cosmo_mu(xe)*mP)+kB*Tx/self.mx)
+
+    def r_t(self,xe,Tk,Tx,v_bx,target='p'):
+        '''
+        Ratio of relative velocity of DM and baryons to the characteristic thermal sound speed.
+         
+        Arguments
+        ---------
+        
+        xe : float
+            Electron fraction.
+        
+        Tk : float
+            Gas kinetic temperature (K).
+        
+        Tx : float
+            DM temperature (K).
+
+        v_bx : float
+            Relative velocity of DM and baryons (m/s).
+        
+        Returns
+        -------    
+        
+        float
+            :math:`v_{\\mathrm{b}\\chi}/u_{\\mathrm{th}}`, dimensionless.
+        '''
+        if (target == 'e'):
+            return v_bx/self.u_t(xe,Tk,Tx, 'e')
+        if (target == 'p'):
+            return v_bx/self.u_t(xe,Tk,Tx, 'p')
+
+    def F(self, x):
+        return scsp.erf(x/np.sqrt(2))- np.sqrt(2/np.pi)*x*np.exp(-x**2/2)
+
+    def D(self,Z,xe,Tk,Tx,v_bx):
+        '''
+        Drag due to DM baryon interaction.
+
+        Arguments
+        ---------
+        
+        Z : float
+            1+z
+        
+        xe : float
+            Electron fraction.
+        
+        Tk : float
+            Gas kinetic temperature (K).
+        
+        Tx : float
+            DM temperature (K).
+
+        v_bx : float
+            Relative velocity of DM and baryons (m/s).
+        
+        Returns
+        -------    
+        
+        float
+            :math:`D (\\mathrm{m\\,s^{-2}})`.
+        '''        
+        rho_b = Z**3*self.basic_cosmo_rho_crit()*self.Om_b
+        rho_x = Z**3*self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)
+
+        return cE**4*self.sigma0*(rho_x+rho_b)/(self.mx+self.basic_cosmo_mu(xe)*mP) * self.F(self.r_t(xe,Tk,Tx,v_bx,'p'))/v_bx**2
+        
+    def mu_bx(self,xe):
+        '''
+        Reduced mass for DM-baryon system.
+
+        Arguments
+        ---------
+        
+        xe : float
+            Electron fraction.
+        
+        Returns
+        -------
+
+        float
+            :math:`\\mu_{\\mathrm{b}\\chi}`, kg
+        '''
+        return self.basic_cosmo_mu(xe)*mP*self.mx/(self.basic_cosmo_mu(xe)*mP+self.mx)
+
+    def Ex2b(self,Z,xe,Tk,Tx,v_bx):
+        '''
+        This corresponds to the heat that flows into the baryonic system from the DM.
+        
+        Arguments
+        ---------
+        
+        Z : float
+            1+z
+        
+        xe : float
+            Electron fraction.
+        
+        Tk : float
+            Gas kinetic temperature (K).
+        
+        Tx : float
+            DM temperature (K).
+
+        v_bx : float
+            Relative velocity of DM and baryons (m/s).
+        
+        Returns
+        -------    
+        
+        float
+            :math:`\\dot{Q}_{\\mathrm{k}}` in units of K.
+        '''
+        # fraction of DM which is coloumb-like (in kg/m^3 proper)
+        rho_x = self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3	
+
+        #mass density of baryons only (in kg/m^3 proper)
+        rho_b = self.basic_cosmo_rho_crit()*self.Om_b*Z**3 
+        
+        rp = self.r_t(xe,Tk,Tx,v_bx,'p')
+        
+        up = self.u_t(xe,Tk,Tx, 'p')
+        term1 = cE**4*2*self.basic_cosmo_mu(xe)*mP*rho_x*self.sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
+        term2 = 1/kB*rho_x/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.D(Z,xe,Tk,Tx,v_bx)
+        return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
+
+    def Eb2x(self,Z,xe,Tk,Tx,v_bx):
+        '''
+        This corresponds to the heat that flows into the DM from baryons.
+        
+        Arguments
+        ---------
+        
+        Z : float
+            1+z
+        
+        xe : float
+            Electron fraction.
+        
+        Tk : float
+            Gas kinetic temperature (K).
+        
+        Tx : float
+            DM temperature (K).
+
+        v_bx : float
+            Relative velocity of DM and baryons (m/s).
+        
+        Returns
+        -------    
+        
+        float
+            :math:`\\dot{Q}_{\\chi}` in units of K.
+        '''
+        # fraction of DM which is coloumb-like (in kg/m^3 proper)
+        rho_x = self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3
+
+        #mass density of baryons only (in kg/m^3 proper)
+        rho_b = self.basic_cosmo_rho_crit()*self.Om_b*Z**3 
+
+        rp = self.r_t(xe,Tk,Tx,v_bx, 'p')
+        
+        up = self.u_t(xe,Tk,Tx, 'p')
+        term1 = cE**4*2*self.mx*rho_b*self.sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
+        term2 = 1/kB*rho_b/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.D(Z,xe,Tk,Tx,v_bx)
+        return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
+
+    #========================================================================================================
+
     def Gamma_x(self,Z,xe):
         '''
         Ionization (of bulk IGM) rate due to X-ray photons.
@@ -796,7 +1015,9 @@ class funcs():
         '''
         xe = V[0]
         Tk = V[1]
-
+        Tx = V[2]
+        v_bx= V[3]
+        
         #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).            
 
         #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
@@ -804,17 +1025,23 @@ class funcs():
         if Z>Zstar:
             eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
 
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.Ex2b(Z,xe,Tk,Tx,v_bx)
         else:
             if xe<0.99:
                 eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
             else:
                 eq1 = 0.0
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.Ex2b(Z,xe,Tk,Tx,v_bx)-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
 
-        return np.array([eq1,eq2])
+        #eq3 is (1+z)dTx/dz;
+        eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
+        
+        #eq2 is (1+z)dv_bx/dz;
+        eq4 = v_bx + self.D(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        
+        return np.array([eq1,eq2,eq3,eq4])
 
-    def igm_solver(self, Z_eval, xe_init = None, Tk_init = None):
+    def igm_solver(self, Z_eval, xe_init = None, Tk_init = None, Tx_init = None, v_bx_init = None):
 
         #Assuming Z_eval is in decreasing order.
         Z_start = Z_eval[0]
@@ -823,14 +1050,18 @@ class funcs():
         if Z_start == 1501:
             Tk_init = self.basic_cosmo_Tcmb(Z_start)
             xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
+            Tx_init = 0
+            v_bx_init = 43500
             
-        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init],method='Radau',t_eval=1/Z_eval)
+        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init, Tx_init, v_bx_init],method='Radau',t_eval=1/Z_eval)
 
         #Obtaining the solutions ...
         xe = Sol.y[0]
         Tk = Sol.y[1]
+        Tx = Sol.y[2]
+        v_bx = Sol.y[3]
 
-        return [xe,Tk]
+        return [xe,Tk,Tx,v_bx]
 
     def reion_eqn(self,Z,QHii):
         #eq is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2007)
