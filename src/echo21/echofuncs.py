@@ -1,15 +1,46 @@
 import scipy.special as scsp
 import scipy.integrate as scint
+from scipy.interpolate import RectBivariateSpline
 import numpy as np
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings
-
-import os
-import sys
+import h5py
+from pathlib import Path
 from .const import *
+
 warnings.filterwarnings('ignore')
+home_path = str(Path.home())
+
+def _hmf_Mz_2d(filename):
+    with h5py.File(filename, "r") as f:
+        # Access the "Outputs" group
+        outputs_group = f["Outputs"]
+
+        # Get all subgroup names
+        subgroup_names = list(outputs_group)
+
+        # Sort subgroup names in reverse order based on the numerical value after "Output"
+        subgroup_names.sort(key=lambda name: int(name.split("Output")[-1]), reverse=True)
+        #print(subgroup_names)
+        # Get the number of data points per redshift from the first subgroup
+        first_subgroup = outputs_group[subgroup_names[0]]
+        redshifts = np.array([5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0,27.0,28.0,29.0,30.0,31.0,32.0,33.0,34.0,35.0,36.0,37.0,38.0,39.0,40.0,41.0,42.0,43.0,44.0,45.0,46.0,47.0,48.0,49.0,50.0,51.0,52.0,53.0,54.0,55.0,56.0,57.0,58.0,59.0,60.0])
+        #redshifts = np.arange(0.0,61.0,1)
+        #print(redshifts)
+        halo_mass = first_subgroup["haloMass"][:]
+        #data_points = len(first_subgroup["haloMassFractionCumulative"][:])  # Assuming all subgroups have the same size
+        data_points = len(first_subgroup["haloMassFunctionLnM"][:])
+
+        # Create the 2D array
+        halo_mass_functions = np.zeros((len(subgroup_names), data_points))
+
+        # Loop through sorted subgroups and populate the array
+        for i, subgroup_name in enumerate(subgroup_names):
+            subgroup = outputs_group[subgroup_name]
+            halo_mass_functions[i] = subgroup["haloMassFractionCumulative"][:]
+    return redshifts, halo_mass, halo_mass_functions
 
 def _gaif(xe,Q):
     '''
@@ -93,6 +124,13 @@ class funcs():
         self.mx = mx_gev*GeV2kg #Now mx is in kg
         self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
         self.fdm = fdm #Fraction of DM that is Coloumb-like
+
+        #hdf_file_path = f'{home_path}/.echo21/{mx_gev}GeV_{sigma45*1e-41}cm2_hmf.hdf5'
+        hdf_file_path = f'{home_path}/.echo21/hmf_460MeV_1e-40cm2.hdf5'
+        redshifts, halo_mass, halo_mass_functions = _hmf_Mz_2d(hdf_file_path)
+        
+        self.spline = RectBivariateSpline(redshifts, halo_mass, halo_mass_functions)
+        
         return None
 
     def basic_cosmo_mu(self,xe):
@@ -413,21 +451,26 @@ class funcs():
             hmf_space = self.dndlnM(M=M_space,Z=Z)    #Corresponding HMF values are in cMpc^-3 
             return Msolar_by_Mpc3_to_kg_by_m3*np.trapezoid(hmf_space,M_space)
         
-        if self.hmf=='press74':
-            return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
-        else:
-            numofZ = np.size(Z)
+        if self.mx==None:
+            if self.hmf=='press74':
+                F_coll = scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
+            else:
+                numofZ = np.size(Z)
                 
-            if numofZ == 1:
-                if type(Z)==np.ndarray: Z=Z[0]
-                rho_halo = rho_dm_coll(Z)
-            else:    
-                rho_halo = np.zeros(numofZ)
-                counter=0
-                for i in Z:
-                    rho_halo[counter]=rho_dm_coll(i)
-                    counter=counter+1
-            return rho_halo/(self.Om_m*self.basic_cosmo_rho_crit())
+                if numofZ == 1:
+                    if type(Z)==np.ndarray: Z=Z[0]
+                    rho_halo = rho_dm_coll(Z)
+                else:    
+                    rho_halo = np.zeros(numofZ)
+                    counter=0
+                    for i in Z:
+                        rho_halo[counter]=rho_dm_coll(i)
+                        counter=counter+1
+                F_coll = rho_halo/(self.Om_m*self.basic_cosmo_rho_crit())
+        else:
+            F_coll = self.spline.ev(Z-1,self.m_min(Z)/self.h100)
+        
+        return F_coll
 
     def dfcoll_dz(self,Z):
         '''
@@ -1050,7 +1093,7 @@ class funcs():
         if Z_start == 1501:
             Tk_init = self.basic_cosmo_Tcmb(Z_start)
             xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
-            Tx_init = 0
+            Tx_init = 0#Tk_init
             v_bx_init = 43500
             
         Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init, Tx_init, v_bx_init],method='Radau',t_eval=1/Z_eval)
