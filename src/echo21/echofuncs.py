@@ -6,8 +6,6 @@ from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings
 
-import os
-import sys
 from .const import *
 warnings.filterwarnings('ignore')
 
@@ -85,6 +83,13 @@ class funcs():
         self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
         self.a_sfrd = kwargs.pop('a',0.257)
         self.b_sfrd = kwargs.pop('b',4)
+
+        if self.sfrd_type == 'phy':
+            self._sfrd = self._sfrd_phy
+        elif self.sfrd_type == 'emp':
+            self._sfrd = self._sfrd_emp
+        else:
+            raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
 
         self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
         self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
@@ -386,28 +391,22 @@ class funcs():
         float 
             Collapse fraction. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
-
-        def rho_dm_coll(Z):
-            #DM collapsed as haloes (in kg/m^3, comoving)
-            M_space = np.logspace(np.log10(self.m_min(Z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
-            hmf_space = self.dndlnM(M=M_space,Z=Z)    #Corresponding HMF values are in cMpc^-3 
-            return Msolar_by_Mpc3_to_kg_by_m3*np.trapezoid(hmf_space,M_space)
         
         if self.hmf=='press74':
             return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
         else:
-            numofZ = np.size(Z)
-                
-            if numofZ == 1:
-                if type(Z)==np.ndarray: Z=Z[0]
-                rho_halo = rho_dm_coll(Z)
-            else:    
-                rho_halo = np.zeros(numofZ)
-                counter=0
-                for i in Z:
-                    rho_halo[counter]=rho_dm_coll(i)
-                    counter=counter+1
-            return rho_halo/(self.Om_m*self.basic_cosmo_rho_crit())
+            Z = np.atleast_1d(Z)
+            single_value = Z.size == 1
+            rho_halo_arr = np.zeros_like(Z)
+            
+            for idx, z in enumerate(Z):
+                M_space = np.logspace(np.log10(self.m_min(z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
+                hmf_space = self.dndlnM(M=M_space,Z=z)    #Corresponding HMF values are in cMpc^-3
+                rho_halo_arr[idx]=np.trapezoid(hmf_space,M_space)
+            
+            fcoll = rho_halo_arr *Msolar_by_Mpc3_to_kg_by_m3/(self.Om_m*self.basic_cosmo_rho_crit())
+            return fcoll[0] if single_value else fcoll
+
 
     def dfcoll_dz(self,Z):
         '''
@@ -415,7 +414,23 @@ class funcs():
         '''
         return (self.f_coll(Z+1e-3)-self.f_coll(Z))*1e3
 
-     
+    def _sfrd_phy(self,Z):
+        Z = np.atleast_1d(Z)
+        mysfrd = -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.dfcoll_dz(Z)*self.basic_cosmo_H(Z)
+        return mysfrd if mysfrd.size > 1 else mysfrd[0]
+    
+    def _sfrd_emp(self,Z):
+        Z = np.atleast_1d(Z)
+        Zcut = 1 + self.b_sfrd
+
+        lowz = 0.015 * Z**2.73 / (1 + (Z / 3)**6.2)
+        highz = 0.015 * Zcut**2.73 / (1 + (Zcut / 3)**6.2) * 10**(self.a_sfrd * (Zcut - Z))
+
+        mysfrd = np.where(Z < Zcut, lowz, highz)
+        mysfrd *= Msolar_by_Mpc3_year_to_kg_by_m3_sec
+
+        return mysfrd if mysfrd.size > 1 else mysfrd[0]
+    
     def sfrd(self,Z):
         '''
         This function returns the comoving star formation rate density (SFRD, :math:`\\dot{\\rho}_{\\star}`).
@@ -432,24 +447,7 @@ class funcs():
         float 
             Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
-        def _sfrd(Z):
-            if Z<1+self.b_sfrd: return 0.015*Z**2.73/(1+(Z/3)**6.2)
-            else: return 0.015*(1+self.b_sfrd)**2.73/(1+((1+self.b_sfrd)/3)**6.2)*10**(self.a_sfrd*(1+self.b_sfrd-Z))
-        
-        if self.sfrd_type=='phy':
-            mysfrd = -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.dfcoll_dz(Z)*self.basic_cosmo_H(Z)
-        elif self.sfrd_type=='emp':
-            NumZ = np.size(Z)
-            
-            if NumZ>1:
-                mysfrd = np.zeros(NumZ)
-                for i in range(NumZ):
-                    mysfrd[i] = _sfrd(Z[i])
-            else: mysfrd = _sfrd(Z)
-
-            mysfrd = mysfrd*Msolar_by_Mpc3_year_to_kg_by_m3_sec
-
-        return mysfrd
+        return self._sfrd(Z)
 
     #========================================================================================================
 
@@ -557,53 +555,37 @@ class funcs():
         float
             Specific intensity in terms of number per unit time per unit area per unit frequency per unit solid angle (:math:`\\mathrm{m^{-2}s^{-1}Hz^{-1}sr^{-1}}`). Two values are returned, namely intensity due to continuum and injected photons, respectively.
         '''
-        def _lya_spec_inten(Z):
-            prefac = cE/(4*np.pi)*Z**2
+        Z = np.atleast_1d(Z).astype(float)
+        J = np.zeros((len(Z), 2))  # [continuum, injected]
+        
+        valid = Z <= Zstar
+        Z_valid = Z[valid]
 
-            Zmax = 32/27*Z
-            temp = np.linspace(Z,Zmax,10)
-            continuum = scint.trapezoid(self.eps_Ly(temp,10.2*temp/Z)/self.basic_cosmo_H(temp),temp)
+        for i, z in enumerate(Z_valid):
+            prefac = cE / (4 * np.pi) * z ** 2
 
-            injected = 0
-            for ni in np.arange(4,24):
-                Zmax = (1-1/(ni+1)**2)/(1-1/ni**2)*Z
-                temp = np.linspace(Z,Zmax,5)
-                injected = injected+Pn[ni-4]*scint.trapezoid(self.eps_Ly(temp,13.6*(1-1/ni**2)*temp/Z)/self.basic_cosmo_H(temp),temp)
-            return prefac*continuum,prefac*injected
+            # Continuum contribution
+            Zmax_cont = 32 / 27 * z
+            zgrid_cont = np.linspace(z, Zmax_cont, 10)
+            eps_cont = self.eps_Ly(zgrid_cont, 10.2 * zgrid_cont / z)
+            H_cont = self.basic_cosmo_H(zgrid_cont)
+            continuum = scint.trapezoid(eps_cont / H_cont, zgrid_cont)
 
-        if type(Z)==np.float64 or type(Z)==float or type(Z)==int:
-            if Z>Zstar:
-                return 0.0,0.0
-            else:
-                return _lya_spec_inten(Z)
+            # Injected contribution
+            injected = 0.0
+            for ni, pn in zip(range(4, 24), Pn):
+                Zmax_inj = (1 - 1 / (ni + 1) ** 2) / (1 - 1 / ni ** 2) * z
+                zgrid_inj = np.linspace(z, Zmax_inj, 5)
+                eps_inj = self.eps_Ly(zgrid_inj, 13.6 * (1 - 1 / ni ** 2) * zgrid_inj / z)
+                H_inj = self.basic_cosmo_H(zgrid_inj)
+                injected += pn * scint.trapezoid(eps_inj / H_inj, zgrid_inj)
+
+            J[i if not valid.any() else np.where(valid)[0][i]] = prefac * continuum, prefac * injected
+
+        # Return scalar if input was scalar
+        return tuple(J[0]) if np.isscalar(Z) else J
 
         
-        elif type(Z)==np.ndarray or type(Z)==list:
-            loc=0
-            flag=False
-            #First check if the provided Z is in descending order or not.
-            if Z[1]>Z[0]:
-                # Arranging redshifts from ascending to descending
-                Z = Z[::-1]
-
-            if Z[0]>Zstar:
-                flag=True
-                loc = np.where(Z<Zstar)[0][0]
-                Z=Z[loc:]
-            
-            counter=0
-            numofZ = len(Z)
-            J_temp=np.zeros((numofZ,2))
-            for Z_value in Z:
-                J_temp[counter,:]=_lya_spec_inten(Z_value)
-                counter=counter+1
-        
-            if flag == True:
-                J_before_CD = np.zeros((loc,2))
-                J_after_CD = J_temp
-                return np.concatenate((J_before_CD,J_after_CD))
-            else:
-                return J_temp
     
     #End of functions related to Lyman-alpha photons.
     #========================================================================================================
@@ -668,7 +650,7 @@ class funcs():
         
         Ic = eta*(2*np.pi**4*atau**2)**(1/3)*(arr[0]**2+arr[2]**2)
         Ii = eta*np.sqrt(atau/2)*scint.quad(lambda y:y**(-1/2)*np.exp(-2*eta*y-np.pi*y**3/(6*atau))*scsp.erfc(np.sqrt(np.pi*y**3/(2*atau))),0,np.inf)[0]-Scat*(1-Scat)/(2*eta)
-        Jc,Ji = self.lya_spec_inten(Z)
+        Jc,Ji = self.lya_spec_inten(Z)[0]
         nbary = (1+self.basic_cosmo_xHe()+xe)*self.basic_cosmo_nH(Z)
         return 8*np.pi/3 * hP/(kB*lam_alpha) * self._dopp(Tk)/nbary * (Jc*Ic+Ji*Ii)
 
@@ -954,9 +936,9 @@ class funcs():
         '''
     
         Scat = self._scatter_corr(Z,xe,Tk)
-        J_Ly = self.lya_spec_inten(Z)    #'undistorted' background Spec. Inte. of Lya photons.
+        Jc_Ji = self.lya_spec_inten(Z)    #'undistorted' background Spec. Inte. of Lya photons.
         Jo = 5.54e-8*Z         #eq.(24) in Mittal & Kulkarni (2021)
-        return Scat*(J_Ly[:,0]+J_Ly[:,1])/Jo
+        return Scat*(Jc_Ji[:,0]+Jc_Ji[:,1])/Jo
 
     def hyfi_spin_temp(self,Z,xe,Tk):
         '''
