@@ -188,7 +188,7 @@ class pipeline():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},astro= {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}, sfrd_dic={'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4},Z_eval=None,path='echo21_outputs/'):
+    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245, 'mx_gev':1.0,'sigma45':1.0,'fdm':1.0},astro= {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}, sfrd_dic={'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4},Z_eval=None,path='echo21_outputs/'):
 
         self.comm = MPI.COMM_WORLD
         self.cpu_ind = self.comm.Get_rank()
@@ -265,7 +265,10 @@ class pipeline():
         self.ns = cosmo['ns']
         self.Tcmbo = cosmo['Tcmbo']
         self.Yp = cosmo['Yp']
-        
+        self.mx_gev = cosmo['mx_gev']
+        self.sigma45 = cosmo['sigma45']
+        self.fdm = cosmo['fdm']
+
         self.fLy = astro['fLy']
         self.sLy = astro['sLy']
         self.fX = astro['fX']
@@ -320,6 +323,10 @@ class pipeline():
         myfile.write('\nns = {}'.format(self.ns))
         myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
         myfile.write('\nYp = {}'.format(self.Yp))
+        myfile.write('\nmx_gev = {}'.format(self.mx_gev))
+        myfile.write('\nsigma45 = {}'.format(self.sigma45))
+        myfile.write('\nfdm = {}'.format(self.fdm))
+
         myfile.write('\n\nfLy = {}'.format(self.fLy))
         myfile.write('\nsLy = {}'.format(self.sLy))
         myfile.write('\nfX = {}'.format(self.fX))
@@ -349,6 +356,10 @@ class pipeline():
         print('ns = {}'.format(self.ns))
         print('Tcmbo = {}'.format(self.Tcmbo))
         print('Yp = {}'.format(self.Yp))
+        print('mx_gev = {}'.format(self.mx_gev))
+        print('sigma45 = {}'.format(self.sigma45))
+        print('fdm = {}'.format(self.fdm))
+
         print('\n\nfLy = {}'.format(self.fLy))
         print('sLy = {}'.format(self.sLy))
         print('fX = {}'.format(self.fX))
@@ -378,9 +389,9 @@ class pipeline():
                 st = time.process_time()
                 
                 if self.sfrd_type == 'phy':
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
                 else:
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
                 
                 Z_temp = Z_default
 
@@ -397,6 +408,8 @@ class pipeline():
                 
                 xe = sol[0]
                 Tk = sol[1]
+                Tx = sol[2]
+                v_bx = sol[3]
 
                 Q_Hii = myobj.reion_solver()
                 Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
@@ -412,6 +425,10 @@ class pipeline():
                     Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
                     splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
                     Tk = splTk(self.Z_eval)
+                    splTx = CubicSpline(np.flip(Z_default), np.flip(Tx))
+                    Tx = splTx(self.Z_eval)
+                    splvbx = CubicSpline(np.flip(Z_default), np.flip(v_bx))
+                    v_bx = splvbx(self.Z_eval)
 
                 print('Obtaining spin temperature ...')
                 Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
@@ -429,7 +446,10 @@ class pipeline():
                 Tcmb_save_name = self.path+'Tcmb'
                 T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
-                
+                Tx_save_name = self.path+'Tx'
+                vbx_save_name = self.path+'vbx'
+
+
                 np.save(xe_save_name,xe)
                 np.save(Q_save_name,Q_Hii)
                 np.save(Q_default_save_name,Q_Hii_default)
@@ -438,6 +458,8 @@ class pipeline():
                 np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
                 np.save(T21_save_name,T21_mod1)
                 np.save(z_save_name,Z_temp)
+                np.save(Tx_save_name,Tx)
+                np.save(vbx_save_name,v_bx)
                 
                 print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
                 
