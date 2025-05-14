@@ -650,9 +650,9 @@ class funcs():
         
         Ic = eta*(2*np.pi**4*atau**2)**(1/3)*(arr[0]**2+arr[2]**2)
         Ii = eta*np.sqrt(atau/2)*scint.quad(lambda y:y**(-1/2)*np.exp(-2*eta*y-np.pi*y**3/(6*atau))*scsp.erfc(np.sqrt(np.pi*y**3/(2*atau))),0,np.inf)[0]-Scat*(1-Scat)/(2*eta)
-        Jc,Ji = self.lya_spec_inten(Z)[0]
+        Jc_Ji = self.lya_spec_inten(Z)
         nbary = (1+self.basic_cosmo_xHe()+xe)*self.basic_cosmo_nH(Z)
-        return 8*np.pi/3 * hP/(kB*lam_alpha) * self._dopp(Tk)/nbary * (Jc*Ic+Ji*Ii)
+        return 8*np.pi/3*hP/(kB*lam_alpha) * self._dopp(Tk)/nbary *(Jc_Ji[:,0]*Ic+Jc_Ji[:,1]*Ii)
 
     def heating_Ex(self,Z,xe):
         '''
