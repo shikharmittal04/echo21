@@ -42,7 +42,7 @@ N_alpha_infty = 10000   #Total number of Lyman series photons between Ly-alpha a
 tilda_E1, tilda_E0, E1, E0 = 30,0.2,8,0.5 #Energies in keV
 
 #Local value of X-ray luminosity to SFR (Lehmer et al 2024):
-CX_fid = 2.61e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^2.
+CX_fid = 2.45e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^2.
 #--------------------------------------------------------------------------------------------------
 
 Zstar = 60 #redshift of the beginning of star formation

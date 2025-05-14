@@ -451,21 +451,21 @@ class funcs():
         float 
             Collapse fraction. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
-		if self.mx==None:
+        if self.mx==None:
             if self.hmf=='press74':
-            	return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
+                return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
             else:
-	            Z = np.atleast_1d(Z)
-	            single_value = Z.size == 1
-	            rho_halo_arr = np.zeros_like(Z)
-	            
-	            for idx, z in enumerate(Z):
-	                M_space = np.logspace(np.log10(self.m_min(z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
-	                hmf_space = self.dndlnM(M=M_space,Z=z)    #Corresponding HMF values are in cMpc^-3
-	                rho_halo_arr[idx]=np.trapezoid(hmf_space,M_space)
-	                
-	            fcoll = rho_halo_arr *Msolar_by_Mpc3_to_kg_by_m3/(self.Om_m*self.basic_cosmo_rho_crit())
-	            return fcoll[0] if single_value else fcoll
+                Z = np.atleast_1d(Z)
+                single_value = Z.size == 1
+                rho_halo_arr = np.zeros_like(Z)
+
+                for idx, z in enumerate(Z):
+                    M_space = np.logspace(np.log10(self.m_min(z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
+                    hmf_space = self.dndlnM(M=M_space,Z=z)    #Corresponding HMF values are in cMpc^-3
+                    rho_halo_arr[idx]=np.trapezoid(hmf_space,M_space)
+
+                F_coll = rho_halo_arr *Msolar_by_Mpc3_to_kg_by_m3/(self.Om_m*self.basic_cosmo_rho_crit())
+                return F_coll[0] if single_value else F_coll
         else:
             F_coll = self.spline.ev(Z-1,self.m_min(Z)/self.h100)
         
@@ -1270,6 +1270,6 @@ class funcs():
         xHI = 1-_gaif(xe,Q)
         return 27*xHI*((1-self.Yp)/0.76)*(self.Om_b*self.h100**2/0.023)*np.sqrt(0.15*Z/(10*self.Om_m*self.h100**2))*(1-self.basic_cosmo_Tcmb(Z)/Ts)
 
-#End of class main.
+#End of class echofuncs.
 #========================================================================================================
 #========================================================================================================
