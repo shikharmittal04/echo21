@@ -283,7 +283,6 @@ class pipeline():
             self.is_idm = True
         except:
             self.is_idm = False
-            pass
         
         self.fLy = astro['fLy']
         self.sLy = astro['sLy']
