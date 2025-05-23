@@ -8,7 +8,7 @@ from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from pybaselines import Baseline
 
-from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, phy_sfrd_default_model, emp_sfrd_default_model
+from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, flipped_Z_default, phy_sfrd_default_model, emp_sfrd_default_model
 from .echofuncs import funcs
 
 
@@ -188,7 +188,18 @@ class pipeline():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245, 'mx_gev':1.0,'sigma45':1.0,'fdm':1.0},astro= {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}, sfrd_dic={'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4},Z_eval=None,path='echo21_outputs/'):
+    def __init__(self,cosmo=None,astro= None, sfrd_dic=None,Z_eval=None,path='echo21_outputs/'):
+
+        if cosmo is None:
+            cosmo = {
+                'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,
+                'Tcmbo': 2.725, 'Yp': 0.245, 'mx_gev': None, 'sigma45': None, 'fdm': None
+            }
+        if astro is None:
+            astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.0106}
+        if sfrd_dic is None:
+            sfrd_dic = {'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
+
 
         self.comm = MPI.COMM_WORLD
         self.cpu_ind = self.comm.Get_rank()
@@ -265,19 +276,25 @@ class pipeline():
         self.ns = cosmo['ns']
         self.Tcmbo = cosmo['Tcmbo']
         self.Yp = cosmo['Yp']
-        self.mx_gev = cosmo['mx_gev']
-        self.sigma45 = cosmo['sigma45']
-        self.fdm = cosmo['fdm']
-
+        try:
+            self.mx_gev = cosmo['mx_gev']
+            self.sigma45 = cosmo['sigma45']
+            self.fdm = cosmo['fdm']
+            self.is_idm = True
+        except:
+            self.is_idm = False
+            pass
+        
         self.fLy = astro['fLy']
         self.sLy = astro['sLy']
         self.fX = astro['fX']
         self.wX = astro['wX']
         self.fesc = astro['fesc']
         
-
-
-        
+        if self.is_idm and self.sfrd_type == 'emp':
+            print('\n\033[31mError! Only physically-motivated SFRD is allowed with IDM.')
+            print('Terminating ...\033[00m\n')
+            sys.exit()
 
 
 
@@ -323,9 +340,11 @@ class pipeline():
         myfile.write('\nns = {}'.format(self.ns))
         myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
         myfile.write('\nYp = {}'.format(self.Yp))
-        myfile.write('\nmx_gev = {}'.format(self.mx_gev))
-        myfile.write('\nsigma45 = {}'.format(self.sigma45))
-        myfile.write('\nfdm = {}'.format(self.fdm))
+
+        if self.is_idm:
+            myfile.write('\nmx_gev = {}'.format(self.mx_gev))
+            myfile.write('\nsigma45 = {}'.format(self.sigma45))
+            myfile.write('\nfdm = {}'.format(self.fdm))
 
         myfile.write('\n\nfLy = {}'.format(self.fLy))
         myfile.write('\nsLy = {}'.format(self.sLy))
@@ -335,8 +354,13 @@ class pipeline():
         myfile.write('\n\nSFRD')
         myfile.write('\n  Type = '+self.sfrd_type)
         try:
-            myfile.write('\n  HMF = '+self.hmf)
-            myfile.write('\n  mdef = '+self.mdef)
+            if self.is_idm==False:
+                myfile.write('\n  HMF = '+self.hmf)
+                myfile.write('\n  mdef = '+self.mdef)
+            else:
+                myfile.write('\n Currently, only Tinker et al. (2008) is supported.')
+                myfile.write('\n  HMF = tinker08')
+                myfile.write('\n  mdef = 200m')
             myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
         except:
             myfile.write('\n  a = {}'.format(self.a_sfrd))
@@ -356,9 +380,10 @@ class pipeline():
         print('ns = {}'.format(self.ns))
         print('Tcmbo = {}'.format(self.Tcmbo))
         print('Yp = {}'.format(self.Yp))
-        print('mx_gev = {}'.format(self.mx_gev))
-        print('sigma45 = {}'.format(self.sigma45))
-        print('fdm = {}'.format(self.fdm))
+        if self.is_idm:
+            print('mx_gev = {}'.format(self.mx_gev))
+            print('sigma45 = {}'.format(self.sigma45))
+            print('fdm = {}'.format(self.fdm))
 
         print('\n\nfLy = {}'.format(self.fLy))
         print('sLy = {}'.format(self.sLy))
@@ -368,18 +393,24 @@ class pipeline():
         print('\n\nSFRD')
         print('  Type = '+self.sfrd_type)
         try:
-            print('  HMF = '+self.hmf)
-            print('  mdef = '+self.mdef)
-            print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
+            if self.is_idm==False:
+                print('  HMF = '+self.hmf)
+                print('  mdef = '+self.mdef)
+            else:
+                print('\n Currently, only Tinker et al. (2008) is supported.')
+                print('\n  HMF = tinker08')
+                print('\n  mdef = 200m')
+                print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
         except:
             print('  a = {}\033[00m\n'.format(self.a_sfrd))
 
         return None
+    
     def glob_sig(self):
         '''
         This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts.  Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
         ''' 
-        #completed = 0
+
         if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
@@ -389,9 +420,12 @@ class pipeline():
                 st = time.process_time()
                 
                 if self.sfrd_type == 'phy':
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                    if self.is_idm:
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                    else:
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
                 else:
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
                 
                 Z_temp = Z_default
 
@@ -408,27 +442,27 @@ class pipeline():
                 
                 xe = sol[0]
                 Tk = sol[1]
-                Tx = sol[2]
-                v_bx = sol[3]
+                if self.is_idm:
+                    Tx = sol[2]
+                    v_bx = sol[3]
 
-                Q_Hii = myobj.reion_solver()
+                Q_Hii = myobj.QHii
                 Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
                 #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
                 Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
 
-                Q_Hii_default = Q_Hii  #We need this for computing CMB optical depth
-
                 if self.Z_eval is not None:
-                    splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                    splxe = CubicSpline(flipped_Z_default, np.flip(xe))
                     xe = splxe(self.Z_eval)
-                    Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                    splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                    Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                    splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
                     Tk = splTk(self.Z_eval)
-                    splTx = CubicSpline(np.flip(Z_default), np.flip(Tx))
-                    Tx = splTx(self.Z_eval)
-                    splvbx = CubicSpline(np.flip(Z_default), np.flip(v_bx))
-                    v_bx = splvbx(self.Z_eval)
+                    if self.is_idm:
+                        splTx = CubicSpline(flipped_Z_default, np.flip(Tx))
+                        Tx = splTx(self.Z_eval)
+                        splvbx = CubicSpline(flipped_Z_default, np.flip(v_bx))
+                        v_bx = splvbx(self.Z_eval)
 
                 print('Obtaining spin temperature ...')
                 Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
@@ -440,26 +474,27 @@ class pipeline():
 
                 xe_save_name = self.path+'xe'
                 Q_save_name = self.path+'Q'
-                Q_default_save_name = self.path+'Q_default'
                 Tk_save_name = self.path+'Tk'
                 Ts_save_name = self.path+'Ts'
                 Tcmb_save_name = self.path+'Tcmb'
                 T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
-                Tx_save_name = self.path+'Tx'
-                vbx_save_name = self.path+'vbx'
-
 
                 np.save(xe_save_name,xe)
                 np.save(Q_save_name,Q_Hii)
-                np.save(Q_default_save_name,Q_Hii_default)
                 np.save(Tk_save_name,Tk)
                 np.save(Ts_save_name,Ts)
                 np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
                 np.save(T21_save_name,T21_mod1)
                 np.save(z_save_name,Z_temp)
-                np.save(Tx_save_name,Tx)
-                np.save(vbx_save_name,v_bx)
+
+                if self.is_idm:
+                    Tx_save_name = self.path+'Tx'
+                    vbx_save_name = self.path+'vbx'
+                    np.save(Tx_save_name,Tx)
+                    np.save(vbx_save_name,v_bx)
+                
+                
                 
                 print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
                 
@@ -476,15 +511,15 @@ class pipeline():
 
                 z50 = None
                 try:
-                    idx = np.argmin(np.abs(Q_Hii_default-0.5))
+                    idx = np.argmin(np.abs(Q_Hii-0.5))
                     z50 = Z_default[idx]-1
                     z100 = None
                     try:
-                        idx = np.where(Q_Hii_default>=0.98)[0][0]
+                        idx = np.where(Q_Hii>=0.98)[0][0]
                         z100 = Z_default[idx]-1
-                        tau_e = myobj.reion_tau(60,Q_Hii_default)
+                        tau_e = myobj.reion_tau(50)
                     except:
-                        print('\n{:.1f} % universe reionised'.format(100*Q_Hii_default[-1]))
+                        print('\n{:.1f} % universe reionised'.format(100*Q_Hii[-1]))
                 except:
                     print('\nNote even 50% reionisation complete until today!')
 
@@ -509,14 +544,20 @@ class pipeline():
             if self.cpu_ind==0:
                 _print_banner()
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
-                print('\nGenerating once the thermal and ionisation history for dark ages ...')
+                print('\nGenerating once the thermal and ionization history for dark ages ...')
             
-            myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
+            if self.is_idm:
+                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm)
+            else:
+                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
 
             Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.igm_solver(Z_eval=Z_da)
             xe_da = sol_da[0]
             Tk_da = sol_da[1]
+            if self.is_idm:
+                Tx_da = sol_da[2]
+                v_bx_da = sol_da[3]
 
             Z_temp = Z_cd
             if self.Z_eval is not None:
@@ -552,27 +593,58 @@ class pipeline():
             
             if self.sfrd_type == 'phy':
             #This is the case for physically motivated SFRD.
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
-                        myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
-                        
-                        sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                        
-                        xe_cd = sol_cd[0]
-                        Tk_cd = sol_cd[1]
+                if self.is_idm:
+                #This is for interacting DM
+                    for i in range(n_mod):
+                        if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                            ind=np.where(arr==i)
+                            myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
+                            
+                            sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1],Tx_init=Tx_da[-1],v_bx_init=v_bx_da[-1])
+                            
+                            xe_cd = sol_cd[0]
+                            Tk_cd = sol_cd[1]
+                            Tx_cd = sol_cd[2]
+                            vbx_cd= sol_cd[3]
 
-                        Q_cd = myobj_cd.reion_solver()
+                            Q_cd = myobj_cd.QHii
 
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
-                            xe_cd = splxe(self.Z_eval)
-                            Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
-                            splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
-                            Tk_cd = splTk(self.Z_eval)
+                            if self.Z_eval is not None:
+                                splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
+                                xe_cd = splxe(self.Z_eval)
+                                Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
+                                splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
+                                Tk_cd = splTk(self.Z_eval)
+                                splTx = CubicSpline(np.flip(Z_cd), np.flip(Tx_cd))
+                                Tx_cd = splTx(self.Z_eval)
+                                splvbx = CubicSpline(np.flip(Z_cd), np.flip(vbx_cd))
+                                vbx_cd = splvbx(self.Z_eval)
 
-                        Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
-                        T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],ind[4][0],ind[5][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
+                            Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
+                            T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],ind[4][0],ind[5][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
+                else:
+                #This is standard CDM.
+                    for i in range(n_mod):
+                        if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                            ind=np.where(arr==i)
+                            myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
+                            
+                            sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
+                            
+                            xe_cd = sol_cd[0]
+                            Tk_cd = sol_cd[1]
+
+                            Q_cd = myobj_cd.QHii
+
+                            if self.Z_eval is not None:
+                                splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
+                                xe_cd = splxe(self.Z_eval)
+                                Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
+                                splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
+                                Tk_cd = splTk(self.Z_eval)
+
+                            Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
+                            T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],ind[4][0],ind[5][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
             else:
             #This is the case for empirically motivated SFRD.
                 for i in range(n_mod):
@@ -586,7 +658,7 @@ class pipeline():
                         xe_cd = sol_cd[0]
                         Tk_cd = sol_cd[1]
 
-                        Q_cd = myobj_cd.reion_solver()
+                        Q_cd = myobj_cd.QHii
 
                         if self.Z_eval is not None:
                             splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
@@ -653,39 +725,80 @@ class pipeline():
             
             n_mod = _no_of_mdls(self.cosmo)
             arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp)])
-            T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
-            
+
+            if self.is_idm:
+                arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp), np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fdm)])
+                T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fdm),n_values))
+            else:
+                arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp)])
+                T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
+
             if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
             st = time.process_time()
             
             if self.sfrd_type == 'phy':
             #This is the case for physically motivated SFRD.
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
+                if self.is_idm:
+                    #Interacting DM
+                    for i in range(n_mod):
+                        if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                            ind=np.where(arr==i)
 
-                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
-                        sol = myobj.igm_solver(Z_eval=Z_default)
+                            myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],mx_gev=self.mx_gev[ind[7][0]],sigma45=self.sigma45[ind[8][0]],fdm=self.fdm[ind[9][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
+                            
+                            sol = myobj.igm_solver(Z_eval=Z_default)
 
-                        xe = sol[0]
-                        Tk = sol[1]
+                            xe = sol[0]
+                            Tk = sol[1]
+                            Tx = sol[2]
+                            v_bx=sol[3]
 
-                        Q_Hii = myobj.reion_solver()
-                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+                            Q_Hii = myobj.QHii
+                            Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
-                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+                            #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                            Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
 
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                            xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                            Tk = splTk(self.Z_eval)
+                            if self.Z_eval is not None:
+                                splxe = CubicSpline(flipped_Z_default, np.flip(xe))
+                                xe = splxe(self.Z_eval)
+                                Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                                splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
+                                Tk = splTk(self.Z_eval)
+                                splTx = CubicSpline(flipped_Z_default, np.flip(Tx))
+                                Tx = splTx(self.Z_eval)
+                                splvbx = CubicSpline(flipped_Z_default, np.flip(v_bx))
+                                v_bx = splvbx(self.Z_eval)
 
-                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                        T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+                            Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                            T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]]:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+                else:
+                    #Standard CDM.
+                    for i in range(n_mod):
+                        if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                            ind=np.where(arr==i)
+
+                            myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
+                            sol = myobj.igm_solver(Z_eval=Z_default)
+
+                            xe = sol[0]
+                            Tk = sol[1]
+
+                            Q_Hii = myobj.QHii
+                            Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+
+                            #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                            Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+
+                            if self.Z_eval is not None:
+                                splxe = CubicSpline(flipped_Z_default, np.flip(xe))
+                                xe = splxe(self.Z_eval)
+                                Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                                splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
+                                Tk = splTk(self.Z_eval)
+
+                            Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                            T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
             else:
             #This is the case for empirically motivated SFRD.
                 for i in range(n_mod):
@@ -693,22 +806,23 @@ class pipeline():
                         ind=np.where(arr==i)
 
                         myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='emp', a=self.a_sfrd)
+                        
                         sol = myobj.igm_solver(Z_eval=Z_default)
 
                         xe = sol[0]
                         Tk = sol[1]
 
-                        Q_Hii = myobj.reion_solver()
+                        Q_Hii = myobj.QHii
                         Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
                         #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
                         Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
 
                         if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                            splxe = CubicSpline(flipped_Z_default, np.flip(xe))
                             xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                            Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                            splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
                             Tk = splTk(self.Z_eval)
 
                         Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
@@ -769,9 +883,16 @@ class pipeline():
             if self.sfrd_type=='phy':
                 n_mod = n_mod * np.size(self.Tmin_vir)
                 arr = np.arange(n_mod)
-                arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)])
-                T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                if self.is_idm:
+                    #IDM
+                    arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fdm), np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)])
+                    T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                else:
+                    #CDM
+                    arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)])
+                    T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
             else:
+                n_mod = n_mod * np.size(self.a_sfrd)
                 arr = np.arange(n_mod)
                 arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd)])
                 T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
@@ -780,32 +901,69 @@ class pipeline():
             st = time.process_time()
             
             if self.sfrd_type=='phy':
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
+                #Physically-motivated SFRD
+                if self.is_idm:
+                    #IDM
+                    for i in range(n_mod):
+                        if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                            ind=np.where(arr==i)
 
-                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],Tmin_vir=self.Tmin_vir[ind[12][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
-                        sol = myobj.igm_solver(Z_eval=Z_default)
+                            myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],mx_gev=self.mx_gev[ind[7][0]],sigma45=self.sigma45[ind[8][0]],fdm=self.fdm[ind[9][0]],fLy=self.fLy[ind[10][0]],sLy=self.sLy[ind[11][0]],fX=self.fX[ind[12][0]],wX=self.wX[ind[13][0]],fesc=self.fesc[ind[14][0]],Tmin_vir=self.Tmin_vir[ind[15][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
+                            sol = myobj.igm_solver(Z_eval=Z_default)
 
-                        xe = sol[0]
-                        Tk = sol[1]
+                            xe = sol[0]
+                            Tk = sol[1]
+                            Tx = sol[2]
+                            v_bx=sol[3]
 
-                        Q_Hii = myobj.reion_solver()
-                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+                            Q_Hii = myobj.QHii
+                            Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
-                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+                            #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                            Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
 
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                            xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                            Tk = splTk(self.Z_eval)
+                            if self.Z_eval is not None:
+                                splxe = CubicSpline(flipped_Z_default, np.flip(xe))
+                                xe = splxe(self.Z_eval)
+                                Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                                splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
+                                Tk = splTk(self.Z_eval)
+                                splTx = CubicSpline(flipped_Z_default, np.flip(Tx))
+                                Tx = splTx(self.Z_eval)
+                                splvbx = CubicSpline(flipped_Z_default, np.flip(v_bx))
+                                v_bx = splvbx(self.Z_eval)
 
-                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                        T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]],[ind[11][0]],[ind[12][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+                            Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                            T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]],[ind[11][0]],[ind[12][0]],[ind[13][0]],[ind[14][0]],[ind[15][0]]:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+                else:
+                    #CDM
+                    for i in range(n_mod):
+                        if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
+                            ind=np.where(arr==i)
+
+                            myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],Tmin_vir=self.Tmin_vir[ind[12][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
+                            sol = myobj.igm_solver(Z_eval=Z_default)
+
+                            xe = sol[0]
+                            Tk = sol[1]
+
+                            Q_Hii = myobj.QHii
+                            Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+
+                            #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+                            Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+
+                            if self.Z_eval is not None:
+                                splxe = CubicSpline(flipped_Z_default, np.flip(xe))
+                                xe = splxe(self.Z_eval)
+                                Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                                splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
+                                Tk = splTk(self.Z_eval)
+
+                            Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                            T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]],[ind[11][0]],[ind[12][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
             else:
+                #Empirically-motivated SFRD
                 for i in range(n_mod):
                     if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
                         ind=np.where(arr==i)
@@ -816,17 +974,17 @@ class pipeline():
                         xe = sol[0]
                         Tk = sol[1]
 
-                        Q_Hii = myobj.reion_solver()
+                        Q_Hii = myobj.QHii
                         Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
                         #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
                         Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
 
                         if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                            splxe = CubicSpline(flipped_Z_default, np.flip(xe))
                             xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                            Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                            splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
                             Tk = splTk(self.Z_eval)
 
                         Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)

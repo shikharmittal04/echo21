@@ -1,46 +1,17 @@
 import scipy.special as scsp
 import scipy.integrate as scint
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import CubicSpline
 import numpy as np
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings
-import h5py
 from pathlib import Path
 from .const import *
 
 warnings.filterwarnings('ignore')
 home_path = str(Path.home())
-
-def _hmf_Mz_2d(filename):
-    with h5py.File(filename, "r") as f:
-        # Access the "Outputs" group
-        outputs_group = f["Outputs"]
-
-        # Get all subgroup names
-        subgroup_names = list(outputs_group)
-
-        # Sort subgroup names in reverse order based on the numerical value after "Output"
-        subgroup_names.sort(key=lambda name: int(name.split("Output")[-1]), reverse=True)
-        #print(subgroup_names)
-        # Get the number of data points per redshift from the first subgroup
-        first_subgroup = outputs_group[subgroup_names[0]]
-        redshifts = np.array([5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0,27.0,28.0,29.0,30.0,31.0,32.0,33.0,34.0,35.0,36.0,37.0,38.0,39.0,40.0,41.0,42.0,43.0,44.0,45.0,46.0,47.0,48.0,49.0,50.0,51.0,52.0,53.0,54.0,55.0,56.0,57.0,58.0,59.0,60.0])
-        #redshifts = np.arange(0.0,61.0,1)
-        #print(redshifts)
-        halo_mass = first_subgroup["haloMass"][:]
-        #data_points = len(first_subgroup["haloMassFractionCumulative"][:])  # Assuming all subgroups have the same size
-        data_points = len(first_subgroup["haloMassFunctionLnM"][:])
-
-        # Create the 2D array
-        halo_mass_functions = np.zeros((len(subgroup_names), data_points))
-
-        # Loop through sorted subgroups and populate the array
-        for i, subgroup_name in enumerate(subgroup_names):
-            subgroup = outputs_group[subgroup_name]
-            halo_mass_functions[i] = subgroup["haloMassFractionCumulative"][:]
-    return redshifts, halo_mass, halo_mass_functions
 
 def _gaif(xe,Q):
     '''
@@ -76,7 +47,7 @@ class funcs():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,mx_gev=1.0,sigma45=1.0,fdm=1.0,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,mx_gev=None,sigma45=None,fdm=None,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
         '''
         
         '''
@@ -94,7 +65,7 @@ class funcs():
             fX = astro['fX']
             wX = astro['wX']
             fesc = astro['fesc']
-        
+
         self.Ho = Ho
         self.Om_m = Om_m
         self.Om_b = Om_b
@@ -103,6 +74,10 @@ class funcs():
         self.Tcmbo = Tcmbo
         self.Yp = Yp
         
+        self.mx_gev = mx_gev
+        self.sigma45 = sigma45
+        self.fdm = fdm
+
         self.fLy = fLy
         self.sLy = sLy
         self.fX = fX
@@ -111,33 +86,67 @@ class funcs():
         
 
         self.sfrd_type = kwargs.pop('type', 'phy')
-        self.mdef = kwargs.pop('mdef','fof')
-        self.hmf = kwargs.pop('hmf','press74')
-        self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
-        self.a_sfrd = kwargs.pop('a',0.257)
-        self.b_sfrd = kwargs.pop('b',4)
 
         if self.sfrd_type == 'phy':
+            self.mdef = kwargs.pop('mdef','fof')
+            self.hmf = kwargs.pop('hmf','press74')
+            self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
+            
             self._sfrd = self._sfrd_phy
+
+            if self.hmf == 'press74':
+                self._f_coll = self._f_coll_press74
+            else:
+                self._f_coll = self._f_coll_nonpress74
+            
+            
+
         elif self.sfrd_type == 'emp':
             self._sfrd = self._sfrd_emp
+            self.a_sfrd = kwargs.pop('a',0.257)
+            self.b_sfrd = kwargs.pop('b',4)
+
+        elif self.sfrd_type == 'semi':
+            self._sfrd = self._sfrd_semi_emp
+            self.t_star = kwargs.pop('t_star',0.5)
+
         else:
             raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
+
 
         self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
         self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
         self.h100 = self.Ho/100
 
-        self.mx = mx_gev*GeV2kg #Now mx is in kg
-        self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
-        self.fdm = fdm #Fraction of DM that is Coloumb-like
+        self.is_idm = False
+        if all(x is not None for x in [self.mx_gev, self.sigma45, self.fdm]):
+            self.is_idm = True
 
-        #hdf_file_path = f'{home_path}/.echo21/{mx_gev}GeV_{sigma45*1e-41}cm2_hmf.hdf5'
-        hdf_file_path = f'{home_path}/.echo21/hmf_460MeV_1e-40cm2.hdf5'
-        redshifts, halo_mass, halo_mass_functions = _hmf_Mz_2d(hdf_file_path)
+        if self.is_idm:
+            self.mx = mx_gev*GeV2kg #Now mx is in kg
+            self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
+
+            npz_file = f'{home_path}/.echo21/halo_mass_function_grid.npz'
+            # Load the compressed grid
+            data = np.load(npz_file)
+            
+            hmf_grid = data['hmf']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
+
+            mdmeff_vals = data['mdmeff']
+            sigma0_vals = data['sigma0']
+            zvals = data['zvals']
+            halomass_vals = data['halomass']
+
+            self.interpolator = RegularGridInterpolator((mdmeff_vals, sigma0_vals, zvals, halomass_vals),hmf_grid, bounds_error=False, fill_value=0.01)
+
+            self._f_coll = self._f_coll_idm
+            self._igm_eqns = self._igm_eqns_idm
+            self._igm_solver = self._igm_solver_idm
+        else:
+            self._igm_eqns = self._igm_eqns_cdm
+            self._igm_solver = self._igm_solver_cdm
         
-        self.spline = RectBivariateSpline(redshifts, halo_mass, halo_mass_functions)
-        
+        self.QHii = self.reion_solver()
         return None
 
     def basic_cosmo_mu(self,xe):
@@ -434,6 +443,30 @@ class funcs():
         
         return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.Tmin_vir/1.98e4)**1.5
 
+    def _f_coll_press74(self, Z):
+        return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
+    
+    def _f_coll_nonpress74(self,Z):
+        Z = np.atleast_1d(Z)
+        single_value = Z.size == 1
+        rho_halo_arr = np.zeros_like(Z)
+
+        for idx, z in enumerate(Z):
+            M_space = np.logspace(np.log10(self.m_min(z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
+            hmf_space = self.dndlnM(M=M_space,Z=z)    #Corresponding HMF values are in cMpc^-3
+            rho_halo_arr[idx]=np.trapezoid(hmf_space,M_space)
+
+        F_coll = rho_halo_arr *Msolar_by_Mpc3_to_kg_by_m3/(self.Om_m*self.basic_cosmo_rho_crit())
+        return F_coll[0] if single_value else F_coll
+    
+    def _f_coll_idm(self, Z):
+        scalar_input = np.isscalar(Z)
+        Z = np.atleast_1d(Z)
+        mmin = self.m_min(Z)/self.h100
+        points = np.column_stack((np.full_like(Z, self.mx_gev), np.full_like(Z, 1e4*self.sigma0), Z - 1, mmin))
+        results = self.interpolator(points)
+        return results[0] if scalar_input else results
+    
     def f_coll(self,Z):
         '''
         Collapse fraction -- fraction of total matter that collapsed into the haloes. See definition below.
@@ -451,25 +484,9 @@ class funcs():
         float 
             Collapse fraction. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
-        if self.mx==None:
-            if self.hmf=='press74':
-                return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
-            else:
-                Z = np.atleast_1d(Z)
-                single_value = Z.size == 1
-                rho_halo_arr = np.zeros_like(Z)
+        return self._f_coll(Z)
 
-                for idx, z in enumerate(Z):
-                    M_space = np.logspace(np.log10(self.m_min(z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
-                    hmf_space = self.dndlnM(M=M_space,Z=z)    #Corresponding HMF values are in cMpc^-3
-                    rho_halo_arr[idx]=np.trapezoid(hmf_space,M_space)
-
-                F_coll = rho_halo_arr *Msolar_by_Mpc3_to_kg_by_m3/(self.Om_m*self.basic_cosmo_rho_crit())
-                return F_coll[0] if single_value else F_coll
-        else:
-            F_coll = self.spline.ev(Z-1,self.m_min(Z)/self.h100)
-        
-        return F_coll
+    
 
     def dfcoll_dz(self,Z):
         '''
@@ -482,6 +499,9 @@ class funcs():
         mysfrd = -Z*fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.dfcoll_dz(Z)*self.basic_cosmo_H(Z)
         return mysfrd if mysfrd.size > 1 else mysfrd[0]
     
+    def _sfrd_semi_emp(self,Z):
+        return fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.basic_cosmo_H(Z)*self.f_coll(Z)/self.t_star
+
     def _sfrd_emp(self,Z):
         Z = np.atleast_1d(Z)
         Zcut = 1 + self.b_sfrd
@@ -808,7 +828,7 @@ class funcs():
     def F(self, x):
         return scsp.erf(x/np.sqrt(2))- np.sqrt(2/np.pi)*x*np.exp(-x**2/2)
 
-    def D(self,Z,xe,Tk,Tx,v_bx):
+    def Drag(self,Z,xe,Tk,Tx,v_bx):
         '''
         Drag due to DM baryon interaction.
 
@@ -897,7 +917,7 @@ class funcs():
         
         up = self.u_t(xe,Tk,Tx, 'p')
         term1 = cE**4*2*self.basic_cosmo_mu(xe)*mP*rho_x*self.sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
-        term2 = 1/kB*rho_x/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.D(Z,xe,Tk,Tx,v_bx)
+        term2 = 1/kB*rho_x/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)
         return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
 
     def Eb2x(self,Z,xe,Tk,Tx,v_bx):
@@ -938,7 +958,7 @@ class funcs():
         
         up = self.u_t(xe,Tk,Tx, 'p')
         term1 = cE**4*2*self.mx*rho_b*self.sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
-        term2 = 1/kB*rho_b/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.D(Z,xe,Tk,Tx,v_bx)
+        term2 = 1/kB*rho_b/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)
         return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
 
     #========================================================================================================
@@ -974,7 +994,7 @@ class funcs():
         '''
         return 20.81*Z**-1.1
 
-    def reion_tau(self,Z,Q):
+    def reion_tau(self,Z):
         '''
         Compute the Thomson-scattering optical depth up to a 1+redshift=Z.
 
@@ -983,9 +1003,6 @@ class funcs():
         Z : float
             1+z to which you want to calculate :math:`\\tau_{\\mathrm{e}}`.
         
-        Q : float
-            The volume-filling factor. This should be the solution for default redshift range; in the output folder it would be saved as ``Q_default``.
-
         Returns
         -------
 
@@ -995,44 +1012,47 @@ class funcs():
         '''
         prefac = cE*sigT*self.basic_cosmo_nH(1)
         xHe = self.basic_cosmo_xHe()
-
-        def _Ez(Z):
-            return np.sqrt(1-self.Om_m+self.Om_m*Z**3)
-
-        def _reion(Z):
-            if Z>Zreion:
-                idx2 = np.argmin(np.abs(Z_default-Z))
-                Z_int = Z_default[idx2:idx1][::-1]
-                Q_int = Q[idx2:idx1][::-1]
-                tau1 = prefac*(1+xHe)*np.trapezoid(Q_int*Z_int**2/self.basic_cosmo_H(Z_int),Z_int)
-                tau2 = prefac*(Mpc2km/self.Ho)*(2/3*1/self.Om_m)*((1+2*xHe)*(_Ez(5)-1)+(1+xHe)*(_Ez(Zreion)-_Ez(5)))
-                tau = tau1 + tau2
-            else:
-                if Z>5:
-                    tau = prefac*(Mpc2km/self.Ho)*(2/3*1/self.Om_m)*((1+2*xHe)*(_Ez(5)-1)+(1+xHe)*(_Ez(Z)-_Ez(5)))
-                else:
-                    tau = prefac*(Mpc2km/self.Ho)*(2/3*1/self.Om_m)*(1+2*xHe)*(_Ez(Z)-1)
-
-            return tau
         
-        idx1 = np.where(Q>=0.98)[0][0]
-        Zreion = Z_default[idx1]
-        
-        
-        if type(Z) == int or type(Z)==float or type(Z)==np.float64:
-            return _reion(Z)
-        elif type(Z)==np.ndarray or type(Z)==list:
-            i = 0
-            numofZ = len(Z)
-            tau=np.zeros(numofZ)
-            for X in Z:
-                tau[i]=_reion(X)
-                i=i+1
-            return tau
+        QHii = self.QHii
+        spl = CubicSpline(flipped_Z_cd, np.flip(QHii))
+
+        def dtaudz(Z):
+            he_factor = (1 + np.where(Z < 5, 2 * xHe, xHe))
+            return prefac*he_factor*spl(Z)*Z**2/self.basic_cosmo_H(Z)
+
+        Z_int = np.linspace(1,Z,100)
+        tau = scint.trapezoid(dtaudz(Z_int),Z_int,axis=0)
+
+        return tau
     #End of functions related to reionization.
     #========================================================================================================
     
-    def igm_eqns(self, Z,V):
+    def _igm_eqns_cdm(self, Z,V):
+        '''
+        This function has the differential equations governing the ionisation and thermal history of the bulk of IGM. When solving upto the end of dark ages, only cosmological parameters will be used.
+        Beyond ``Zstar``, i.e., beginning of cosmic dawn astrophysical will also be used.
+        '''
+        xe = V[0]
+        Tk = V[1]
+        
+        #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).            
+
+        #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
+        
+        if Z>Zstar:
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
+
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
+        else:
+            if xe<0.99:
+                eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
+            else:
+                eq1 = 0.0
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
+        
+        return np.array([eq1,eq2])
+
+    def _igm_eqns_idm(self, Z,V):
         '''
         This function has the differential equations governing the ionisation and thermal history of the bulk of IGM. When solving upto the end of dark ages, only cosmological parameters will be used.
         Beyond ``Zstar``, i.e., beginning of cosmic dawn astrophysical will also be used.
@@ -1061,11 +1081,32 @@ class funcs():
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
         
         #eq2 is (1+z)dv_bx/dz;
-        eq4 = v_bx + self.D(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        eq4 = v_bx + self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
         
         return np.array([eq1,eq2,eq3,eq4])
+    
+    def igm_eqns(self, Z,V):
+        return self._igm_eqns(Z,V)
 
-    def igm_solver(self, Z_eval, xe_init = None, Tk_init = None, Tx_init = None, v_bx_init = None):
+    def _igm_solver_cdm(self, Z_eval, xe_init = None, Tk_init = None):
+
+        #Assuming Z_eval is in decreasing order.
+        Z_start = Z_eval[0]
+        Z_end = Z_eval[-1]
+
+        if Z_start == 1501:
+            Tk_init = self.basic_cosmo_Tcmb(Z_start)
+            xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
+            
+        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init],method='Radau',t_eval=1/Z_eval)
+
+        #Obtaining the solutions ...
+        xe = Sol.y[0]
+        Tk = Sol.y[1]
+
+        return [xe,Tk]
+
+    def _igm_solver_idm(self, Z_eval, xe_init = None, Tk_init = None, Tx_init = None, v_bx_init = None):
 
         #Assuming Z_eval is in decreasing order.
         Z_start = Z_eval[0]
@@ -1087,6 +1128,9 @@ class funcs():
 
         return [xe,Tk,Tx,v_bx]
 
+    def igm_solver(self,Z_eval,**kwargs):
+        return self._igm_solver(Z_eval,**kwargs)
+    
     def reion_eqn(self,Z,QHii):
         #eq is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2007)
 
