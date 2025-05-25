@@ -448,7 +448,7 @@ class funcs():
             The mass returned is in units of :math:`\\mathrm{M}_{\\odot}/h`.
         '''
         
-        return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/0.6*self.Tmin_vir/1.98e4)**1.5
+        return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.Tmin_vir/1.98e4)**1.5
 
     def _f_coll_press74(self, Z):
         return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
