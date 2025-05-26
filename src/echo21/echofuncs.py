@@ -91,15 +91,13 @@ class funcs():
             self.mdef = kwargs.pop('mdef','fof')
             self.hmf = kwargs.pop('hmf','press74')
             self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
-            
-            self._sfrd = self._sfrd_phy
 
             if self.hmf == 'press74':
                 self._f_coll = self._f_coll_press74
             else:
                 self._f_coll = self._f_coll_nonpress74
             
-            
+            self._sfrd = self._sfrd_phy
 
         elif self.sfrd_type == 'emp':
             self._sfrd = self._sfrd_emp
@@ -135,7 +133,7 @@ class funcs():
             self.mx = mx_gev*GeV2kg #Now mx is in kg
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
 
-            npz_file = f'{home_path}/.echo21/halo_mass_function_grid.npz'
+            npz_file = f'{home_path}/.echo21/halo_mass_function_grid_new.npz'
             # Load the compressed grid
             data = np.load(npz_file)
             
@@ -552,6 +550,7 @@ class funcs():
         float 
             Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
+        #print(self._sfrd(Z))
         return self._sfrd(Z)
 
     #========================================================================================================
@@ -1104,7 +1103,6 @@ class funcs():
         
         #eq2 is (1+z)dv_bx/dz;
         eq4 = v_bx + self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
-        
         return np.array([eq1,eq2,eq3,eq4])
     
     def igm_eqns(self, Z,V):
