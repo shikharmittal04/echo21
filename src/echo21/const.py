@@ -29,11 +29,6 @@ Msolar_by_year_to_kg_by_sec = Msolar*year**-1
 #-------------------------------------------------------------
 #Hardcoded but later we want to change some of these
 
-a = 1.127
-b = 2.5
-Mdot0 = 3     #Solar mass per year
-L_UV = 8.695e20  #W/Hz/(Msun/yr)
-
 fstar = 0.1
 Iion = 10**53.44/Msolar_by_year_to_kg_by_sec #Yield of ionising photons. From Madau & Fragos (2017).
 
@@ -81,6 +76,7 @@ Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.35
 # Star formation related defaults
 
 phy_sfrd_default_model = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
+semi_emp_sfrd_default_model = {'type':'semi-emp','hmf':'press74','mdef':'fof','Tmin_vir':1e4,'tstar':0.5}
 emp_sfrd_default_model = {'type':'emp','a':0.257,'b':4}
 
 #------------------------------------------------------------------------------

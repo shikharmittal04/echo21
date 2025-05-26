@@ -106,9 +106,18 @@ class funcs():
             self.a_sfrd = kwargs.pop('a',0.257)
             self.b_sfrd = kwargs.pop('b',4)
 
-        elif self.sfrd_type == 'semi':
-            self._sfrd = self._sfrd_semi_emp
+        elif self.sfrd_type == 'semi-emp':
+            self.mdef = kwargs.pop('mdef','fof')
+            self.hmf = kwargs.pop('hmf','press74')
+            self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
             self.t_star = kwargs.pop('t_star',0.5)
+
+            if self.hmf == 'press74':
+                self._f_coll = self._f_coll_press74
+            else:
+                self._f_coll = self._f_coll_nonpress74
+            
+            self._sfrd = self._sfrd_semi_emp
 
         else:
             raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
@@ -137,7 +146,7 @@ class funcs():
             zvals = data['zvals']
             halomass_vals = data['halomass']
 
-            self.interpolator = RegularGridInterpolator((mdmeff_vals, sigma0_vals, zvals, halomass_vals),hmf_grid, bounds_error=False, fill_value=0.01)
+            self.interpolator = RegularGridInterpolator((mdmeff_vals, sigma0_vals, zvals, halomass_vals),hmf_grid, bounds_error=False, fill_value=np.nan)
 
             self._f_coll = self._f_coll_idm
             self._igm_eqns = self._igm_eqns_idm
@@ -462,9 +471,22 @@ class funcs():
     def _f_coll_idm(self, Z):
         scalar_input = np.isscalar(Z)
         Z = np.atleast_1d(Z)
-        mmin = self.m_min(Z)/self.h100
-        points = np.column_stack((np.full_like(Z, self.mx_gev), np.full_like(Z, 1e4*self.sigma0), Z - 1, mmin))
-        results = self.interpolator(points)
+
+        results = np.zeros_like(Z, dtype=float)  # Initialize all results to 0
+
+        valid = Z <= 60  # Boolean mask for Z values that are <= 60
+
+        if np.any(valid):
+            Z_valid = Z[valid]
+            mmin = self.m_min(Z_valid) / self.h100
+            points = np.column_stack((
+                np.full_like(Z_valid, self.mx_gev),
+                np.ones_like(Z_valid) * 1.0e4 * self.sigma0,
+                Z_valid - 1,
+                mmin
+            ))
+            results[valid] = self.interpolator(points)
+
         return results[0] if scalar_input else results
     
     def f_coll(self,Z):
@@ -1115,7 +1137,7 @@ class funcs():
         if Z_start == 1501:
             Tk_init = self.basic_cosmo_Tcmb(Z_start)
             xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
-            Tx_init = 0#Tk_init
+            Tx_init = 0
             v_bx_init = 43500
             
         Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init, Tx_init, v_bx_init],method='Radau',t_eval=1/Z_eval)
