@@ -29,11 +29,6 @@ Msolar_by_year_to_kg_by_sec = Msolar*year**-1
 #-------------------------------------------------------------
 #Hardcoded but later we want to change some of these
 
-a = 1.127
-b = 2.5
-Mdot0 = 3     #Solar mass per year
-L_UV = 8.695e20  #W/Hz/(Msun/yr)
-
 fstar = 0.1
 Iion = 10**53.44/Msolar_by_year_to_kg_by_sec #Yield of ionising photons. From Madau & Fragos (2017).
 
@@ -52,6 +47,9 @@ Z_end = 1
 
 Z_cd = np.concatenate((1/np.linspace(1/Zstar,1/5.05,200),1/np.linspace(1/5,1/Z_end,100)))
 Z_default = np.concatenate((np.linspace(Z_start,Zstar+0.1,2000),Z_cd))
+
+flipped_Z_default = np.flip(Z_default)
+flipped_Z_cd = np.flip(Z_cd)
 #-----------------------------------------------------------------------
 
 #Recombination related
@@ -78,6 +76,7 @@ Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.35
 # Star formation related defaults
 
 phy_sfrd_default_model = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
+semi_emp_sfrd_default_model = {'type':'semi-emp','hmf':'press74','mdef':'fof','Tmin_vir':1e4,'tstar':0.5}
 emp_sfrd_default_model = {'type':'emp','a':0.257,'b':4}
 
 #------------------------------------------------------------------------------
@@ -85,4 +84,3 @@ emp_sfrd_default_model = {'type':'emp','a':0.257,'b':4}
 
 sig_ten45m2 = 1e-45 #m^2
 GeV2kg = 1.77e-27 # 1 GeV is this much kg
-#========================================================================================================

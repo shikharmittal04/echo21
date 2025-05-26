@@ -1,69 +1,16 @@
 import numpy as np
 from mpi4py import MPI
+from itertools import product
 import sys
 import time
 import os
 import pickle
 from scipy.interpolate import CubicSpline
 from time import localtime, strftime
-from pybaselines import Baseline
 
-from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, phy_sfrd_default_model, emp_sfrd_default_model
+from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, flipped_Z_default, phy_sfrd_default_model, emp_sfrd_default_model, semi_emp_sfrd_default_model
 from .echofuncs import funcs
-
-
-def _print_banner():
-    banner = """\n\033[94m
-    ███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-    ██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-    █████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-    ██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-    ███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-    ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝
-    Copyright 2025, Shikhar Mittal.                                     
-    \033[00m\n"""
-    print(banner)
-    return None
-
-def _to_array(params):
-        try:
-            for keys in params.keys():
-                if type(params[keys])==list:
-                    params[keys]=np.array(params[keys])
-                elif type(params[keys])==float or type(params[keys])==int:
-                    params[keys]=np.array([params[keys]])
-        except:
-            if type(params)==list:
-                    params=np.array(params)
-            elif type(params)==float or type(params)==int:
-                params=np.array([params])        
-        return params
-
-def _to_float(params):
-    try:
-        for keys in params.keys():
-            if type(params[keys])==list:
-                [params[keys]]=params[keys]
-            elif type(params[keys])==np.ndarray:
-                params[keys]=params[keys][0]
-    except:
-        if type(params)==list:
-                [params]=params
-        elif type(params)==np.ndarray:
-            params=params[0]
-    return params
-    
-def _no_of_mdls(params):
-    prod=1
-    for keys in params.keys():
-        if type(params[keys])==np.ndarray:
-            prod=prod*len(params[keys])
-    return prod
-
-def _smoother(x,y):
-    baseline_fitter = Baseline(x_data = x)
-    y = baseline_fitter.imodpoly(y, poly_order=4)[0]
-    return y
+from .misc import *
 
 #--------------------------------------------------------------------------------------------
 #The following 2 functions will be useful if you want to save and load `pipeline`` object.
@@ -188,7 +135,18 @@ class pipeline():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo={'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245, 'mx_gev':1.0,'sigma45':1.0,'fdm':1.0},astro= {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.0106}, sfrd_dic={'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4},Z_eval=None,path='echo21_outputs/'):
+    def __init__(self,cosmo=None,astro= None, sfrd_dic=None,Z_eval=None,path='echo21_outputs/'):
+
+        if cosmo is None:
+            cosmo = {
+                'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,
+                'Tcmbo': 2.725, 'Yp': 0.245, 'mx_gev': None, 'sigma45': None, 'fdm': None
+            }
+        if astro is None:
+            astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.0106}
+        if sfrd_dic is None:
+            sfrd_dic = {'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
+
 
         self.comm = MPI.COMM_WORLD
         self.cpu_ind = self.comm.Get_rank()
@@ -214,6 +172,15 @@ class pipeline():
             if self.model==0:
                 if np.size(self.Tmin_vir)>1:
                     self.model=1
+        elif self.sfrd_type == 'semi-emp':
+            sfrd_dic={**semi_emp_sfrd_default_model,**sfrd_dic}
+            self.hmf = sfrd_dic['hmf']
+            self.mdef = sfrd_dic['mdef']
+            self.Tmin_vir = sfrd_dic['Tmin_vir']
+            self.t_star = sfrd_dic['t_star']
+            if self.model==0:
+                if np.size(self.Tmin_vir)>1 or np.size(self.t_star)>1:
+                    self.model=1
         elif self.sfrd_type == 'emp':
             sfrd_dic={**emp_sfrd_default_model,**sfrd_dic}
             self.a_sfrd = sfrd_dic['a']
@@ -227,25 +194,37 @@ class pipeline():
                 break
         
         if self.model==0:
-            self.astro=_to_float(self.astro)
-            self.cosmo=_to_float(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = _to_float(self.Tmin_vir)
-            else: self.a_sfrd = _to_float(self.a_sfrd)
+            self.astro=to_float(self.astro)
+            self.cosmo=to_float(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = to_float(self.Tmin_vir)
+            elif self.sfrd_type == 'semi-emp':
+                self.Tmin_vir = to_float(self.Tmin_vir)
+                self.t_star = to_float(self.t_star)
+            else: self.a_sfrd = to_float(self.a_sfrd)
         elif self.model==1:
-            self.astro=_to_array(self.astro)
-            self.cosmo=_to_float(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = _to_array(self.Tmin_vir)
-            else: self.a_sfrd = _to_array(self.a_sfrd)
+            self.astro=to_array(self.astro)
+            self.cosmo=to_float(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = to_array(self.Tmin_vir)
+            elif self.sfrd_type == 'semi-emp':
+                self.Tmin_vir = to_array(self.Tmin_vir)
+                self.t_star = to_array(self.t_star)
+            else: self.a_sfrd = to_array(self.a_sfrd)
         elif self.model==2:
-            self.astro=_to_float(self.astro)
-            self.cosmo=_to_array(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = _to_float(self.Tmin_vir)
-            else: self.a_sfrd = _to_float(self.a_sfrd)
+            self.astro=to_float(self.astro)
+            self.cosmo=to_array(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = to_float(self.Tmin_vir)
+            elif self.sfrd_type == 'semi-emp':
+                self.Tmin_vir = to_float(self.Tmin_vir)
+                self.t_star = to_float(self.t_star)
+            else: self.a_sfrd = to_float(self.a_sfrd)
         elif self.model==3:
-            self.astro=_to_array(self.astro)
-            self.cosmo=_to_array(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = _to_array(self.Tmin_vir)
-            else: self.a_sfrd = _to_array(self.a_sfrd)
+            self.astro=to_array(self.astro)
+            self.cosmo=to_array(self.cosmo)
+            if self.sfrd_type == 'phy': self.Tmin_vir = to_array(self.Tmin_vir)
+            elif self.sfrd_type == 'semi-emp':
+                self.Tmin_vir = to_array(self.Tmin_vir)
+                self.t_star = to_array(self.t_star)
+            else: self.a_sfrd = to_array(self.a_sfrd)
         else:
             print('Impossible!')
             sys.exit()
@@ -265,19 +244,24 @@ class pipeline():
         self.ns = cosmo['ns']
         self.Tcmbo = cosmo['Tcmbo']
         self.Yp = cosmo['Yp']
-        self.mx_gev = cosmo['mx_gev']
-        self.sigma45 = cosmo['sigma45']
-        self.fdm = cosmo['fdm']
-
+        try:
+            self.mx_gev = cosmo['mx_gev']
+            self.sigma45 = cosmo['sigma45']
+            self.fdm = cosmo['fdm']
+            self.is_idm = True
+        except:
+            self.is_idm = False
+        
         self.fLy = astro['fLy']
         self.sLy = astro['sLy']
         self.fX = astro['fX']
         self.wX = astro['wX']
         self.fesc = astro['fesc']
         
-
-
-        
+        if self.is_idm and self.sfrd_type == 'emp':
+            print('\n\033[31mError! Only physically-motivated SFRD is allowed with IDM.')
+            print('Terminating ...\033[00m\n')
+            sys.exit()
 
 
 
@@ -323,9 +307,11 @@ class pipeline():
         myfile.write('\nns = {}'.format(self.ns))
         myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
         myfile.write('\nYp = {}'.format(self.Yp))
-        myfile.write('\nmx_gev = {}'.format(self.mx_gev))
-        myfile.write('\nsigma45 = {}'.format(self.sigma45))
-        myfile.write('\nfdm = {}'.format(self.fdm))
+
+        if self.is_idm:
+            myfile.write('\nmx_gev = {}'.format(self.mx_gev))
+            myfile.write('\nsigma45 = {}'.format(self.sigma45))
+            myfile.write('\nfdm = {}'.format(self.fdm))
 
         myfile.write('\n\nfLy = {}'.format(self.fLy))
         myfile.write('\nsLy = {}'.format(self.sLy))
@@ -334,11 +320,26 @@ class pipeline():
         myfile.write('\nfesc = {}'.format(self.fesc))
         myfile.write('\n\nSFRD')
         myfile.write('\n  Type = '+self.sfrd_type)
-        try:
-            myfile.write('\n  HMF = '+self.hmf)
-            myfile.write('\n  mdef = '+self.mdef)
+        if self.sfrd_type == 'phy':
+            if self.is_idm==False:
+                myfile.write('\n  HMF = '+self.hmf)
+                myfile.write('\n  mdef = '+self.mdef)
+            else:
+                myfile.write('\n Currently, only Tinker et al. (2008) is supported.')
+                myfile.write('\n  HMF = tinker08')
+                myfile.write('\n  mdef = 200m')
             myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
-        except:
+        elif self.sfrd_type == 'semi-emp':
+            if self.is_idm==False:
+                myfile.write('\n  HMF = '+self.hmf)
+                myfile.write('\n  mdef = '+self.mdef)
+            else:
+                myfile.write('\n Currently, only Tinker et al. (2008) is supported.')
+                myfile.write('\n  HMF = tinker08')
+                myfile.write('\n  mdef = 200m')
+            myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
+            myfile.write('\n  t_star = {}'.format(self.t_star))
+        else:
             myfile.write('\n  a = {}'.format(self.a_sfrd))
         
         myfile.write('\n')
@@ -356,9 +357,10 @@ class pipeline():
         print('ns = {}'.format(self.ns))
         print('Tcmbo = {}'.format(self.Tcmbo))
         print('Yp = {}'.format(self.Yp))
-        print('mx_gev = {}'.format(self.mx_gev))
-        print('sigma45 = {}'.format(self.sigma45))
-        print('fdm = {}'.format(self.fdm))
+        if self.is_idm:
+            print('mx_gev = {}'.format(self.mx_gev))
+            print('sigma45 = {}'.format(self.sigma45))
+            print('fdm = {}'.format(self.fdm))
 
         print('\n\nfLy = {}'.format(self.fLy))
         print('sLy = {}'.format(self.sLy))
@@ -367,31 +369,55 @@ class pipeline():
         print('fesc = {}'.format(self.fesc))
         print('\n\nSFRD')
         print('  Type = '+self.sfrd_type)
-        try:
-            print('  HMF = '+self.hmf)
-            print('  mdef = '+self.mdef)
+        if self.sfrd_type == 'phy':
+            if self.is_idm==False:
+                print('  HMF = '+self.hmf)
+                print('  mdef = '+self.mdef)
+            else:
+                print('\n Currently, only Tinker et al. (2008) is supported.')
+                print('\n  HMF = tinker08')
+                print('\n  mdef = 200m')
             print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
-        except:
+        elif self.sfrd_type == 'semi-emp':
+            if self.is_idm==False:
+                print('  HMF = '+self.hmf)
+                print('  mdef = '+self.mdef)
+            else:
+                print('\n Currently, only Tinker et al. (2008) is supported.')
+                print('\n  HMF = tinker08')
+                print('\n  mdef = 200m')
+            print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
+            print('  t_star = {}\033[00m\n'.format(self.t_star))
+        else:
             print('  a = {}\033[00m\n'.format(self.a_sfrd))
 
         return None
+    
     def glob_sig(self):
         '''
         This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts.  Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
         ''' 
-        #completed = 0
+
         if self.model==0:
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
-                _print_banner()
+                print_banner()
                 print('Both cosmological and astrophysical parameters are fixed.\n')
                 
                 st = time.process_time()
                 
                 if self.sfrd_type == 'phy':
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                    if self.is_idm:
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                    else:
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                elif self.sfrd_type == 'semi-emp':
+                    if self.is_idm:
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
+                    else:
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
                 else:
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
                 
                 Z_temp = Z_default
 
@@ -408,27 +434,27 @@ class pipeline():
                 
                 xe = sol[0]
                 Tk = sol[1]
-                Tx = sol[2]
-                v_bx = sol[3]
+                if self.is_idm:
+                    Tx = sol[2]
+                    v_bx = sol[3]
 
-                Q_Hii = myobj.reion_solver()
+                Q_Hii = myobj.QHii
                 Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
                 #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
-
-                Q_Hii_default = Q_Hii  #We need this for computing CMB optical depth
+                Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
 
                 if self.Z_eval is not None:
-                    splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
+                    splxe = CubicSpline(flipped_Z_default, np.flip(xe))
                     xe = splxe(self.Z_eval)
-                    Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                    splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
+                    Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
+                    splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
                     Tk = splTk(self.Z_eval)
-                    splTx = CubicSpline(np.flip(Z_default), np.flip(Tx))
-                    Tx = splTx(self.Z_eval)
-                    splvbx = CubicSpline(np.flip(Z_default), np.flip(v_bx))
-                    v_bx = splvbx(self.Z_eval)
+                    if self.is_idm:
+                        splTx = CubicSpline(flipped_Z_default, np.flip(Tx))
+                        Tx = splTx(self.Z_eval)
+                        splvbx = CubicSpline(flipped_Z_default, np.flip(v_bx))
+                        v_bx = splvbx(self.Z_eval)
 
                 print('Obtaining spin temperature ...')
                 Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
@@ -440,26 +466,27 @@ class pipeline():
 
                 xe_save_name = self.path+'xe'
                 Q_save_name = self.path+'Q'
-                Q_default_save_name = self.path+'Q_default'
                 Tk_save_name = self.path+'Tk'
                 Ts_save_name = self.path+'Ts'
                 Tcmb_save_name = self.path+'Tcmb'
                 T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
-                Tx_save_name = self.path+'Tx'
-                vbx_save_name = self.path+'vbx'
-
 
                 np.save(xe_save_name,xe)
                 np.save(Q_save_name,Q_Hii)
-                np.save(Q_default_save_name,Q_Hii_default)
                 np.save(Tk_save_name,Tk)
                 np.save(Ts_save_name,Ts)
                 np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
                 np.save(T21_save_name,T21_mod1)
                 np.save(z_save_name,Z_temp)
-                np.save(Tx_save_name,Tx)
-                np.save(vbx_save_name,v_bx)
+
+                if self.is_idm:
+                    Tx_save_name = self.path+'Tx'
+                    vbx_save_name = self.path+'vbx'
+                    np.save(Tx_save_name,Tx)
+                    np.save(vbx_save_name,v_bx)
+                
+                
                 
                 print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
                 
@@ -476,15 +503,15 @@ class pipeline():
 
                 z50 = None
                 try:
-                    idx = np.argmin(np.abs(Q_Hii_default-0.5))
+                    idx = np.argmin(np.abs(Q_Hii-0.5))
                     z50 = Z_default[idx]-1
                     z100 = None
                     try:
-                        idx = np.where(Q_Hii_default>=0.98)[0][0]
+                        idx = np.where(Q_Hii>=0.98)[0][0]
                         z100 = Z_default[idx]-1
-                        tau_e = myobj.reion_tau(60,Q_Hii_default)
+                        tau_e = myobj.reion_tau(50)
                     except:
-                        print('\n{:.1f} % universe reionised'.format(100*Q_Hii_default[-1]))
+                        print('\n{:.1f} % universe reionised'.format(100*Q_Hii[-1]))
                 except:
                     print('\nNote even 50% reionisation complete until today!')
 
@@ -503,20 +530,28 @@ class pipeline():
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
                 return None
-            
+
+#=========================================================================
+#=========================================================================
         elif self.model==1:
         #Cosmological parameters are fixed so dark ages is solved only once.
             if self.cpu_ind==0:
-                _print_banner()
+                print_banner()
                 print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
-                print('\nGenerating once the thermal and ionisation history for dark ages ...')
+                print('\nGenerating once the thermal and ionization history for dark ages ...')
             
-            myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
+            if self.is_idm:
+                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm)
+            else:
+                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
 
             Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.igm_solver(Z_eval=Z_da)
             xe_da = sol_da[0]
             Tk_da = sol_da[1]
+            if self.is_idm:
+                Tx_da = sol_da[2]
+                v_bx_da = sol_da[3]
 
             Z_temp = Z_cd
             if self.Z_eval is not None:
@@ -528,87 +563,91 @@ class pipeline():
                     Z_temp = self.Z_eval
 
             n_values = len(Z_temp)
-            
-            n_mod = _no_of_mdls(self.astro)
             if self.sfrd_type=='phy':
-                n_mod = n_mod * np.size(self.Tmin_vir)
-                arr = np.arange(n_mod)
-                arr = np.reshape(arr,[np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)])
-                T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                param_grid = list(product(self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
             elif self.sfrd_type=='emp':
-                n_mod = n_mod * np.size(self.a_sfrd)
-                arr = np.arange(n_mod)
-                arr = np.reshape(arr,[np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd)])
-                arr = np.reshape(arr,[np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd)])
-                T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
+                param_grid = list(product(self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd))
+            elif self.sfrd_type=='semi-emp':
+                param_grid = list(product(self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star))            
 
-            
-            if self.cpu_ind==0: print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
+            partial_param = param_grid[self.cpu_ind::self.n_cpu]
 
-            st = time.process_time()            
-            
-            
-            
-            
-            if self.sfrd_type == 'phy':
-            #This is the case for physically motivated SFRD.
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
-                        myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type='phy', hmf=self.hmf, mdef = self.mdef, Tmin_vir=self.Tmin_vir[ind[5][0]])
-                        
-                        sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                        
-                        xe_cd = sol_cd[0]
-                        Tk_cd = sol_cd[1]
+            if self.cpu_ind==0:
+                n_mod = len(param_grid)
+                print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
+                st = time.process_time()
 
-                        Q_cd = myobj_cd.reion_solver()
-
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
-                            xe_cd = splxe(self.Z_eval)
-                            Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
-                            splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
-                            Tk_cd = splTk(self.Z_eval)
-
-                        Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
-                        T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],ind[4][0],ind[5][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
+            if self.is_idm:
+                if self.sfrd_type=='phy':
+                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, idm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45,self.fdm,fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                elif self.sfrd_type=='semi-emp':
+                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45,self.fdm, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param]
             else:
-            #This is the case for empirically motivated SFRD.
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
+                if self.sfrd_type=='phy':
+                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                elif self.sfrd_type=='semi-emp':
+                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param]
+                if self.sfrd_type=='emp':
+                    T21_partial = [(fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, asfrd) in partial_param]
 
-                        myobj_cd = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy[ind[0][0]],sLy=self.sLy[ind[1][0]],fX=self.fX[ind[2][0]],wX=self.wX[ind[3][0]],fesc=self.fesc[ind[4][0]], type = 'emp', a=self.a_sfrd[ind[5][0]])
-                        
-                        sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_da[-1],Tk_init=Tk_da[-1])
-                        
-                        xe_cd = sol_cd[0]
-                        Tk_cd = sol_cd[1]
+            gathered = self.comm.gather(T21_partial, root=0)           
+            
+            if self.cpu_ind == 0:
+                print("Gathering done...")
 
-                        Q_cd = myobj_cd.reion_solver()
+                # Flatten results
+                all_results = [item for chunk in gathered for item in chunk]
 
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_cd), np.flip(xe_cd))
-                            xe_cd = splxe(self.Z_eval)
-                            Q_cd = np.interp(self.Z_eval, np.flip(Z_cd), np.flip(Q_cd))
-                            splTk = CubicSpline(np.flip(Z_cd), np.flip(Tk_cd))
-                            Tk_cd = splTk(self.Z_eval)
+                if self.sfrd_type=='phy':
+                    T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
 
-                        Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
-                        T21_cd[ind[0][0],ind[1][0],ind[2][0],ind[3][0],ind[4][0],ind[5][0],:]= myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
+                    # Create mapping from values to indices
+                    fLy_index = {val: i for i, val in enumerate(self.fLy)}
+                    sLy_index = {val: j for j, val in enumerate(self.sLy)}
+                    fX_index = {val: k for k, val in enumerate(self.fX)}
+                    wX_index = {val: l for l, val in enumerate(self.wX)}
+                    fesc_index = {val: m for m, val in enumerate(self.fesc)}
+                    Tmin_index = {val: n for n, val in enumerate(self.Tmin_vir)}
 
-
-
-
-            self.comm.Barrier()
-            if self.cpu_ind!=0:
-                self.comm.send(T21_cd, dest=0)
-            else:
-                print('\nDone.')
-                for j in range(1,self.n_cpu):
-                    T21_cd = T21_cd + self.comm.recv(source=j)
+                    # Fill T21 array
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
+                        i, j, k, l, m, n = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                        T21_cd[i, j, k, l, m, n, :] = val
                 
+                elif self.sfrd_type=='semi-emp':
+                    T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
+
+                    # Create mapping from values to indices
+                    fLy_index = {val: i for i, val in enumerate(self.fLy)}
+                    sLy_index = {val: j for j, val in enumerate(self.sLy)}
+                    fX_index = {val: k for k, val in enumerate(self.fX)}
+                    wX_index = {val: l for l, val in enumerate(self.wX)}
+                    fesc_index = {val: m for m, val in enumerate(self.fesc)}
+                    Tmin_index = {val: n for n, val in enumerate(self.Tmin_vir)}
+                    t_star_index = {val: o for o, val in enumerate(self.t_star)}
+
+                    # Fill T21 array
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
+                        i, j, k, l, m, n, o = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
+                        T21_cd[i, j, k, l, m, n, o, :] = val
+
+                elif self.sfrd_type=='emp':
+                    T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
+
+                    # Create mapping from values to indices
+                    fLy_index = {val: i for i, val in enumerate(self.fLy)}
+                    sLy_index = {val: j for j, val in enumerate(self.sLy)}
+                    fX_index = {val: k for k, val in enumerate(self.fX)}
+                    wX_index = {val: l for l, val in enumerate(self.wX)}
+                    fesc_index = {val: m for m, val in enumerate(self.fesc)}
+                    a_index = {val: n for n, val in enumerate(self.a_sfrd)}
+
+                    # Fill T21 array
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_results:
+                        i, j, k, l, m, n = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], a_index[a_val]
+                        T21_cd[i, j, k, l, m, n, :] = val
+
+
                 T21_save_name = self.path+'T21'
                 z_save_name = self.path+'one_plus_z'
                 
@@ -633,10 +672,12 @@ class pipeline():
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
 
+#=========================================================================
+#=========================================================================
         elif self.model==2:
 
             if self.cpu_ind==0:
-                _print_banner()
+                print_banner()
                 print('Only cosmological parameters are varied.')
             
 
@@ -650,77 +691,78 @@ class pipeline():
                     Z_temp = self.Z_eval
 
             n_values = len(Z_temp)
-            
-            n_mod = _no_of_mdls(self.cosmo)
-            arr = np.arange(n_mod)
-            arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp)])
-            T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
-            
-            if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
-            st = time.process_time()
-            
-            if self.sfrd_type == 'phy':
-            #This is the case for physically motivated SFRD.
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
 
-                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='phy', Tmin_vir=self.Tmin_vir, mdef = self.mdef, hmf=self.hmf)
-                        sol = myobj.igm_solver(Z_eval=Z_default)
-
-                        xe = sol[0]
-                        Tk = sol[1]
-
-                        Q_Hii = myobj.reion_solver()
-                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
-
-                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
-
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                            xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                            Tk = splTk(self.Z_eval)
-
-                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                        T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+            if self.is_idm:
+                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fdm))
             else:
-            #This is the case for empirically motivated SFRD.
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
+                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp))               
 
-                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX = self.wX, fesc=self.fesc, type='emp', a=self.a_sfrd)
-                        sol = myobj.igm_solver(Z_eval=Z_default)
+            partial_param = param_grid[self.cpu_ind::self.n_cpu]
 
-                        xe = sol[0]
-                        Tk = sol[1]
-
-                        Q_Hii = myobj.reion_solver()
-                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
-
-                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
-
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                            xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                            Tk = splTk(self.Z_eval)
-
-                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                        T21_mod2[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+            if self.cpu_ind==0:
+                n_mod = len(param_grid)
+                print('\nGenerating',n_mod,'models ...')
+                st = time.process_time()
             
-            self.comm.Barrier()
-            if self.cpu_ind!=0:
-                self.comm.send(T21_mod2, dest=0)
+            if self.is_idm:
+                if self.sfrd_type=='phy':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm) in partial_param]
+                elif self.sfrd_type=='semi-emp':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm) in partial_param]
             else:
-                print('Done.\n')
-                for j in range(1,self.n_cpu):
-                    T21_mod2 = T21_mod2 + self.comm.recv(source=j)
+                if self.sfrd_type=='phy':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                elif self.sfrd_type=='semi-emp':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                if self.sfrd_type=='emp':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+
+            gathered = self.comm.gather(T21_partial, root=0)           
+            
+            if self.cpu_ind == 0:
+                print("Gathering done...")
+
+                # Flatten results
+                all_results = [item for chunk in gathered for item in chunk]
+
+                if self.is_idm:
+                    T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fdm),n_values))
+
+                    # Create mapping from values to indices
+                    Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                    Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                    Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                    sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                    ns_index = {val: m for m, val in enumerate(self.ns)}
+                    Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                    Yp_index = {val: o for o, val in enumerate(self.Yp)}
+                    mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
+                    sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
+                    fdm_index = {val: r for r, val in enumerate(self.fdm)}
+
+                    # Fill T21 array
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fdm_val, val in all_results:
+                        i, j, k, l, m, n, o, p,q,r = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fdm_index[fdm_val]
+                        
+                        T21_mod2[i, j, k, l, m, n, o, p, q, r, :] = val
+                else:
+                    T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
+
+                    # Create mapping from values to indices
+                    Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                    Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                    Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                    sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                    ns_index = {val: m for m, val in enumerate(self.ns)}
+                    Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                    Yp_index = {val: o for o, val in enumerate(self.Yp)}
+
+                    # Fill T21 array
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, val in all_results:
+                        i, j, k, l, m, n, o = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val]
+                        
+                        T21_mod2[i, j, k, l, m, n, o, :] = val
+
                 
                 z_save_name = self.path+'one_plus_z'
                 T21_save_name = self.path+'T21'
@@ -745,11 +787,13 @@ class pipeline():
                 #========================================================
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
+#=========================================================================
+#=========================================================================
 
         elif self.model==3:
 
             if self.cpu_ind==0:
-                _print_banner()
+                print_banner()
                 print('Both cosmological and astrophysical parameters are varied.')
             
 
@@ -764,83 +808,185 @@ class pipeline():
 
             n_values = len(Z_temp)
             
-            n_mod = _no_of_mdls(self.astro)*_no_of_mdls(self.cosmo)
-
-            if self.sfrd_type=='phy':
-                n_mod = n_mod * np.size(self.Tmin_vir)
-                arr = np.arange(n_mod)
-                arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)])
-                T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+            if self.is_idm:
+                #IDM
+                if self.sfrd_type=='phy':                
+                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
+                elif self.sfrd_type=='semi-emp':
+                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star))
             else:
-                arr = np.arange(n_mod)
-                arr = np.reshape(arr,[np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd)])
-                T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
+                #CDM
+                if self.sfrd_type=='phy':                
+                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
+                elif self.sfrd_type=='semi-emp':
+                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star))
+                else:
+                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd))
+
+            partial_param = param_grid[self.cpu_ind::self.n_cpu]
+
+            if self.cpu_ind==0:
+                n_mod = len(param_grid)
+                print('\nGenerating',n_mod,'models ...')
+                st = time.process_time()
             
-            if self.cpu_ind==0: print('\nGenerating',n_mod,'models ...')
-            st = time.process_time()
+            if self.is_idm:
+                if self.sfrd_type=='phy':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                elif self.sfrd_type=='semi-emp':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
+            else:
+                if self.sfrd_type=='phy':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                elif self.sfrd_type=='semi-emp':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star, cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir, t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
+                if self.sfrd_type=='emp':
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param]
+
+            gathered = self.comm.gather(T21_partial, root=0)           
             
-            if self.sfrd_type=='phy':
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
+            if self.cpu_ind == 0:
+                print("Gathering done...")
 
-                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],Tmin_vir=self.Tmin_vir[ind[12][0]], hmf=self.hmf, mdef = self.mdef, type = 'phy')
-                        sol = myobj.igm_solver(Z_eval=Z_default)
+                # Flatten results
+                all_results = [item for chunk in gathered for item in chunk]
 
-                        xe = sol[0]
-                        Tk = sol[1]
+                if self.is_idm:
+                    #IDM
+                    if self.sfrd_type=='phy':
+                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp), np.size(self.mx_gev), np.size(self.sigma45), np.size(self.fdm),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
 
-                        Q_Hii = myobj.reion_solver()
-                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+                        # Create mapping from values to indices
+                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                        ns_index = {val: m for m, val in enumerate(self.ns)}
+                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
+                        mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
+                        sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
+                        fdm_index = {val: r for r, val in enumerate(self.fdm)}
+                        
+                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                        fX_index = {val: r for r, val in enumerate(self.fX)}
+                        wX_index = {val: r for r, val in enumerate(self.wX)}
+                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
 
-                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+                        # Fill T21 array
+                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fdm_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
+                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fdm_index[fdm_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                            
+                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, :] = val
+                    
+                    elif self.sfrd_type=='semi-emp':
+                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
 
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                            xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                            Tk = splTk(self.Z_eval)
+                        # Create mapping from values to indices
+                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                        ns_index = {val: m for m, val in enumerate(self.ns)}
+                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
+                        mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
+                        sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
+                        fdm_index = {val: r for r, val in enumerate(self.fdm)}
+                        
+                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                        fX_index = {val: r for r, val in enumerate(self.fX)}
+                        wX_index = {val: r for r, val in enumerate(self.wX)}
+                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
+                        t_star_index = {val: r for r, val in enumerate(self.t_star)}
 
-                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                        T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]],[ind[11][0]],[ind[12][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
-            else:
-                for i in range(n_mod):
-                    if (self.cpu_ind == int(i/int(n_mod/self.n_cpu))%self.n_cpu):
-                        ind=np.where(arr==i)
+                        # Fill T21 array
+                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fdm_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
+                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fdm_index[fdm_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
+                            
+                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, :] = val
+                else:
+                    #CDM
+                    if self.sfrd_type=='phy':
+                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
 
-                        myobj = funcs(Ho=self.Ho[ind[0][0]],Om_m=self.Om_m[ind[1][0]],Om_b=self.Om_b[ind[2][0]],sig8=self.sig8[ind[3][0]],ns=self.ns[ind[4][0]],Tcmbo=self.Tcmbo[ind[5][0]],Yp=self.Yp[ind[6][0]],fLy=self.fLy[ind[7][0]],sLy=self.sLy[ind[8][0]],fX=self.fX[ind[9][0]],wX=self.wX[ind[10][0]],fesc=self.fesc[ind[11][0]],a=self.a_sfrd[ind[12][0]], type = 'emp')
-                        sol = myobj.igm_solver(Z_eval=Z_default)
+                        # Create mapping from values to indices
+                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                        ns_index = {val: m for m, val in enumerate(self.ns)}
+                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
+                        
+                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                        fX_index = {val: r for r, val in enumerate(self.fX)}
+                        wX_index = {val: r for r, val in enumerate(self.wX)}
+                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
 
-                        xe = sol[0]
-                        Tk = sol[1]
+                        # Fill T21 array
+                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
+                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                            
+                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
+                    
+                    elif self.sfrd_type=='semi-emp':
+                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
 
-                        Q_Hii = myobj.reion_solver()
-                        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+                        # Create mapping from values to indices
+                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                        ns_index = {val: m for m, val in enumerate(self.ns)}
+                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
+                        
+                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                        fX_index = {val: r for r, val in enumerate(self.fX)}
+                        wX_index = {val: r for r, val in enumerate(self.wX)}
+                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
+                        t_star_index = {val: r for r, val in enumerate(self.t_star)}
 
-                        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                        Tk[0:1806] = _smoother(Z_default[0:1806],Tk[0:1806])
+                        # Fill T21 array
+                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
+                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
+                            
+                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, :] = val
+                    else:
+                        #CDM, empirical
+                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
 
-                        if self.Z_eval is not None:
-                            splxe = CubicSpline(np.flip(Z_default), np.flip(xe))
-                            xe = splxe(self.Z_eval)
-                            Q_Hii = np.interp(self.Z_eval, np.flip(Z_default), np.flip(Q_Hii))
-                            splTk = CubicSpline(np.flip(Z_default), np.flip(Tk))
-                            Tk = splTk(self.Z_eval)
+                        # Create mapping from values to indices
+                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                        ns_index = {val: m for m, val in enumerate(self.ns)}
+                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
 
-                        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-                        T21_mod3[ind[0][0],ind[1][0],ind[2][0],ind[3][0],[ind[4][0]],[ind[5][0]],[ind[6][0]],[ind[7][0]],[ind[8][0]],[ind[9][0]],[ind[10][0]],[ind[11][0]],[ind[12][0]],:] = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                        fX_index = {val: r for r, val in enumerate(self.fX)}
+                        wX_index = {val: r for r, val in enumerate(self.wX)}
+                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                        a_index = {val: r for r, val in enumerate(self.a_vir)}
 
-
-            self.comm.Barrier()
-            if self.cpu_ind!=0:
-                self.comm.send(T21_mod3, dest=0)
-            else:
-                print('Done.\n')
-                for j in range(1,self.n_cpu):
-                    T21_mod3 = T21_mod3 + self.comm.recv(source=j)
-                
+                        # Fill T21 array
+                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_results:
+                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], a_index[a_val]
+                            
+                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
+            
                 z_save_name = self.path+'one_plus_z'
                 T21_save_name = self.path+'T21'
                 
