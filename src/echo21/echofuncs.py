@@ -144,7 +144,7 @@ class funcs():
             zvals = data['zvals']
             halomass_vals = data['halomass']
 
-            self.interpolator = RegularGridInterpolator((mdmeff_vals, sigma0_vals, zvals, halomass_vals),hmf_grid, bounds_error=False, fill_value=np.nan)
+            self.interpolator = RegularGridInterpolator((np.log10(mdmeff_vals), np.log10(sigma0_vals), zvals, np.log10(halomass_vals)),hmf_grid, bounds_error=False, fill_value=np.nan)
 
             self._f_coll = self._f_coll_idm
             self._igm_eqns = self._igm_eqns_idm
@@ -472,16 +472,16 @@ class funcs():
 
         results = np.zeros_like(Z, dtype=float)  # Initialize all results to 0
 
-        valid = Z <= 60  # Boolean mask for Z values that are <= 60
+        valid = Z <= 61  # Boolean mask for Z values that are <= 60
 
         if np.any(valid):
             Z_valid = Z[valid]
             mmin = self.m_min(Z_valid) / self.h100
             points = np.column_stack((
-                np.full_like(Z_valid, self.mx_gev),
-                np.ones_like(Z_valid) * 1.0e4 * self.sigma0,
+                np.full_like(Z_valid, np.log10(self.mx_gev)),
+                np.ones_like(Z_valid) * np.log10(1.0e4 * self.sigma0),
                 Z_valid - 1,
-                mmin
+                np.log10(mmin)
             ))
             results[valid] = self.interpolator(points)
 
