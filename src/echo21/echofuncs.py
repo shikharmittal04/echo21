@@ -1,6 +1,6 @@
 import scipy.special as scsp
 import scipy.integrate as scint
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator, RectBivariateSpline
 from scipy.interpolate import CubicSpline
 import numpy as np
 from colossus.cosmology import cosmology
@@ -144,7 +144,16 @@ class funcs():
             zvals = data['zvals']
             halomass_vals = data['halomass']
 
-            self.interpolator = RegularGridInterpolator((np.log10(mdmeff_vals), np.log10(sigma0_vals), zvals, np.log10(halomass_vals)),hmf_grid, bounds_error=False, fill_value=np.nan)
+            mdm_sigma_interp = RegularGridInterpolator(
+            (mdmeff_vals, sigma0_vals),
+            hmf_grid,  # 4D array
+            bounds_error=False,
+            fill_value=np.nan
+            )
+            # Get HMF slice at desired mdm_eff and sigma0: shape (Nz, Nmass)
+            hmf_z_mass = mdm_sigma_interp((self.mx_gev, 1e4*self.sigma0)).reshape(len(zvals), len(halomass_vals))
+            
+            self.rbs = RectBivariateSpline(zvals, halomass_vals, hmf_z_mass)
 
             self._f_coll = self._f_coll_idm
             self._igm_eqns = self._igm_eqns_idm
@@ -477,14 +486,8 @@ class funcs():
         if np.any(valid):
             Z_valid = Z[valid]
             mmin = self.m_min(Z_valid) / self.h100
-            points = np.column_stack((
-                np.full_like(Z_valid, np.log10(self.mx_gev)),
-                np.ones_like(Z_valid) * np.log10(1.0e4 * self.sigma0),
-                Z_valid - 1,
-                np.log10(mmin)
-            ))
-            results[valid] = self.interpolator(points)
-
+            results[valid] = self.rbs.ev(Z_valid - 1,mmin)            
+            
         return results[0] if scalar_input else results
     
     def f_coll(self,Z):
