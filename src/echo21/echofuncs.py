@@ -133,11 +133,11 @@ class funcs():
             self.mx = mx_gev*GeV2kg #Now mx is in kg
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
 
-            npz_file = f'{home_path}/.echo21/halo_mass_function_grid_new.npz'
+            npz_file = f'{home_path}/.echo21/f_coll_idm.npz'
             # Load the compressed grid
             data = np.load(npz_file)
             
-            hmf_grid = data['hmf']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
+            f_coll = data['f_coll']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
 
             mdmeff_vals = data['mdmeff']
             sigma0_vals = data['sigma0']
@@ -146,14 +146,14 @@ class funcs():
 
             mdm_sigma_interp = RegularGridInterpolator(
             (mdmeff_vals, sigma0_vals),
-            hmf_grid,  # 4D array
+            f_coll,  # 4D array
             bounds_error=False,
             fill_value=np.nan
             )
             # Get HMF slice at desired mdm_eff and sigma0: shape (Nz, Nmass)
-            hmf_z_mass = mdm_sigma_interp((self.mx_gev, 1e4*self.sigma0)).reshape(len(zvals), len(halomass_vals))
+            fcoll_z_mass = mdm_sigma_interp((self.mx_gev, 1e4*self.sigma0)).reshape(len(zvals), len(halomass_vals))
             
-            self.rbs = RectBivariateSpline(zvals, halomass_vals, hmf_z_mass)
+            self.rbs = RectBivariateSpline(zvals, halomass_vals, fcoll_z_mass)
 
             self._f_coll = self._f_coll_idm
             self._igm_eqns = self._igm_eqns_idm
