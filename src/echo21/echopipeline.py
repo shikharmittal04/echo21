@@ -71,7 +71,11 @@ def load_pipeline(filename):
 
 class pipeline():
     '''
-    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts.
+    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts. There are 3 inputs required for a complete specification -- cosmological parameters, astrophysical parameter, and star formation related parameters. They are supplied through arguments, ``cosmo``, ``astro``, and ``sfrd_dic``, respectively. The notation for the parameters is as follows. All of these need to be dictionaries. For example:
+
+    cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},
+    astro = {'fLy':1,'sLy' : 2.64,'fX':1,'wX':1.5, 'fesc':0.0106},
+    sfrd_dic = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
     
     Parameters
     ~~~~~~~~~~
@@ -116,6 +120,9 @@ class pipeline():
         
         This should be a dictionary containing all the details of SFRD.
         
+        type : str, optional
+            Available types are 'phy' (default), 'semi-emp', and 'emp', for a physically-motivated, semi-empirical, and an empiricaly-motivated SFRD, respectively.
+
         hmf : str, optional
             HMF model to use. Default value ``press74``. Other commonly used HMFs are
             
@@ -126,7 +133,7 @@ class pipeline():
         For the full list see `colossus <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`__ page.
 
         mdef: str, optional
-            Definition for halo mass. Default is ``fof``. For most HMFs such as Press-Schechter or Sheth-Tormen friends-of-friends (``fof``) algorithm is used. For Tinker, it is an integer times mean matter density (``<int>m``). See colossus definition `page <https://bdiemer.bitbucket.io/colossus/halo_mass.html>`_
+            Definition for halo mass. Default is ``fof``. For most HMFs such as Press-Schechter or Sheth-Tormen, friends-of-friends (``fof``) algorithm is used. For Tinker08, it is an integer times mean matter density (``<int>m``). See the ``colossus`` documentation for definition `page <https://bdiemer.bitbucket.io/colossus/halo_mass.html>`_
             
         Tmin_vir : float, optional
             Minimum virial temperature (in units of kelvin) for star formation. Default value ``1e4``.
@@ -395,7 +402,7 @@ class pipeline():
     
     def glob_sig(self):
         '''
-        This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts.  Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
+        This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts. Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
         ''' 
 
         if self.model==0:

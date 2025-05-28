@@ -551,7 +551,7 @@ class funcs():
         -------
         
         float 
-            Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array.
+            Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array. To convert to solar mass per year per cubic Mpc, use the factor ``Msolar_by_Mpc3_year_to_kg_by_m3_sec`` available in the module ``const``.
         '''
         return self._sfrd(Z)
 
@@ -726,7 +726,7 @@ class funcs():
 
     def heating_Elya(self,Z,xe,Tk):
         '''
-        Ly :math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__
+        Ly :math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__ or the ECHO21 paper `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`__
         
         Arguments
         ---------
@@ -810,7 +810,7 @@ class funcs():
         -------    
         
         float
-            :math:`u_{\\mathrm{th}}`, m/s.
+            :math:`u_{\\mathrm{th}} (\\mathrm{m\\,s^{-1}})`.
         '''
         
         if (target == 'e'):
@@ -898,7 +898,7 @@ class funcs():
         -------
 
         float
-            :math:`\\mu_{\\mathrm{b}\\chi}`, kg
+            :math:`\\mu_{\\mathrm{b}\\chi} (\\mathrm{kg})`
         '''
         return self.basic_cosmo_mu(xe)*mP*self.mx/(self.basic_cosmo_mu(xe)*mP+self.mx)
 
@@ -922,13 +922,13 @@ class funcs():
             DM temperature (K).
 
         v_bx : float
-            Relative velocity of DM and baryons (m/s).
+            Relative velocity of DM and baryons (\\mathrm{m\\,s^{-1}}).
         
         Returns
         -------    
         
         float
-            :math:`\\dot{Q}_{\\mathrm{k}}` in units of K.
+            :math:`\\dot{Q}_{\\mathrm{k}} (\\mathrm{K})`.
         '''
         # fraction of DM which is coloumb-like (in kg/m^3 proper)
         rho_x = self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3	
@@ -969,7 +969,7 @@ class funcs():
         -------    
         
         float
-            :math:`\\dot{Q}_{\\chi}` in units of K.
+            :math:`\\dot{Q}_{\\chi}` (K).
         '''
         # fraction of DM which is coloumb-like (in kg/m^3 proper)
         rho_x = self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3
@@ -1030,7 +1030,7 @@ class funcs():
         -------
 
         float
-            :math:`\\tau_{\\mathrm{e}}`
+            :math:`\\tau_{\\mathrm{e}}` (dimensionless).
 
         '''
         prefac = cE*sigT*self.basic_cosmo_nH(1)
@@ -1051,10 +1051,6 @@ class funcs():
     #========================================================================================================
     
     def _igm_eqns_cdm(self, Z,V):
-        '''
-        This function has the differential equations governing the ionisation and thermal history of the bulk of IGM. When solving upto the end of dark ages, only cosmological parameters will be used.
-        Beyond ``Zstar``, i.e., beginning of cosmic dawn astrophysical will also be used.
-        '''
         xe = V[0]
         Tk = V[1]
         
@@ -1076,10 +1072,6 @@ class funcs():
         return np.array([eq1,eq2])
 
     def _igm_eqns_idm(self, Z,V):
-        '''
-        This function has the differential equations governing the ionisation and thermal history of the bulk of IGM. When solving upto the end of dark ages, only cosmological parameters will be used.
-        Beyond ``Zstar``, i.e., beginning of cosmic dawn astrophysical will also be used.
-        '''
         xe = V[0]
         Tk = V[1]
         Tx = V[2]
@@ -1108,6 +1100,9 @@ class funcs():
         return np.array([eq1,eq2,eq3,eq4])
     
     def igm_eqns(self, Z,V):
+        '''
+        This function has the differential equations governing the ionization and thermal history of the bulk of IGM. When solving upto the end of dark ages, only cosmological parameters will be used. Beyond ``Zstar``, i.e., after the beginning of cosmic dawn astrophysical will also be used.
+        '''
         return self._igm_eqns(Z,V)
 
     def _igm_solver_cdm(self, Z_eval, xe_init = None, Tk_init = None):
@@ -1151,10 +1146,28 @@ class funcs():
         return [xe,Tk,Tx,v_bx]
 
     def igm_solver(self,Z_eval,**kwargs):
+        '''
+        This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved.
+        '''
         return self._igm_solver(Z_eval,**kwargs)
     
     def reion_eqn(self,Z,QHii):
-        #eq is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2007)
+        '''
+        The RHS of the differential equation governing the evolution of Q. Equation is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2017).
+
+        Arguments
+        ---------
+        Z : float
+            1+z.
+
+        Q : float
+            The volume filling factor of the ionized regions.
+            
+        Returns
+        -------
+        float
+            (1+z)dQ/dz
+        '''
 
         if QHii<0.999:
             eq = -1/self.basic_cosmo_H(Z)*(self.fesc*Iion*self.sfrd(Z)/self.basic_cosmo_nH(1) - (1+self.basic_cosmo_xHe())*alpha_B*self.reion_clump(Z)*self.basic_cosmo_nH(Z)*QHii)
@@ -1163,6 +1176,19 @@ class funcs():
         return eq
     
     def reion_solver(self):
+        '''
+        Solves the reionization equation.
+
+        Arguments
+        ---------
+        None
+
+        Returns
+        -------
+
+        float array
+            Q for the cosmic dawn redshifts, ``Z_cd``. The redshifts can be access from the module ``const``. 
+        '''
         Sol = scint.solve_ivp(lambda a, Var: -self.reion_eqn(1/a,Var)/a, [1/Zstar, 1/Z_end],[0],method='Radau',t_eval=1/Z_cd)
         QHii = Sol.y[0]
         return QHii

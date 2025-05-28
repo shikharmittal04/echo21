@@ -14,6 +14,8 @@ Welcome to echo21's documentation!
    
    In-depth usage <detexp>
 
+   Non-standard cosmologies <idm>
+
    Additional features <add>
 
    API Reference <api>

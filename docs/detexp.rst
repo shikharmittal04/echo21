@@ -8,7 +8,8 @@ In-depth usage
 .. _single:
 Single realization of 21-cm signal
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-In general, there are two main steps to use ``ECHO21``:
+
+There are just two steps to use ``ECHO21``:
 
 -  Give your choice of parameters
 -  Run the solver
@@ -89,7 +90,7 @@ Using a similar strategy you can now generate thousands of models in a few minut
 Choosing a different HMF
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Until now we have been using the Press & Schechter (1974) HMF. In ``ECHO21`` you can choose a different HMF also. Suppose you want to generate a signal for Sheth & Tormen (1999) HMF. Then set ``'sheth99'`` for the ``hmf`` keyword in the SFRD dictionary. For some HMFs you will have to change your definition of halo mass which is done by the keyword ``mdef``. For example both Press & Schechter (1974) and Sheth & Tormen (1999) are based on the friends-of-friends defintion (which is why we set ``'fof'`` for  ``mdef``), but Tinker et al. (2008) is based on an integer multiple of mean matter density of the Universe. So you can give, say, ``'200m'`` for ``mdef``. For a complete list of available HMFs see the `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_ page.
+Until now we have been using the Press & Schechter (1974) HMF. In ``ECHO21`` you can choose a different HMF also. Suppose you want to generate a signal for Sheth & Tormen (1999) HMF. Then set ``'sheth99'`` for the ``hmf`` keyword in the SFRD dictionary. For some HMFs you will have to change your definition of halo mass which is done by the keyword ``mdef``. For example both Press & Schechter (1974) and Sheth & Tormen (1999) are based on the friends-of-friends definition (which is why we set ``'fof'`` for  ``mdef``), but Tinker et al. (2008) is based on an integer multiple of mean matter density of the Universe. So you can give, say, ``'200m'`` for ``mdef``. For a complete list of available HMFs see the `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_ page.
 
 Below is an example syntax for SFRD dictionary using Tinker et al. (2008) HMF.
 
@@ -101,7 +102,13 @@ Below is an example syntax for SFRD dictionary using Tinker et al. (2008) HMF.
 Choosing a different SFRD model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Until now we have been working with physically-motivated SFRD models, which is why we had ``'phy'`` for ``type`` in the SFRD dictionary. Let us now implement an empirically-motivated SFRD model. For this you simply need to set your type as ``'emp'`` and choose the :math:`a` parameter. See my paper for the definition. 
+Until now we have been working with physically-motivated SFRD models, which is why we had ``'phy'`` for ``type`` in the SFRD dictionary. ECHO21 offers two additional models of SFRD -- semi-empirical model and an empirically-motivated SFRD model. Let us first look at the semi-empirical model. The dictionary looks mostly the same as for the physically-motivated case, except now we use ``'semi-emp'`` for ``type``. Further, for this case now you also have an additional free parameter, ``t_star`` (default value 0.2). The dictionary now looks like
+
+.. code:: python
+   
+   sfrd = {'type':'semi-emp','hmf':'press74','mdef':'fof','Tmin_vir':1e4, 't_star':0.5}
+
+Let us now implement an empirically-motivated SFRD model. For this you simply need to set your type as ``'emp'`` and choose the :math:`a` parameter. See our paper for the definition. 
 
 .. code:: python
    
