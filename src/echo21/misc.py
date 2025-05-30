@@ -57,11 +57,11 @@ def smoother(x,y):
     y = baseline_fitter.imodpoly(y, poly_order=4)[0]
     return y
 
-def idm_phy_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm,fLy,sLy,fX,wX,fesc,Tmin_vir,hmf,mdef, xe_init, Tk_init, Tx_init, v_bx_init, self_Z_eval, Z_temp):
+def idm_phy_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX,fesc,Tmin_vir,hmf,mdef, xe_init, Tk_init, Tx_init, v_bx_init, self_Z_eval, Z_temp):
     '''
     IDM, Physically-motivated, cosmic dawn only
     '''
-    myobj_cd = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fdm=fdm,fLy=fLy,sLy=sLy,fX=fX,wX=wX,fesc=fesc,type='phy',hmf=hmf, mdef=mdef, Tmin_vir=Tmin_vir)
+    myobj_cd = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX=wX,fesc=fesc,type='phy',hmf=hmf, mdef=mdef, Tmin_vir=Tmin_vir)
                             
     sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_init,Tk_init=Tk_init,Tx_init=Tx_init,v_bx_init=v_bx_init)
     
@@ -83,11 +83,11 @@ def idm_phy_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm,fLy,sLy,fX,wX,fe
     Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
     return myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
 
-def idm_semi_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm,fLy,sLy,fX,wX,fesc,Tmin_vir,tstar,hmf,mdef, xe_init, Tk_init, Tx_init, v_bx_init, self_Z_eval, Z_temp):
+def idm_semi_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX,fesc,Tmin_vir,tstar,hmf,mdef, xe_init, Tk_init, Tx_init, v_bx_init, self_Z_eval, Z_temp):
     '''
     IDM, semi-empirical, cosmic dawn only
     '''
-    myobj_cd = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fdm=fdm, fLy=fLy,sLy=sLy,fX=fX,wX=wX,fesc=fesc,type='phy',hmf=hmf, mdef=mdef, Tmin_vir=Tmin_vir, tstar= tstar)
+    myobj_cd = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45, fLy=fLy,sLy=sLy,fX=fX,wX=wX,fesc=fesc,type='phy',hmf=hmf, mdef=mdef, Tmin_vir=Tmin_vir, tstar= tstar)
                             
     sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_init,Tk_init=Tk_init,Tx_init=Tx_init,v_bx_init=v_bx_init)
     
@@ -173,11 +173,11 @@ def cdm_semi_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, fLy,sLy,fX,wX,fesc,Tmin_vir,tstar
     return myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
 
 #================================================================================
-def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm,fLy,sLy,fX,wX , fesc, Tmin_vir, hmf, mdef, self_Z_eval, Z_temp):
+def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fesc, Tmin_vir, hmf, mdef, self_Z_eval, Z_temp):
     '''
     IDM, physically-motivated SFRD but full range.
     '''
-    myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fdm=fdm,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='phy', Tmin_vir=Tmin_vir, mdef = mdef, hmf=hmf)
+    myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='phy', Tmin_vir=Tmin_vir, mdef = mdef, hmf=hmf)
                                 
     sol = myobj.igm_solver(Z_eval=Z_default)
 
@@ -206,11 +206,11 @@ def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm,fLy,sLy,fX,wX 
     Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
     return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
 
-def idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm,fLy,sLy,fX,wX , fesc, Tmin_vir, tstar, hmf, mdef, self_Z_eval, Z_temp):
+def idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fesc, Tmin_vir, tstar, hmf, mdef, self_Z_eval, Z_temp):
     '''
     IDM, semi-empirical SFRD but full range.
     '''
-    myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fdm=fdm,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='semi-emp', Tmin_vir=Tmin_vir, tstar = tstar, mdef = mdef, hmf=hmf)
+    myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='semi-emp', Tmin_vir=Tmin_vir, tstar = tstar, mdef = mdef, hmf=hmf)
                                 
     sol = myobj.igm_solver(Z_eval=Z_default)
 

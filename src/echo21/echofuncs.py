@@ -47,7 +47,7 @@ class funcs():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,mx_gev=None,sigma45=None,fdm=None,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
+    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,mx_gev=None,sigma45=None,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
         '''
         
         '''
@@ -76,7 +76,6 @@ class funcs():
         
         self.mx_gev = mx_gev
         self.sigma45 = sigma45
-        self.fdm = fdm
 
         self.fLy = fLy
         self.sLy = sLy
@@ -126,7 +125,7 @@ class funcs():
         self.h100 = self.Ho/100
 
         self.is_idm = False
-        if all(x is not None for x in [self.mx_gev, self.sigma45, self.fdm]):
+        if all(x is not None for x in [self.mx_gev, self.sigma45]):
             self.is_idm = True
 
         if self.is_idm:
@@ -880,7 +879,7 @@ class funcs():
             :math:`D (\\mathrm{m\\,s^{-2}})`.
         '''        
         rho_b = Z**3*self.basic_cosmo_rho_crit()*self.Om_b
-        rho_x = Z**3*self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)
+        rho_x = Z**3*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)
 
         return cE**4*self.sigma0*(rho_x+rho_b)/(self.mx+self.basic_cosmo_mu(xe)*mP) * self.F(self.r_t(xe,Tk,Tx,v_bx,'p'))/v_bx**2
         
@@ -931,7 +930,7 @@ class funcs():
             :math:`\\dot{Q}_{\\mathrm{k}} (\\mathrm{K})`.
         '''
         # fraction of DM which is coloumb-like (in kg/m^3 proper)
-        rho_x = self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3	
+        rho_x = self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3	
 
         #mass density of baryons only (in kg/m^3 proper)
         rho_b = self.basic_cosmo_rho_crit()*self.Om_b*Z**3 
@@ -972,7 +971,7 @@ class funcs():
             :math:`\\dot{Q}_{\\chi}` (K).
         '''
         # fraction of DM which is coloumb-like (in kg/m^3 proper)
-        rho_x = self.fdm*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3
+        rho_x = self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3
 
         #mass density of baryons only (in kg/m^3 proper)
         rho_b = self.basic_cosmo_rho_crit()*self.Om_b*Z**3 

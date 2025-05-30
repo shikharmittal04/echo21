@@ -147,7 +147,7 @@ class pipeline():
         if cosmo is None:
             cosmo = {
                 'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,
-                'Tcmbo': 2.725, 'Yp': 0.245, 'mx_gev': None, 'sigma45': None, 'fdm': None
+                'Tcmbo': 2.725, 'Yp': 0.245, 'mx_gev': None, 'sigma45': None
             }
         if astro is None:
             astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.0106}
@@ -254,7 +254,6 @@ class pipeline():
         try:
             self.mx_gev = cosmo['mx_gev']
             self.sigma45 = cosmo['sigma45']
-            self.fdm = cosmo['fdm']
             self.is_idm = True
         except:
             self.is_idm = False
@@ -318,7 +317,6 @@ class pipeline():
         if self.is_idm:
             myfile.write('\nmx_gev = {}'.format(self.mx_gev))
             myfile.write('\nsigma45 = {}'.format(self.sigma45))
-            myfile.write('\nfdm = {}'.format(self.fdm))
 
         myfile.write('\n\nfLy = {}'.format(self.fLy))
         myfile.write('\nsLy = {}'.format(self.sLy))
@@ -367,7 +365,6 @@ class pipeline():
         if self.is_idm:
             print('mx_gev = {}'.format(self.mx_gev))
             print('sigma45 = {}'.format(self.sigma45))
-            print('fdm = {}'.format(self.fdm))
 
         print('\n\nfLy = {}'.format(self.fLy))
         print('sLy = {}'.format(self.sLy))
@@ -415,12 +412,12 @@ class pipeline():
                 
                 if self.sfrd_type == 'phy':
                     if self.is_idm:
-                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
                     else:
                         myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
                 elif self.sfrd_type == 'semi-emp':
                     if self.is_idm:
-                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
+                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
                     else:
                         myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
                 else:
@@ -548,7 +545,7 @@ class pipeline():
                 print('\nGenerating once the thermal and ionization history for dark ages ...')
             
             if self.is_idm:
-                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45,fdm=self.fdm)
+                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45)
             else:
                 myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
 
@@ -586,9 +583,9 @@ class pipeline():
 
             if self.is_idm:
                 if self.sfrd_type=='phy':
-                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, idm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45,self.fdm,fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, idm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45,fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
                 elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45,self.fdm, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param]
+                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param]
             else:
                 if self.sfrd_type=='phy':
                     T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
@@ -600,7 +597,6 @@ class pipeline():
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
-                print("Gathering done...")
 
                 # Flatten results
                 all_results = [item for chunk in gathered for item in chunk]
@@ -700,7 +696,7 @@ class pipeline():
             n_values = len(Z_temp)
 
             if self.is_idm:
-                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fdm))
+                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45))
             else:
                 param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp))               
 
@@ -713,9 +709,9 @@ class pipeline():
             
             if self.is_idm:
                 if self.sfrd_type=='phy':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm) in partial_param]
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
                 elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm) in partial_param]
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
             else:
                 if self.sfrd_type=='phy':
                     T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
@@ -727,13 +723,12 @@ class pipeline():
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
-                print("Gathering done...")
 
                 # Flatten results
                 all_results = [item for chunk in gathered for item in chunk]
 
                 if self.is_idm:
-                    T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fdm),n_values))
+                    T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),n_values))
 
                     # Create mapping from values to indices
                     Ho_index = {val: i for i, val in enumerate(self.Ho)}
@@ -745,13 +740,12 @@ class pipeline():
                     Yp_index = {val: o for o, val in enumerate(self.Yp)}
                     mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
                     sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
-                    fdm_index = {val: r for r, val in enumerate(self.fdm)}
 
                     # Fill T21 array
-                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fdm_val, val in all_results:
-                        i, j, k, l, m, n, o, p,q,r = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fdm_index[fdm_val]
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, val in all_results:
+                        i, j, k, l, m, n, o, p,q = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val]
                         
-                        T21_mod2[i, j, k, l, m, n, o, p, q, r, :] = val
+                        T21_mod2[i, j, k, l, m, n, o, p, q, :] = val
                 else:
                     T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
 
@@ -818,9 +812,9 @@ class pipeline():
             if self.is_idm:
                 #IDM
                 if self.sfrd_type=='phy':                
-                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
+                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
                 elif self.sfrd_type=='semi-emp':
-                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fdm, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star))
+                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star))
             else:
                 #CDM
                 if self.sfrd_type=='phy':                
@@ -839,9 +833,9 @@ class pipeline():
             
             if self.is_idm:
                 if self.sfrd_type=='phy':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
                 elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fdm, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fdm, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
+                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
             else:
                 if self.sfrd_type=='phy':
                     T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
@@ -853,15 +847,14 @@ class pipeline():
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
-                print("Gathering done...")
-
+                
                 # Flatten results
                 all_results = [item for chunk in gathered for item in chunk]
 
                 if self.is_idm:
                     #IDM
                     if self.sfrd_type=='phy':
-                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp), np.size(self.mx_gev), np.size(self.sigma45), np.size(self.fdm),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp), np.size(self.mx_gev), np.size(self.sigma45), np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
 
                         # Create mapping from values to indices
                         Ho_index = {val: i for i, val in enumerate(self.Ho)}
@@ -873,7 +866,6 @@ class pipeline():
                         Yp_index = {val: o for o, val in enumerate(self.Yp)}
                         mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
                         sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
-                        fdm_index = {val: r for r, val in enumerate(self.fdm)}
                         
                         fLy_index = {val: r for r, val in enumerate(self.fLy)}
                         sLy_index = {val: r for r, val in enumerate(self.sLy)}
@@ -883,10 +875,10 @@ class pipeline():
                         Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
 
                         # Fill T21 array
-                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fdm_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
-                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fdm_index[fdm_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
+                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
                             
-                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, :] = val
+                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, :] = val
                     
                     elif self.sfrd_type=='semi-emp':
                         T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
@@ -901,7 +893,6 @@ class pipeline():
                         Yp_index = {val: o for o, val in enumerate(self.Yp)}
                         mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
                         sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
-                        fdm_index = {val: r for r, val in enumerate(self.fdm)}
                         
                         fLy_index = {val: r for r, val in enumerate(self.fLy)}
                         sLy_index = {val: r for r, val in enumerate(self.sLy)}
@@ -912,10 +903,10 @@ class pipeline():
                         t_star_index = {val: r for r, val in enumerate(self.t_star)}
 
                         # Fill T21 array
-                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fdm_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
-                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fdm_index[fdm_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
+                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
+                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
                             
-                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, :] = val
+                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, :] = val
                 else:
                     #CDM
                     if self.sfrd_type=='phy':
