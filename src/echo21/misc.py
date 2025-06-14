@@ -44,13 +44,6 @@ def to_float(params):
         elif type(params)==np.ndarray:
             params=params[0]
     return params
-    
-def _no_of_mdls(params):
-    prod=1
-    for keys in params.keys():
-        if type(params[keys])==np.ndarray:
-            prod=prod*len(params[keys])
-    return prod
 
 def smoother(x,y):
     baseline_fitter = Baseline(x_data = x)
