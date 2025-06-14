@@ -469,7 +469,7 @@ class funcs():
         for idx, z in enumerate(Z):
             M_space = np.logspace(np.log10(self.m_min(z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
             hmf_space = self.dndlnM(M=M_space,Z=z)    #Corresponding HMF values are in cMpc^-3
-            rho_halo_arr[idx]=scint.simpson(hmf_space,M_space)
+            rho_halo_arr[idx]=scint.simpson(hmf_space,x=M_space)
 
         F_coll = rho_halo_arr *Msolar_by_Mpc3_to_kg_by_m3/(self.Om_m*self.basic_cosmo_rho_crit())
         return F_coll[0] if single_value else F_coll
