@@ -132,7 +132,7 @@ class funcs():
             self.mx = mx_gev*GeV2kg #Now mx is in kg
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
 
-            npz_file = f'{home_path}/.echo21/f_coll_idm.npz'
+            npz_file = f'{home_path}/.echo21/f_coll_idm_2.npz'
             # Load the compressed grid
             data = np.load(npz_file)
             
