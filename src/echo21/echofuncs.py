@@ -136,7 +136,7 @@ class funcs():
             # Load the compressed grid
             data = np.load(npz_file)
             
-            f_coll = data['f_coll']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
+            f_coll = data['fcoll']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
 
             mdmeff_vals = data['mdmeff']
             sigma0_vals = data['sigma0']
@@ -1249,7 +1249,7 @@ class funcs():
             :math:`k_{\\mathrm{pH}}` in units of :math:`\\mathrm{m^3s^{-1}}`.
         '''
         lnT=np.log(Tk)
-        return (4.28+0.1023*lnT-0.2586*lnT**2+0.04321*lnT**3)*1e-16
+        return np.where(Tk>0.0423,(4.28+0.1023*lnT-0.2586*lnT**2+0.04321*lnT**3)*1e-16, 1.12e-19)
     
     def hyfi_col_coup(self,Z,xe,Tk):
         '''
@@ -1273,7 +1273,6 @@ class funcs():
         float 
             :math:`x_{\\mathrm{k}}`, dimensionless.
         '''
-
         return Tstar*self.basic_cosmo_nH(Z)*((1-xe)*self.hyfi_kHH(Tk)+xe*self.hyfi_keH(Tk)+xe*self.hyfi_kpH(Tk))/(A10*self.basic_cosmo_Tcmb(Z))
 
     def hyfi_lya_coup(self,Z,xe,Tk):
