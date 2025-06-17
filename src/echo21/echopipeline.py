@@ -15,10 +15,6 @@ from .misc import *
 
 #--------------------------------------------------------------------------------------------
 
-T21_partial = []
-report_freq = 10  # send update every 10 models
-counter = 0
-
 #The following 2 functions will be useful if you want to save and load `pipeline`` object.
 def save_pipeline(obj, filename):
     '''Saves the class object :class:`pipeline`.
@@ -580,57 +576,60 @@ class pipeline():
             elif self.sfrd_type=='semi-emp':
                 param_grid = list(product(self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star))            
 
-            partial_param = param_grid[self.cpu_ind::self.n_cpu]
-
             if self.cpu_ind==0:
                 n_mod = len(param_grid)
                 print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
                 st = time.process_time()
-
-            if self.is_idm:
-                if self.sfrd_type=='phy':
-
-                    for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
-                        val = idm_phy_cd(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp,self.mx_gev, self.sigma45, fly, sly, fx, wx, fesc, tmin_vir,self.hmf, self.mdef, xe_da[-1], Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)
-                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, val))
-                        counter += 1
-                        if counter % report_freq == 0 or i == len(partial_param) - 1:
-                            self.comm.send(counter, dest=0, tag=77)
-                            counter = 0
-                    
-                elif self.sfrd_type=='semi-emp':
-                    for i, (fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
-                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) )
-                        counter += 1
-                        if counter % report_freq == 0 or i == len(partial_param) - 1:
-                            self.comm.send(counter, dest=0, tag=77)
-                            counter = 0
+                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
             else:
-                if self.sfrd_type=='phy':
-                    for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
-                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
-                        counter += 1
-                        if counter % report_freq == 0 or i == len(partial_param) - 1:
-                            self.comm.send(counter, dest=0, tag=77)
-                            counter = 0
-                elif self.sfrd_type=='semi-emp':
-                    for i,(fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
-                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
-                        counter += 1
-                        if counter % report_freq == 0 or i == len(partial_param) - 1:
-                            self.comm.send(counter, dest=0, tag=77)
-                            counter = 0
-                if self.sfrd_type=='emp':
-                    for (fly, sly, fx, wx, fesc, asfrd) in partial_param:
-                        T21_partial.append((fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) )
-                        counter += 1
-                        if counter % report_freq == 0 or i == len(partial_param) - 1:
-                            self.comm.send(counter, dest=0, tag=77)
-                            counter = 0
+                partial_param = param_grid[self.cpu_ind::self.n_cpu-1]
+                T21_partial = []
+                report_freq = 2  # send update every 10 models
+                counter = 0
+                if self.is_idm:
+                    if self.sfrd_type=='phy':
+
+                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                            val = idm_phy_cd(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp,self.mx_gev, self.sigma45, fly, sly, fx, wx, fesc, tmin_vir,self.hmf, self.mdef, xe_da[-1], Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, val))
+                            counter += 1
+                            if counter % report_freq == 0 or i == len(partial_param) - 1:
+                                self.comm.send(counter, dest=0, tag=77)
+                                counter = 0
+                        
+                    elif self.sfrd_type=='semi-emp':
+                        for i, (fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) )
+                            counter += 1
+                            if counter % report_freq == 0 or i == len(partial_param) - 1:
+                                self.comm.send(counter, dest=0, tag=77)
+                                counter = 0
+                else:
+                    if self.sfrd_type=='phy':
+                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
+                            #counter += 1
+                            #if counter % report_freq == 0 or i == len(partial_param) - 1:
+                            self.comm.send(1, dest=0, tag=77)
+                            #    counter = 0
+                    elif self.sfrd_type=='semi-emp':
+                        for i,(fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
+                            counter += 1
+                            if counter % report_freq == 0 or i == len(partial_param) - 1:
+                                self.comm.send(counter, dest=0, tag=77)
+                                counter = 0
+                    if self.sfrd_type=='emp':
+                        for (fly, sly, fx, wx, fesc, asfrd) in partial_param:
+                            T21_partial.append((fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) )
+                            counter += 1
+                            if counter % report_freq == 0 or i == len(partial_param) - 1:
+                                self.comm.send(counter, dest=0, tag=77)
+                                counter = 0
 
             if self.cpu_ind == 0:
                 done = 0
-                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
+                #pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
 
                 while done < n_mod:
                     status = MPI.Status()
