@@ -7,12 +7,18 @@ import os
 import pickle
 from scipy.interpolate import CubicSpline
 from time import localtime, strftime
+from tqdm import tqdm
 
 from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, flipped_Z_default, phy_sfrd_default_model, emp_sfrd_default_model, semi_emp_sfrd_default_model
 from .echofuncs import funcs
 from .misc import *
 
 #--------------------------------------------------------------------------------------------
+
+T21_partial = []
+report_freq = 10  # send update every 10 models
+counter = 0
+
 #The following 2 functions will be useful if you want to save and load `pipeline`` object.
 def save_pipeline(obj, filename):
     '''Saves the class object :class:`pipeline`.
@@ -583,16 +589,55 @@ class pipeline():
 
             if self.is_idm:
                 if self.sfrd_type=='phy':
-                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, idm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45,fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+
+                    for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                        val = idm_phy_cd(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp,self.mx_gev, self.sigma45, fly, sly, fx, wx, fesc, tmin_vir,self.hmf, self.mdef, xe_da[-1], Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)
+                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, val))
+                        counter += 1
+                        if counter % report_freq == 0 or i == len(partial_param) - 1:
+                            self.comm.send(counter, dest=0, tag=77)
+                            counter = 0
+                    
                 elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param]
+                    for i, (fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) )
+                        counter += 1
+                        if counter % report_freq == 0 or i == len(partial_param) - 1:
+                            self.comm.send(counter, dest=0, tag=77)
+                            counter = 0
             else:
                 if self.sfrd_type=='phy':
-                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                    for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
+                        counter += 1
+                        if counter % report_freq == 0 or i == len(partial_param) - 1:
+                            self.comm.send(counter, dest=0, tag=77)
+                            counter = 0
                 elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param]
+                    for i,(fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
+                        counter += 1
+                        if counter % report_freq == 0 or i == len(partial_param) - 1:
+                            self.comm.send(counter, dest=0, tag=77)
+                            counter = 0
                 if self.sfrd_type=='emp':
-                    T21_partial = [(fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, asfrd) in partial_param]
+                    for (fly, sly, fx, wx, fesc, asfrd) in partial_param:
+                        T21_partial.append((fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) )
+                        counter += 1
+                        if counter % report_freq == 0 or i == len(partial_param) - 1:
+                            self.comm.send(counter, dest=0, tag=77)
+                            counter = 0
+
+            if self.cpu_ind == 0:
+                done = 0
+                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
+
+                while done < n_mod:
+                    status = MPI.Status()
+                    progress = self.comm.recv(source=MPI.ANY_SOURCE, tag=77, status=status)
+                    done += progress
+                    pbar.update(progress)
+                pbar.close()
 
             gathered = self.comm.gather(T21_partial, root=0)           
             

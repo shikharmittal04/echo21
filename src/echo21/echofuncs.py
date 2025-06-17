@@ -136,7 +136,7 @@ class funcs():
             # Load the compressed grid
             data = np.load(npz_file)
             
-            f_coll = data['f_coll']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
+            f_coll = data['fcoll']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
 
             mdmeff_vals = data['mdmeff']
             sigma0_vals = data['sigma0']
@@ -154,7 +154,7 @@ class funcs():
             
             self.rbs = RectBivariateSpline(zvals, halomass_vals, fcoll_z_mass)
 
-            self._f_coll = self._f_coll_idm
+            self._f_coll = self._f_coll_nonpress74
             self._igm_eqns = self._igm_eqns_idm
             self._igm_solver = self._igm_solver_idm
         else:
