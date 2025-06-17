@@ -170,7 +170,7 @@ def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fe
     '''
     IDM, physically-motivated SFRD but full range.
     '''
-    print(mx_gev,sigma45,fLy,fX, fesc, Tmin_vir)
+    print(mx_gev,sigma45, Tmin_vir)
     myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='phy', Tmin_vir=Tmin_vir, mdef = mdef, hmf=hmf)
                                 
     sol = myobj.igm_solver(Z_eval=Z_default)
@@ -198,6 +198,7 @@ def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fe
         v_bx = splvbx(self_Z_eval)
 
     Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+    print('Done')
     return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
 
 def idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fesc, Tmin_vir, tstar, hmf, mdef, self_Z_eval, Z_temp):
