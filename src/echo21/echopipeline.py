@@ -501,9 +501,12 @@ class pipeline():
 
                 #========================================================
                 #Writing to a summary file
-                max_T21 = np.min(T21_mod1)
-                max_ind = np.where(T21_mod1==max_T21)
-                [max_z] = Z_temp[max_ind]
+                try:
+                    max_T21 = np.min(T21_mod1)
+                    max_ind = np.where(T21_mod1==max_T21)
+                    [max_z] = Z_temp[max_ind]
+                except:
+                    pass
 
                 z50 = None
                 try:
@@ -527,7 +530,8 @@ class pipeline():
                         myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
                         myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
 
-                myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
+                try: myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
+                except: pass
                 myfile.write('\n')
                 myfile.close()
                 #========================================================
