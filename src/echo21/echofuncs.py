@@ -59,6 +59,11 @@ class funcs():
             ns = cosmo['ns']
             Tcmbo = cosmo['Tcmbo']
             Yp = cosmo['Yp']
+            try:
+                mx_gev = cosmo['mx_gev']
+                sigma45 = cosmo['sigma45']
+            except:
+                pass
         if astro!=None:
             fLy = astro['fLy']
             sLy = astro['sLy']
@@ -143,16 +148,23 @@ class funcs():
             zvals = data['zvals']
             halomass_vals = data['halomass']
 
-            mdm_sigma_interp = RegularGridInterpolator(
-            (mdmeff_vals, sigma0_vals),
-            f_coll,  # 4D array
-            bounds_error=False,
-            fill_value=0#np.nan
-            )
+            i_mdm = np.argmin(np.abs(mdmeff_vals - mx_gev))
+            i_sigma = np.argmin(np.abs(sigma0_vals - self.sigma0))
+
+            fcoll_slice = f_coll[i_mdm, i_sigma, :, :]
+
+            interpolator_2d = RegularGridInterpolator((zvals, halomass_vals),fcoll_slice,bounds_error=False,fill_value=np.nan)
+
+            #mdm_sigma_interp = RegularGridInterpolator(
+            #(mdmeff_vals, sigma0_vals),
+            #f_coll,  # 4D array
+            #bounds_error=False,
+            #fill_value=0#np.nan
+            #)
             # Get HMF slice at desired mdm_eff and sigma0: shape (Nz, Nmass)
-            fcoll_z_mass = mdm_sigma_interp((self.mx_gev, 1e4*self.sigma0)).reshape(len(zvals), len(halomass_vals))
+            #fcoll_z_mass = mdm_sigma_interp((self.mx_gev, 1e4*self.sigma0)).reshape(len(zvals), len(halomass_vals))
             
-            self.rbs = RectBivariateSpline(zvals, halomass_vals, fcoll_z_mass)
+            self.rbs = interpolator_2d #RectBivariateSpline(zvals, halomass_vals, fcoll_z_mass)
 
             self._f_coll = self._f_coll_idm
             self._igm_eqns = self._igm_eqns_idm
@@ -485,7 +497,7 @@ class funcs():
         if np.any(valid):
             Z_valid = Z[valid]
             mmin = self.m_min(Z_valid) / self.h100
-            results[valid] = self.rbs.ev(Z_valid - 1,mmin)            
+            results[valid] = self.rbs((Z_valid - 1,mmin))
             
         return results[0] if scalar_input else results
     
@@ -507,8 +519,6 @@ class funcs():
             Collapse fraction. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
         return self._f_coll(Z)
-
-    
 
     def dfcoll_dz(self,Z):
         '''
