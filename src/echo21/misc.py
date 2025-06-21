@@ -170,7 +170,7 @@ def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fe
     '''
     IDM, physically-motivated SFRD but full range.
     '''
-    print(mx_gev,sigma45,Tmin_vir)
+    print(mx_gev,sigma45,fLy, fX, wX, fesc, Tmin_vir)
     myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='phy', Tmin_vir=Tmin_vir, mdef = mdef, hmf=hmf)
                                 
     sol = myobj.igm_solver(Z_eval=Z_default)
