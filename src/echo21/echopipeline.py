@@ -579,7 +579,7 @@ class pipeline():
                 param_grid = list(product(self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star))            
 
             partial_param = param_grid[self.cpu_ind::self.n_cpu]
-
+            self.comm.Barrier()
             if self.cpu_ind==0:
                 n_mod = len(param_grid)
                 print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
@@ -598,6 +598,7 @@ class pipeline():
                 if self.sfrd_type=='emp':
                     T21_partial = [(fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) for (fly, sly, fx, wx, fesc, asfrd) in partial_param]
 
+            self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
@@ -705,6 +706,7 @@ class pipeline():
                 param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp))               
 
             partial_param = param_grid[self.cpu_ind::self.n_cpu]
+            self.comm.Barrier()
 
             if self.cpu_ind==0:
                 n_mod = len(param_grid)
@@ -724,6 +726,7 @@ class pipeline():
                 if self.sfrd_type=='emp':
                     T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
 
+            self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
@@ -829,6 +832,7 @@ class pipeline():
                     param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd))
 
             partial_param = param_grid[self.cpu_ind::self.n_cpu]
+            self.comm.Barrier()
 
             if self.cpu_ind==0:
                 n_mod = len(param_grid)
@@ -848,6 +852,7 @@ class pipeline():
                 if self.sfrd_type=='emp':
                     T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param]
 
+            self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
