@@ -187,6 +187,7 @@ def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fe
     #Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
 
     if self_Z_eval is not None:
+        print(len(xe))
         splxe = CubicSpline(flipped_Z_default, np.flip(xe))
         xe = splxe(self_Z_eval)
         Q_Hii = np.interp(self_Z_eval, flipped_Z_default, np.flip(Q_Hii))
