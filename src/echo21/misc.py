@@ -170,36 +170,41 @@ def idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fe
     '''
     IDM, physically-motivated SFRD but full range.
     '''
-    print(mx_gev,sigma45,fLy, fX, wX, fesc, Tmin_vir)
-    myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='phy', Tmin_vir=Tmin_vir, mdef = mdef, hmf=hmf)
-                                
-    sol = myobj.igm_solver(Z_eval=Z_default)
+    try:
+        myobj = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX =wX, fesc=fesc, type='phy', Tmin_vir=Tmin_vir, mdef = mdef, hmf=hmf)
+                                    
+        sol = myobj.igm_solver(Z_eval=Z_default)
 
-    xe = sol[0]
-    Tk = sol[1]
-    Tx = sol[2]
-    v_bx=sol[3]
+        xe = sol[0]
+        Tk = sol[1]
+        Tx = sol[2]
+        v_bx=sol[3]
 
-    Q_Hii = myobj.QHii
-    Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+        Q_Hii = myobj.QHii
+        Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
-    #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-    #Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
+        #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
+        #Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
 
-    if self_Z_eval is not None:
-        print(len(xe))
-        splxe = CubicSpline(flipped_Z_default, np.flip(xe))
-        xe = splxe(self_Z_eval)
-        Q_Hii = np.interp(self_Z_eval, flipped_Z_default, np.flip(Q_Hii))
-        splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
-        Tk = splTk(self_Z_eval)
-        splTx = CubicSpline(flipped_Z_default, np.flip(Tx))
-        Tx = splTx(self_Z_eval)
-        splvbx = CubicSpline(flipped_Z_default, np.flip(v_bx))
-        v_bx = splvbx(self_Z_eval)
+        if self_Z_eval is not None:
+            splxe = CubicSpline(flipped_Z_default, np.flip(xe))
+            xe = splxe(self_Z_eval)
+            Q_Hii = np.interp(self_Z_eval, flipped_Z_default, np.flip(Q_Hii))
+            splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
+            Tk = splTk(self_Z_eval)
+            splTx = CubicSpline(flipped_Z_default, np.flip(Tx))
+            Tx = splTx(self_Z_eval)
+            splvbx = CubicSpline(flipped_Z_default, np.flip(v_bx))
+            v_bx = splvbx(self_Z_eval)
 
-    Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-    return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+        Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+        return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+    except:
+        print(mx_gev,sigma45,fLy, fX, wX, fesc, Tmin_vir)
+        t21 = np.zeros_like(flipped_Z_default)
+        if self_Z_eval is not None:
+            t21 = np.zeros_like(self_Z_eval)
+        return t21
 
 def idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX , fesc, Tmin_vir, tstar, hmf, mdef, self_Z_eval, Z_temp):
     '''
