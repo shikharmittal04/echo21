@@ -619,22 +619,22 @@ class pipeline():
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
                 if self.is_idm:
                     if self.sfrd_type=='phy':
-                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                        for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
                             val = idm_phy_cd(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp,self.mx_gev, self.sigma45, fly, sly, fx, wx, fesc, tmin_vir,self.hmf, self.mdef, xe_da[-1], Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)
                             T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, val))
                             self.comm.send(1, dest=0, tag=77) 
                     elif self.sfrd_type=='semi-emp':
-                        for i, (fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                        for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param:
                             T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) )
                             self.comm.send(1, dest=0, tag=77)
 
                 else:
                     if self.sfrd_type=='phy':
-                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                        for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
                             T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
                             self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='semi-emp':
-                        for i,(fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                        for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param:
                             T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
                             self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='emp':
@@ -769,16 +769,26 @@ class pipeline():
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
                 if self.is_idm:
                     if self.sfrd_type=='phy':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param:
+                            T21_partial.append( (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='semi-emp':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param:
+                            T21_partial.append( (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                 else:
                     if self.sfrd_type=='phy':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
+                            T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='semi-emp':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
+                            T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='emp':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
+                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
 
             self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
@@ -905,16 +915,26 @@ class pipeline():
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
                 if self.is_idm:
                     if self.sfrd_type=='phy':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
+                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='semi-emp':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param:
+                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                 else:
                     if self.sfrd_type=='phy':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
+                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='semi-emp':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star, cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir, t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param:
+                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star, cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir, t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
                     elif self.sfrd_type=='emp':
-                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param]
+                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param:
+                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
 
             self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
