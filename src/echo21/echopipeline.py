@@ -852,7 +852,7 @@ class pipeline():
                 if self.sfrd_type=='emp':
                     T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param]
 
-            self.comm.Barrier()
+            #self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
