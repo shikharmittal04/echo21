@@ -152,21 +152,9 @@ class funcs():
             i_sigma = np.argmin(np.abs(sigma0_vals - self.sigma0))
 
             fcoll_slice = f_coll[i_mdm, i_sigma, :, :]
-
-            #interpolator_2d = RegularGridInterpolator((zvals, halomass_vals),fcoll_slice,bounds_error=False,fill_value=np.nan)
-            
-            #mdm_sigma_interp = RegularGridInterpolator(
-            #(mdmeff_vals, sigma0_vals),
-            #f_coll,  # 4D array
-            #bounds_error=False,
-            #fill_value=0#np.nan
-            #)
-            # Get HMF slice at desired mdm_eff and sigma0: shape (Nz, Nmass)
-            #fcoll_z_mass = mdm_sigma_interp((self.mx_gev, 1e4*self.sigma0)).reshape(len(zvals), len(halomass_vals))
-            
             self.rbs = RectBivariateSpline(zvals, halomass_vals, fcoll_slice)
 
-            self._f_coll = self._f_coll_nonpress74
+            self._f_coll = self._f_coll_idm
             self._igm_eqns = self._igm_eqns_idm
             self._igm_solver = self._igm_solver_idm
         else:
