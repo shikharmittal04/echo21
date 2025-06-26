@@ -305,8 +305,10 @@ class pipeline():
         myfile.write('\n------------------------------\n')
         myfile.write('\nTime stamp: '+self.formatted_timestamp)
         myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
-        myfile.write('\n')
-        myfile.write('\nParameters given:\n')
+        myfile.write('\n\n')
+        if self.is_idm: myfile.write('Dark matter type: interacting')
+        else: myfile.write('Dark matter type: cold')
+        myfile.write('\n\nParameters given:\n')
         myfile.write('-----------------')
         myfile.write('\nHo = {}'.format(self.Ho))
         myfile.write('\nOm_m = {}'.format(self.Om_m))
@@ -354,6 +356,9 @@ class pipeline():
 
     def print_input(self):
         '''Prints the input parameters you gave.'''
+
+        if self.is_idm: print('Dark matter type: interacting')
+        else: print('Dark matter type: cold')
 
         print('\n\033[93mParameters given:\n')
         print('-----------------')
@@ -408,7 +413,9 @@ class pipeline():
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
                 print_banner()
-                print('Both cosmological and astrophysical parameters are fixed.\n')
+                if self.is_idm: print('Dark matter type: interacting')
+                else: print('Dark matter type: cold')
+                print('\nBoth cosmological and astrophysical parameters are fixed.\n')
                 
                 st = time.process_time()
                 
@@ -543,7 +550,9 @@ class pipeline():
         #Cosmological parameters are fixed so dark ages is solved only once.
             if self.cpu_ind==0:
                 print_banner()
-                print('Cosmological parameters are fixed. Astrophysical parameters are varied.')
+                if self.is_idm: print('Dark matter type: interacting')
+                else: print('Dark matter type: cold')
+                print('\nCosmological parameters are fixed. Astrophysical parameters are varied.')
                 print('\nGenerating once the thermal and ionization history for dark ages ...')
             
             if self.is_idm:
@@ -576,60 +585,14 @@ class pipeline():
             elif self.sfrd_type=='semi-emp':
                 param_grid = list(product(self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star))            
 
+            T21_partial = []
             if self.cpu_ind==0:
+                #Master CPU
                 n_mod = len(param_grid)
                 print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
                 st = time.process_time()
-                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
-            else:
-                partial_param = param_grid[self.cpu_ind::self.n_cpu-1]
-                T21_partial = []
-                report_freq = 2  # send update every 10 models
-                counter = 0
-                if self.is_idm:
-                    if self.sfrd_type=='phy':
-
-                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
-                            val = idm_phy_cd(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp,self.mx_gev, self.sigma45, fly, sly, fx, wx, fesc, tmin_vir,self.hmf, self.mdef, xe_da[-1], Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, val))
-                            counter += 1
-                            if counter % report_freq == 0 or i == len(partial_param) - 1:
-                                self.comm.send(counter, dest=0, tag=77)
-                                counter = 0
-                        
-                    elif self.sfrd_type=='semi-emp':
-                        for i, (fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) )
-                            counter += 1
-                            if counter % report_freq == 0 or i == len(partial_param) - 1:
-                                self.comm.send(counter, dest=0, tag=77)
-                                counter = 0
-                else:
-                    if self.sfrd_type=='phy':
-                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
-                            #counter += 1
-                            #if counter % report_freq == 0 or i == len(partial_param) - 1:
-                            self.comm.send(1, dest=0, tag=77)
-                            #    counter = 0
-                    elif self.sfrd_type=='semi-emp':
-                        for i,(fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
-                            counter += 1
-                            if counter % report_freq == 0 or i == len(partial_param) - 1:
-                                self.comm.send(counter, dest=0, tag=77)
-                                counter = 0
-                    if self.sfrd_type=='emp':
-                        for (fly, sly, fx, wx, fesc, asfrd) in partial_param:
-                            T21_partial.append((fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) )
-                            counter += 1
-                            if counter % report_freq == 0 or i == len(partial_param) - 1:
-                                self.comm.send(counter, dest=0, tag=77)
-                                counter = 0
-
-            if self.cpu_ind == 0:
                 done = 0
-                #pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
+                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
 
                 while done < n_mod:
                     status = MPI.Status()
@@ -637,7 +600,35 @@ class pipeline():
                     done += progress
                     pbar.update(progress)
                 pbar.close()
+            else:
+                #Worker CPU
+                partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
+                if self.is_idm:
+                    if self.sfrd_type=='phy':
+                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                            val = idm_phy_cd(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp,self.mx_gev, self.sigma45, fly, sly, fx, wx, fesc, tmin_vir,self.hmf, self.mdef, xe_da[-1], Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, val))
+                            self.comm.send(1, dest=0, tag=77) 
+                    elif self.sfrd_type=='semi-emp':
+                        for i, (fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
 
+                else:
+                    if self.sfrd_type=='phy':
+                        for i, (fly, sly, fx, wx, fesc, tmin_vir) in enumerate(partial_param):
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
+                    elif self.sfrd_type=='semi-emp':
+                        for i,(fly, sly, fx, wx, fesc, tmin_vir,t_star) in enumerate(partial_param):
+                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
+                    elif self.sfrd_type=='emp':
+                        for (fly, sly, fx, wx, fesc, asfrd) in partial_param:
+                            T21_partial.append((fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) )
+                            self.comm.send(1, dest=0, tag=77)
+                            
+            self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
@@ -725,9 +716,10 @@ class pipeline():
 
             if self.cpu_ind==0:
                 print_banner()
-                print('Only cosmological parameters are varied.')
+                if self.is_idm: print('Dark matter type: interacting')
+                else: print('Dark matter type: cold')
+                print('\nOnly cosmological parameters are varied.')
             
-
             Z_temp = Z_default
             if self.Z_eval is not None:
                 if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
@@ -738,32 +730,43 @@ class pipeline():
                     Z_temp = self.Z_eval
 
             n_values = len(Z_temp)
-
             if self.is_idm:
                 param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45))
             else:
                 param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp))               
 
-            partial_param = param_grid[self.cpu_ind::self.n_cpu]
-
+            T21_partial = []
             if self.cpu_ind==0:
+                #Master CPU
                 n_mod = len(param_grid)
                 print('\nGenerating',n_mod,'models ...')
                 st = time.process_time()
-            
-            if self.is_idm:
-                if self.sfrd_type=='phy':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
-                elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
-            else:
-                if self.sfrd_type=='phy':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
-                elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
-                if self.sfrd_type=='emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                done = 0
+                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
 
+                while done < n_mod:
+                    status = MPI.Status()
+                    progress = self.comm.recv(source=MPI.ANY_SOURCE, tag=77, status=status)
+                    done += progress
+                    pbar.update(progress)
+                pbar.close()
+            else:
+                #Worker CPU
+                partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
+                if self.is_idm:
+                    if self.sfrd_type=='phy':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
+                    elif self.sfrd_type=='semi-emp':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param]
+                else:
+                    if self.sfrd_type=='phy':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                    elif self.sfrd_type=='semi-emp':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+                    elif self.sfrd_type=='emp':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param]
+
+            self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
@@ -839,9 +842,10 @@ class pipeline():
 
             if self.cpu_ind==0:
                 print_banner()
-                print('Both cosmological and astrophysical parameters are varied.')
+                if self.is_idm: print('Dark matter type: interacting')
+                else: print('Dark matter type: cold')
+                print('\nBoth cosmological and astrophysical parameters are varied.')
             
-
             Z_temp = Z_default
             if self.Z_eval is not None:
                 if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
@@ -852,7 +856,6 @@ class pipeline():
                     Z_temp = self.Z_eval
 
             n_values = len(Z_temp)
-            
             if self.is_idm:
                 #IDM
                 if self.sfrd_type=='phy':                
@@ -868,26 +871,38 @@ class pipeline():
                 else:
                     param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd))
 
-            partial_param = param_grid[self.cpu_ind::self.n_cpu]
-
+            T21_partial = []
             if self.cpu_ind==0:
+                #Master CPU
                 n_mod = len(param_grid)
                 print('\nGenerating',n_mod,'models ...')
                 st = time.process_time()
-            
-            if self.is_idm:
-                if self.sfrd_type=='phy':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
-                elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
-            else:
-                if self.sfrd_type=='phy':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
-                elif self.sfrd_type=='semi-emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star, cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir, t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
-                if self.sfrd_type=='emp':
-                    T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param]
+                done = 0
+                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
 
+                while done < n_mod:
+                    status = MPI.Status()
+                    progress = self.comm.recv(source=MPI.ANY_SOURCE, tag=77, status=status)
+                    done += progress
+                    pbar.update(progress)
+                pbar.close()
+            else:
+                #Worker CPU
+                partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
+                if self.is_idm:
+                    if self.sfrd_type=='phy':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                    elif self.sfrd_type=='semi-emp':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
+                else:
+                    if self.sfrd_type=='phy':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param]
+                    elif self.sfrd_type=='semi-emp':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star, cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir, t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param]
+                    elif self.sfrd_type=='emp':
+                        T21_partial = [(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param]
+
+            self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
