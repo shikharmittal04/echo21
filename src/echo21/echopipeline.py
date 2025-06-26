@@ -1,5 +1,6 @@
 import numpy as np
 from mpi4py import MPI
+from mpi4py.util import pkl5
 from itertools import product
 import sys
 import time
@@ -156,8 +157,8 @@ class pipeline():
         if sfrd_dic is None:
             sfrd_dic = {'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
 
-
-        self.comm = MPI.COMM_WORLD
+        
+        self.comm = pkl5.Intracomm(MPI.COMM_WORLD)
         self.cpu_ind = self.comm.Get_rank()
         self.n_cpu = self.comm.Get_size()
 
@@ -165,7 +166,8 @@ class pipeline():
         self.astro=astro
 
         
-        
+        ####
+        #Here I decide whether astro, cosmo, or both parameters are varied.
         self.model = 0
         for keys in self.astro.keys():
             if np.size(self.astro[keys])>1:
@@ -201,7 +203,15 @@ class pipeline():
             if np.size(self.cosmo[keys])>1:
                 self.model = self.model+2
                 break
-        
+        ####
+
+        #echo21 uses a master-worker distribution. So atleast 2 CPUs are required. I check that below.
+        if self.model>0 and self.n_cpu==1:
+            print('\033[31mPlease use at least 2 CPUs. Terminating ... \033[00m')
+            sys.exit()
+
+
+        #Converting all parameters to array or float according to their multiplicity.
         if self.model==0:
             self.astro=to_float(self.astro)
             self.cosmo=to_float(self.cosmo)
@@ -272,7 +282,7 @@ class pipeline():
             sys.exit()
 
 
-
+        #Create an output folder where all results will be saved.
         self.path=path
         if self.cpu_ind==0:
             if os.path.isdir(self.path)==False:
