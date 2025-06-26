@@ -166,7 +166,7 @@ class funcs():
             
             self.rbs = RectBivariateSpline(zvals, halomass_vals, fcoll_slice)
 
-            self._f_coll = self._f_coll_idm
+            self._f_coll = self._f_coll_nonpress74
             self._igm_eqns = self._igm_eqns_idm
             self._igm_solver = self._igm_solver_idm
         else:
