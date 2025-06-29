@@ -14,7 +14,7 @@ Why do you need this code?
 
 Use this code to generate the global 21-cm signal(s) for a given set of astrophysical and cosmological parameters.
 
-Read more about it in the paper `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_.
+Read more about it in the paper `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`_.
 
 Installation and requirements
 -----------------------------
@@ -59,7 +59,11 @@ To see what parameters you are running for, you can add ``pipe.print_input()`` t
 
 License and citation
 --------------------
-The software is free to use on the MIT open-source license. If you use the software then please consider citing `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_.
+The software is free to use on the MIT open-source license. If you use the software then please consider citing `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`_.
+
+Acknowledgement
+---------------
+I thank Prakhar Bansal for help with development of the IDM model. I also thank Girish Kulkarni, Peter Sims, and Vikram Rentala for helpful comments and feedback during the development of this code.
 
 Contact
 -------

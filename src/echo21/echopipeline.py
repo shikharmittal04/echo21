@@ -529,7 +529,7 @@ class pipeline():
 
                 z50 = None
                 try:
-                    idx = np.argmin(np.abs(Q_Hii-0.5))
+                    idx = np.where(np.abs(Q_Hii-0.5)<=0.01)[0][0]
                     z50 = Z_default[idx]-1
                     z100 = None
                     try:
@@ -537,9 +537,9 @@ class pipeline():
                         z100 = Z_default[idx]-1
                         tau_e = myobj.reion_tau(50)
                     except:
-                        print('\n{:.1f} % universe reionised'.format(100*Q_Hii[-1]))
+                        print('\n{:.1f} % universe reionised by {:.1f}'.format(100*Q_Hii[-1], Z_temp[-1]-1))
                 except:
-                    print('\nNote even 50% reionisation complete until today!')
+                    print('\n{:.1f} % universe reionised by {:.1f}'.format(100*Q_Hii[-1], Z_temp[-1]-1))
 
                 myfile = self._write_summary(elapsed_time=elapsed_time)
                 

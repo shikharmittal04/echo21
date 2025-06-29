@@ -88,7 +88,14 @@ class funcs():
         self.wX = wX
         self.fesc = fesc
         
-
+        ############################################################################
+        #Setting up cosmology for COLOSSUS package
+        self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
+        self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
+        self.h100 = self.Ho/100
+        
+        ############################################################################
+        #Setting up the star formation rate density related parameters and functions
         self.sfrd_type = kwargs.pop('type', 'phy')
 
         if self.sfrd_type == 'phy':
@@ -123,12 +130,9 @@ class funcs():
 
         else:
             raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
-
-
-        self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
-        self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
-        self.h100 = self.Ho/100
-
+        ############################################################################
+        #Checking if the DM model is interacting or cold        
+        
         self.is_idm = False
         if all(x is not None for x in [self.mx_gev, self.sigma45]):
             self.is_idm = True
@@ -137,7 +141,7 @@ class funcs():
             self.mx = mx_gev*GeV2kg #Now mx is in kg
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
 
-            npz_file = f'{home_path}/.echo21/f_coll_idm_2.npz'
+            npz_file = f'{home_path}/.echo21/f_coll_idm.npz'
             # Load the compressed grid
             data = np.load(npz_file)
             
@@ -160,7 +164,9 @@ class funcs():
         else:
             self._igm_eqns = self._igm_eqns_cdm
             self._igm_solver = self._igm_solver_cdm
-        
+        ############################################################################        
+        #Solve reionization at initialization itself        
+
         self.QHii = self.reion_solver()
         return None
 
@@ -551,7 +557,8 @@ class funcs():
             Comoving SFRD in units of :math:`\\mathrm{kgs^{-1}m^{-3}}`. Single number or an array accordingly as ``Z`` is single number or an array. To convert to solar mass per year per cubic Mpc, use the factor ``Msolar_by_Mpc3_year_to_kg_by_m3_sec`` available in the module ``const``.
         '''
         return self._sfrd(Z)
-
+    
+    #End of functions related to HMF and SFRD.
     #========================================================================================================
 
     def _fXh(self,xe):
@@ -919,7 +926,7 @@ class funcs():
             DM temperature (K).
 
         v_bx : float
-            Relative velocity of DM and baryons (\\mathrm{m\\,s^{-1}}).
+            Relative velocity of DM and baryons :math:`(\\mathrm{m\\,s^{-1}})`.
         
         Returns
         -------    
@@ -980,7 +987,8 @@ class funcs():
         term1 = cE**4*2*self.mx*rho_b*self.sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
         term2 = 1/kB*rho_b/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)
         return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
-
+    
+    #End of functions related to IDM.
     #========================================================================================================
 
     def Gamma_x(self,Z,xe):
