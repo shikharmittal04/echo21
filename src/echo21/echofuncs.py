@@ -1,6 +1,6 @@
 import scipy.special as scsp
 import scipy.integrate as scint
-from scipy.interpolate import RegularGridInterpolator, RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline
 from scipy.interpolate import CubicSpline
 import numpy as np
 from colossus.cosmology import cosmology

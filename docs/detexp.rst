@@ -6,6 +6,7 @@ In-depth usage
 ``ECHO21`` can be used to generate the thermal and ionization history of the intergalactic medium and hence, the cosmological global 21-cm signal. Addionally, one can use this code to study a simple analytical model of reionization and compute the CMB optical depth.
 
 .. _single:
+
 Single realization of 21-cm signal
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -143,6 +144,7 @@ When you run the code for a single set of parameters or vary cosmological parame
 Note: you don't have to worry about giving redshifts in decreasing order. Whichever order you give, ``ECHO21`` will always generate outputs for decreasing redshifts. When you are varying the astrophysical parameters only, the highest value of :math:`1+z` should not be above 60. 
 
 .. _output_format:
+
 Output structure
 ^^^^^^^^^^^^^^^^
 

@@ -6,7 +6,7 @@ Overview
 
 :Name: Exploring Cosmos with Hydrogen Observation
 :Author: `Shikhar Mittal <https://sites.google.com/view/shikharmittal/home>`_
-:Paper: `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_
+:Paper: `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`_
 :Documentation: `echo21.readthedocs.io <https://echo21.readthedocs.io/en/latest/index.html>`_
 
 Why do you need this code?
@@ -14,7 +14,7 @@ Why do you need this code?
 
 Use this code to generate the global 21-cm signal(s) for a given set of astrophysical and cosmological parameters.
 
-Read more about it in the paper `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_.
+Read more about it in the paper `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`_.
 
 Installation and requirements
 -----------------------------
@@ -63,6 +63,10 @@ For more details on the working of the package and understanding the output file
 License and citation
 --------------------
 The software is free to use on the MIT open-source license. If you use the software then please consider citing `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_.
+
+Acknowledgement
+---------------
+I thank Prakhar Bansal for help with development of the IDM model. I also thank Girish Kulkarni, Peter Sims, and Vikram Rentala for helpful comments and feedback during the development of this code.
 
 Contact
 -------
