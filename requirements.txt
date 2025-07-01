@@ -5,8 +5,4 @@ mpi4py
 pybaselines
 requests
 tqdm
-itertools
-sys
-time
 pickle
-os

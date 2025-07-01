@@ -8,8 +8,4 @@ numpydoc
 sphinx-autoapi
 requests
 tqdm
-itertools
-sys
-time
 pickle
-os
