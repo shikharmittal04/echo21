@@ -16,7 +16,7 @@ from .misc import *
 
 #--------------------------------------------------------------------------------------------
 
-#The following 2 functions will be useful if you want to save and load `pipeline`` object.
+#The following 2 functions will be useful if you want to save and load `pipeline` object.
 def save_pipeline(obj, filename):
     '''Saves the class object :class:`pipeline`.
     

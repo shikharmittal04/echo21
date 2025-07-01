@@ -6,3 +6,10 @@ sphinx
 sphinx_rtd_theme
 numpydoc
 sphinx-autoapi
+requests
+tqdm
+itertools
+sys
+time
+pickle
+os

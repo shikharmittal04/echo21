@@ -11,14 +11,12 @@ def get_data_path():
 
     data_file = data_dir / DATA_FILENAME
     if not data_file.exists():
-        print(f"Downloading {DATA_FILENAME} to {data_file}")
+        #print(f"Downloading {DATA_FILENAME} to {data_file}")
         with requests.get(url, stream=True) as r:
             r.raise_for_status()
             with open(data_file, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
-        #urllib.request.urlretrieve(DATA_URL, data_file)
-        print("Download complete.")
     return str(data_file)
 
 

@@ -30,6 +30,7 @@ We recommend working on a Python version > 3.8. Packages required are
 - `numpy <https://pypi.org/project/numpy/>`_ (recommended version 2.1.3)
 - `scipy <https://pypi.org/project/scipy/>`_ (recommended version 1.14.1)
 - `mpi4py <https://pypi.org/project/mpi4py/>`_ (recommended version 4.0.1)
+- `tqdm <https://pypi.org/project/tqdm/>`_ (recommended version 4.67.1)
 - `colossus <https://pypi.org/project/colossus/>`_ (recommended version 1.3.6)
 - `pybaselines <https://pypi.org/project/pybaselines/>`_ (recommended version 1.1.0)
 
@@ -62,7 +63,7 @@ For more details on the working of the package and understanding the output file
 
 License and citation
 --------------------
-The software is free to use on the MIT open-source license. If you use the software then please consider citing `Mittal (2025) <https://arxiv.org/abs/2503.11762>`_.
+The software is free to use on the MIT open-source license. If you use the software then please consider citing `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`_.
 
 Acknowledgement
 ---------------
