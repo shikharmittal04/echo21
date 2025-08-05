@@ -150,8 +150,7 @@ class pipeline():
         if cosmo is None:
             cosmo = {
                 'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,
-                'Tcmbo': 2.725, 'Yp': 0.245, 'mx_gev': None, 'sigma45': None
-            }
+                'Tcmbo': 2.725, 'Yp': 0.245}
         if astro is None:
             astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.0106}
         if sfrd_dic is None:
