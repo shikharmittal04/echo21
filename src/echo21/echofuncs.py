@@ -156,7 +156,14 @@ class funcs():
             i_sigma = np.argmin(np.abs(sigma0_vals - self.sigma0))
             
             fcoll_slice = f_coll[i_mdm, i_sigma, :, :]
-            self.rbs = RectBivariateSpline(zvals, halomass_vals, fcoll_slice)
+
+            ###########################################
+            # add a small epsilon to avoid log(0)
+            eps = 1e-40  
+            log_fcoll_slice = np.log(fcoll_slice + eps)
+            ###########################################
+
+            self.rbs = RectBivariateSpline(zvals, halomass_vals, log_fcoll_slice)
 
             self._f_coll = self._f_coll_idm
             self._igm_eqns = self._igm_eqns_idm
@@ -492,8 +499,9 @@ class funcs():
             Z_valid = Z[valid]
             mmin = self.m_min(Z_valid) / self.h100
             results[valid] = self.rbs.ev(Z_valid - 1,mmin)
-            
-        return results[0] if scalar_input else results
+        
+        fcoll_val = np.exp(results)
+        return fcoll_val[0] if scalar_input else fcoll_val
     
     def f_coll(self,Z):
         '''
