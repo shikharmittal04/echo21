@@ -154,7 +154,7 @@ class funcs():
 
             i_mdm = np.argmin(np.abs(mdmeff_vals - mx_gev))
             i_sigma = np.argmin(np.abs(sigma0_vals - self.sigma0))
-
+            
             fcoll_slice = f_coll[i_mdm, i_sigma, :, :]
             self.rbs = RectBivariateSpline(zvals, halomass_vals, fcoll_slice)
 
