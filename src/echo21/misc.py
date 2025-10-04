@@ -54,6 +54,7 @@ def idm_phy_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX,fesc,T
     '''
     IDM, Physically-motivated, cosmic dawn only
     '''
+    #try:
     myobj_cd = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp,mx_gev=mx_gev,sigma45=sigma45,fLy=fLy,sLy=sLy,fX=fX,wX=wX,fesc=fesc,type='phy',hmf=hmf, mdef=mdef, Tmin_vir=Tmin_vir)
                             
     sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_init,Tk_init=Tk_init,Tx_init=Tx_init,v_bx_init=v_bx_init)
@@ -75,7 +76,14 @@ def idm_phy_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX,fesc,T
 
     Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
     return myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
-
+    '''
+    except:
+        print(mx_gev,sigma45,fLy, fX, wX, fesc, Tmin_vir)
+        t21 = np.zeros_like(flipped_Z_cd)
+        if self_Z_eval is not None:
+            t21 = np.zeros_like(self_Z_eval)
+        return t21
+    '''
 def idm_semi_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45,fLy,sLy,fX,wX,fesc,Tmin_vir,tstar,hmf,mdef, xe_init, Tk_init, Tx_init, v_bx_init, self_Z_eval, Z_temp):
     '''
     IDM, semi-empirical, cosmic dawn only

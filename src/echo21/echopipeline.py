@@ -10,7 +10,7 @@ from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from tqdm import tqdm
 
-from .const import Zstar, Z_start, Z_end, Z_default, Z_cd, flipped_Z_default, phy_sfrd_default_model, emp_sfrd_default_model, semi_emp_sfrd_default_model
+from .const import Zstar, Z_start, Z_end, Z_default, Z_da, Z_cd, flipped_Z_default, phy_sfrd_default_model, emp_sfrd_default_model, semi_emp_sfrd_default_model
 from .echofuncs import funcs
 from .misc import *
 
@@ -276,7 +276,7 @@ class pipeline():
         self.fesc = astro['fesc']
         
         if self.is_idm and self.sfrd_type == 'emp':
-            print('\n\033[31mError! Only physically-motivated SFRD is allowed with IDM.')
+            print('\n\033[31mError! Only physical and semi-empirical SFRD are allowed with IDM.')
             print('Terminating ...\033[00m\n')
             sys.exit()
 
@@ -573,7 +573,6 @@ class pipeline():
             else:
                 myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
 
-            Z_da = np.linspace(Z_start,Zstar,2000)
             sol_da = myobj_da.igm_solver(Z_eval=Z_da)
             xe_da = sol_da[0]
             Tk_da = sol_da[1]
