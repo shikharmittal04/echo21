@@ -64,7 +64,7 @@ The software is free to use on the MIT open-source license. If you use the softw
 
 Acknowledgement
 ---------------
-I thank Prakhar Bansal for help with development of the IDM model. I also thank Girish Kulkarni, Peter Sims, and Vikram Rentala for helpful comments and feedback during the development of this code.
+I thank Prakhar Bansal for help with development of the IDM model.
 
 Contact
 -------
