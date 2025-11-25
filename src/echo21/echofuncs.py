@@ -534,7 +534,9 @@ class funcs():
         return mysfrd if mysfrd.size > 1 else mysfrd[0]
     
     def _sfrd_semi_emp(self,Z):
-        return fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.basic_cosmo_H(Z)*self.f_coll(Z)/self.t_star
+        Z = np.atleast_1d(Z)
+        mysfrd = fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.basic_cosmo_H(Z)*self.f_coll(Z)/self.t_star
+        return mysfrd if mysfrd.size > 1 else mysfrd[0]
 
     def _sfrd_emp(self,Z):
         Z = np.atleast_1d(Z)
