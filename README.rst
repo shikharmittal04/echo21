@@ -65,10 +65,6 @@ License and citation
 --------------------
 The software is free to use on the MIT open-source license. If you use the software then please consider citing `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`_.
 
-Acknowledgement
----------------
-I thank Prakhar Bansal for help with development of the IDM model.
-
 Contact
 -------
 
