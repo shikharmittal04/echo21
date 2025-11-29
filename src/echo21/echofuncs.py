@@ -826,9 +826,10 @@ class funcs():
         '''
         
         if (target == 'e'):
-            return np.sqrt(kB*Tk/me+kB*Tx/self.mx)
+            ut = np.sqrt(kB*Tk/me+kB*Tx/self.mx)
         if (target == 'p'):
-            return np.sqrt(kB*Tk/(self.basic_cosmo_mu(xe)*mP)+kB*Tx/self.mx)
+            ut = np.sqrt(kB*Tk/(self.basic_cosmo_mu(xe)*mP)+kB*Tx/self.mx)
+        return ut
 
     def r_t(self,xe,Tk,Tx,v_bx,target='p'):
         '''
@@ -893,7 +894,7 @@ class funcs():
         '''        
         rho_b = Z**3*self.basic_cosmo_rho_crit()*self.Om_b
         rho_x = Z**3*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)
-
+        #print(Z, Tk, self.r_t(xe,Tk,Tx,v_bx,'p'), self.F(self.r_t(xe,Tk,Tx,v_bx,'p')))
         return cE**4*self.sigma0*(rho_x+rho_b)/(self.mx+self.basic_cosmo_mu(xe)*mP) * self.F(self.r_t(xe,Tk,Tx,v_bx,'p'))/v_bx**2
         
     def mu_bx(self,xe):
@@ -1093,17 +1094,18 @@ class funcs():
         #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).            
 
         #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
-        
+        H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
         if Z>Zstar:
             eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
 
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.Ex2b(Z,xe,Tk,Tx,v_bx)
+            
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b
         else:
             if xe<0.99:
                 eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
             else:
                 eq1 = 0.0
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.Ex2b(Z,xe,Tk,Tx,v_bx)-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
+            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
 
         #eq3 is (1+z)dTx/dz;
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
