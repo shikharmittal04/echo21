@@ -262,23 +262,12 @@ class pipeline():
         self.ns = cosmo['ns']
         self.Tcmbo = cosmo['Tcmbo']
         self.Yp = cosmo['Yp']
-        try:
-            self.mx_gev = cosmo['mx_gev']
-            self.sigma45 = cosmo['sigma45']
-            self.is_idm = True
-        except:
-            self.is_idm = False
         
         self.fLy = astro['fLy']
         self.sLy = astro['sLy']
         self.fX = astro['fX']
         self.wX = astro['wX']
         self.fesc = astro['fesc']
-        
-        if self.is_idm and self.sfrd_type == 'emp':
-            print('\n\033[31mError! Only physical and semi-empirical SFRD are allowed with IDM.')
-            print('Terminating ...\033[00m\n')
-            sys.exit()
 
 
         #Create an output folder where all results will be saved.
@@ -315,8 +304,7 @@ class pipeline():
         myfile.write('\nTime stamp: '+self.formatted_timestamp)
         myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
         myfile.write('\n\n')
-        if self.is_idm: myfile.write('Dark matter type: interacting')
-        else: myfile.write('Dark matter type: cold')
+        myfile.write('Dark matter type: cold')
         myfile.write('\n\nParameters given:\n')
         myfile.write('-----------------')
         myfile.write('\nHo = {}'.format(self.Ho))
@@ -327,10 +315,6 @@ class pipeline():
         myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
         myfile.write('\nYp = {}'.format(self.Yp))
 
-        if self.is_idm:
-            myfile.write('\nmx_gev = {}'.format(self.mx_gev))
-            myfile.write('\nsigma45 = {}'.format(self.sigma45))
-
         myfile.write('\n\nfLy = {}'.format(self.fLy))
         myfile.write('\nsLy = {}'.format(self.sLy))
         myfile.write('\nfX = {}'.format(self.fX))
@@ -339,22 +323,12 @@ class pipeline():
         myfile.write('\n\nSFRD')
         myfile.write('\n  Type = '+self.sfrd_type)
         if self.sfrd_type == 'phy':
-            if self.is_idm==False:
-                myfile.write('\n  HMF = '+self.hmf)
-                myfile.write('\n  mdef = '+self.mdef)
-            else:
-                myfile.write('\n Currently, only Tinker et al. (2008) is supported.')
-                myfile.write('\n  HMF = tinker08')
-                myfile.write('\n  mdef = 200m')
+            myfile.write('\n  HMF = '+self.hmf)
+            myfile.write('\n  mdef = '+self.mdef)
             myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
         elif self.sfrd_type == 'semi-emp':
-            if self.is_idm==False:
-                myfile.write('\n  HMF = '+self.hmf)
-                myfile.write('\n  mdef = '+self.mdef)
-            else:
-                myfile.write('\n Currently, only Tinker et al. (2008) is supported.')
-                myfile.write('\n  HMF = tinker08')
-                myfile.write('\n  mdef = 200m')
+            myfile.write('\n  HMF = '+self.hmf)
+            myfile.write('\n  mdef = '+self.mdef)
             myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
             myfile.write('\n  t_star = {}'.format(self.t_star))
         else:
@@ -366,8 +340,7 @@ class pipeline():
     def print_input(self):
         '''Prints the input parameters you gave.'''
 
-        if self.is_idm: print('Dark matter type: interacting')
-        else: print('Dark matter type: cold')
+        print('Dark matter type: cold')
 
         print('\n\033[93mParameters given:\n')
         print('-----------------')
@@ -378,9 +351,6 @@ class pipeline():
         print('ns = {}'.format(self.ns))
         print('Tcmbo = {}'.format(self.Tcmbo))
         print('Yp = {}'.format(self.Yp))
-        if self.is_idm:
-            print('mx_gev = {}'.format(self.mx_gev))
-            print('sigma45 = {}'.format(self.sigma45))
 
         print('\n\nfLy = {}'.format(self.fLy))
         print('sLy = {}'.format(self.sLy))
@@ -390,22 +360,12 @@ class pipeline():
         print('\n\nSFRD')
         print('  Type = '+self.sfrd_type)
         if self.sfrd_type == 'phy':
-            if self.is_idm==False:
-                print('  HMF = '+self.hmf)
-                print('  mdef = '+self.mdef)
-            else:
-                print('\n Currently, only Tinker et al. (2008) is supported.')
-                print('\n  HMF = tinker08')
-                print('\n  mdef = 200m')
+            print('  HMF = '+self.hmf)
+            print('  mdef = '+self.mdef)
             print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
         elif self.sfrd_type == 'semi-emp':
-            if self.is_idm==False:
-                print('  HMF = '+self.hmf)
-                print('  mdef = '+self.mdef)
-            else:
-                print('\n Currently, only Tinker et al. (2008) is supported.')
-                print('\n  HMF = tinker08')
-                print('\n  mdef = 200m')
+            print('  HMF = '+self.hmf)
+            print('  mdef = '+self.mdef)
             print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
             print('  t_star = {}\033[00m\n'.format(self.t_star))
         else:
@@ -422,22 +382,15 @@ class pipeline():
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
                 print_banner()
-                if self.is_idm: print('Dark matter type: interacting')
-                else: print('Dark matter type: cold')
+                print('Dark matter type: cold')
                 print('\nBoth cosmological and astrophysical parameters are fixed.\n')
                 
                 st = time.process_time()
                 
                 if self.sfrd_type == 'phy':
-                    if self.is_idm:
-                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
-                    else:
-                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
                 elif self.sfrd_type == 'semi-emp':
-                    if self.is_idm:
-                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
-                    else:
-                        myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
+                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
                 else:
                     myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
                 
@@ -456,9 +409,6 @@ class pipeline():
                 
                 xe = sol[0]
                 Tk = sol[1]
-                if self.is_idm:
-                    Tx = sol[2]
-                    v_bx = sol[3]
 
                 Q_Hii = myobj.QHii
                 Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
@@ -472,11 +422,6 @@ class pipeline():
                     Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
                     splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
                     Tk = splTk(self.Z_eval)
-                    if self.is_idm:
-                        splTx = CubicSpline(flipped_Z_default, np.flip(Tx))
-                        Tx = splTx(self.Z_eval)
-                        splvbx = CubicSpline(flipped_Z_default, np.flip(v_bx))
-                        v_bx = splvbx(self.Z_eval)
 
                 print('Obtaining spin temperature ...')
                 Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
@@ -501,15 +446,7 @@ class pipeline():
                 np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
                 np.save(T21_save_name,T21_mod1)
                 np.save(z_save_name,Z_temp)
-
-                if self.is_idm:
-                    Tx_save_name = self.path+'Tx'
-                    vbx_save_name = self.path+'vbx'
-                    np.save(Tx_save_name,Tx)
-                    np.save(vbx_save_name,v_bx)
-                
-                
-                
+               
                 print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
                 
                 et = time.process_time()
@@ -563,22 +500,15 @@ class pipeline():
         #Cosmological parameters are fixed so dark ages is solved only once.
             if self.cpu_ind==0:
                 print_banner()
-                if self.is_idm: print('Dark matter type: interacting')
-                else: print('Dark matter type: cold')
+                print('Dark matter type: cold')
                 print('\nCosmological parameters are fixed. Astrophysical parameters are varied.')
                 print('\nGenerating once the thermal and ionization history for dark ages ...')
             
-            if self.is_idm:
-                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,mx_gev=self.mx_gev,sigma45=self.sigma45)
-            else:
-                myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
+            myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
 
             sol_da = myobj_da.igm_solver(Z_eval=Z_da)
             xe_da = sol_da[0]
             Tk_da = sol_da[1]
-            if self.is_idm:
-                Tx_da = sol_da[2]
-                v_bx_da = sol_da[3]
 
             Z_temp = Z_cd
             if self.Z_eval is not None:
@@ -615,30 +545,18 @@ class pipeline():
             else:
                 #Worker CPU
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
-                if self.is_idm:
-                    if self.sfrd_type=='phy':
-                        for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
-                            val = idm_phy_cd(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp,self.mx_gev, self.sigma45, fly, sly, fx, wx, fesc, tmin_vir,self.hmf, self.mdef, xe_da[-1], Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, val))
-                            self.comm.send(1, dest=0, tag=77) 
-                    elif self.sfrd_type=='semi-emp':
-                        for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param:
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp,self.mx_gev,self.sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], Tx_da[-1], v_bx_da[-1], self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-
-                else:
-                    if self.sfrd_type=='phy':
-                        for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='semi-emp':
-                        for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param:
-                            T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='emp':
-                        for (fly, sly, fx, wx, fesc, asfrd) in partial_param:
-                            T21_partial.append((fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
+                if self.sfrd_type=='phy':
+                    for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
+                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
+                elif self.sfrd_type=='semi-emp':
+                    for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param:
+                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir,t_star, cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
+                elif self.sfrd_type=='emp':
+                    for (fly, sly, fx, wx, fesc, asfrd) in partial_param:
+                        T21_partial.append((fly, sly, fx, wx, fesc, asfrd, cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly, sly,fx,wx,fesc,asfrd, xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
                             
             self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
@@ -728,8 +646,7 @@ class pipeline():
 
             if self.cpu_ind==0:
                 print_banner()
-                if self.is_idm: print('Dark matter type: interacting')
-                else: print('Dark matter type: cold')
+                print('Dark matter type: cold')
                 print('\nOnly cosmological parameters are varied.')
             
             Z_temp = Z_default
@@ -742,10 +659,7 @@ class pipeline():
                     Z_temp = self.Z_eval
 
             n_values = len(Z_temp)
-            if self.is_idm:
-                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45))
-            else:
-                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp))               
+            param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp))               
 
             T21_partial = []
             if self.cpu_ind==0:
@@ -765,28 +679,18 @@ class pipeline():
             else:
                 #Worker CPU
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
-                if self.is_idm:
-                    if self.sfrd_type=='phy':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param:
-                            T21_partial.append( (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='semi-emp':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45) in partial_param:
-                            T21_partial.append( (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                else:
-                    if self.sfrd_type=='phy':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
-                            T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='semi-emp':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
-                            T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='emp':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
-                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
+                if self.sfrd_type=='phy':
+                    for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
+                        T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
+                elif self.sfrd_type=='semi-emp':
+                    for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
+                        T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
+                elif self.sfrd_type=='emp':
+                    for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
+                        T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_emp_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
 
             self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
@@ -796,44 +700,23 @@ class pipeline():
                 # Flatten results
                 all_results = [item for chunk in gathered for item in chunk]
 
-                if self.is_idm:
-                    T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),n_values))
+                T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
 
-                    # Create mapping from values to indices
-                    Ho_index = {val: i for i, val in enumerate(self.Ho)}
-                    Omm_index = {val: j for j, val in enumerate(self.Om_m)}
-                    Omb_index = {val: k for k, val in enumerate(self.Om_b)}
-                    sig8_index = {val: l for l, val in enumerate(self.sig8)}
-                    ns_index = {val: m for m, val in enumerate(self.ns)}
-                    Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
-                    Yp_index = {val: o for o, val in enumerate(self.Yp)}
-                    mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
-                    sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
+                # Create mapping from values to indices
+                Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                ns_index = {val: m for m, val in enumerate(self.ns)}
+                Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                Yp_index = {val: o for o, val in enumerate(self.Yp)}
 
-                    # Fill T21 array
-                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, val in all_results:
-                        i, j, k, l, m, n, o, p,q = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val]
-                        
-                        T21_mod2[i, j, k, l, m, n, o, p, q, :] = val
-                else:
-                    T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
+                # Fill T21 array
+                for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, val in all_results:
+                    i, j, k, l, m, n, o = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val]
+                    
+                    T21_mod2[i, j, k, l, m, n, o, :] = val
 
-                    # Create mapping from values to indices
-                    Ho_index = {val: i for i, val in enumerate(self.Ho)}
-                    Omm_index = {val: j for j, val in enumerate(self.Om_m)}
-                    Omb_index = {val: k for k, val in enumerate(self.Om_b)}
-                    sig8_index = {val: l for l, val in enumerate(self.sig8)}
-                    ns_index = {val: m for m, val in enumerate(self.ns)}
-                    Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
-                    Yp_index = {val: o for o, val in enumerate(self.Yp)}
-
-                    # Fill T21 array
-                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, val in all_results:
-                        i, j, k, l, m, n, o = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val]
-                        
-                        T21_mod2[i, j, k, l, m, n, o, :] = val
-
-                
                 z_save_name = self.path+'one_plus_z'
                 T21_save_name = self.path+'T21'
                 
@@ -864,8 +747,7 @@ class pipeline():
 
             if self.cpu_ind==0:
                 print_banner()
-                if self.is_idm: print('Dark matter type: interacting')
-                else: print('Dark matter type: cold')
+                print('Dark matter type: cold')
                 print('\nBoth cosmological and astrophysical parameters are varied.')
             
             Z_temp = Z_default
@@ -878,20 +760,12 @@ class pipeline():
                     Z_temp = self.Z_eval
 
             n_values = len(Z_temp)
-            if self.is_idm:
-                #IDM
-                if self.sfrd_type=='phy':                
-                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
-                elif self.sfrd_type=='semi-emp':
-                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.mx_gev, self.sigma45, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star))
+            if self.sfrd_type=='phy':                
+                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
+            elif self.sfrd_type=='semi-emp':
+                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star))
             else:
-                #CDM
-                if self.sfrd_type=='phy':                
-                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir))
-                elif self.sfrd_type=='semi-emp':
-                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star))
-                else:
-                    param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd))
+                param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd))
 
             T21_partial = []
             if self.cpu_ind==0:
@@ -911,170 +785,102 @@ class pipeline():
             else:
                 #Worker CPU
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
-                if self.is_idm:
-                    if self.sfrd_type=='phy':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
-                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, idm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='semi-emp':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param:
-                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, mx_gev, sigma45, fly, sly, fx, wx, fesc, tmin_vir, t_star, idm_semi_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp,mx_gev,sigma45, fly,sly,fx,wx,fesc,tmin_vir,t_star,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                else:
-                    if self.sfrd_type=='phy':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
-                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='semi-emp':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param:
-                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star, cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir, t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
-                    elif self.sfrd_type=='emp':
-                        for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param:
-                            T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) )
-                            self.comm.send(1, dest=0, tag=77)
+                if self.sfrd_type=='phy':
+                    for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
+                        T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
+                elif self.sfrd_type=='semi-emp':
+                    for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param:
+                        T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star, cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir, t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
+                elif self.sfrd_type=='emp':
+                    for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd) in partial_param:
+                        T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, cdm_emp_full( Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, a_sfrd, self.Z_eval, Z_temp)) )
+                        self.comm.send(1, dest=0, tag=77)
 
             self.comm.Barrier()
             gathered = self.comm.gather(T21_partial, root=0)           
             
             if self.cpu_ind == 0:
-                
                 # Flatten results
                 all_results = [item for chunk in gathered for item in chunk]
 
-                if self.is_idm:
-                    #IDM
-                    if self.sfrd_type=='phy':
-                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp), np.size(self.mx_gev), np.size(self.sigma45), np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                #CDM
+                if self.sfrd_type=='phy':
+                    T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
 
-                        # Create mapping from values to indices
-                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
-                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
-                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
-                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
-                        ns_index = {val: m for m, val in enumerate(self.ns)}
-                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
-                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
-                        mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
-                        sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
-                        
-                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
-                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
-                        fX_index = {val: r for r, val in enumerate(self.fX)}
-                        wX_index = {val: r for r, val in enumerate(self.wX)}
-                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
-                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
-
-                        # Fill T21 array
-                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
-                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
-                            
-                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, :] = val
+                    # Create mapping from values to indices
+                    Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                    Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                    Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                    sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                    ns_index = {val: m for m, val in enumerate(self.ns)}
+                    Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                    Yp_index = {val: o for o, val in enumerate(self.Yp)}
                     
-                    elif self.sfrd_type=='semi-emp':
-                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.mx_gev), np.size(self.sigma45),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
+                    fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                    sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                    fX_index = {val: r for r, val in enumerate(self.fX)}
+                    wX_index = {val: r for r, val in enumerate(self.wX)}
+                    fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                    Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
 
-                        # Create mapping from values to indices
-                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
-                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
-                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
-                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
-                        ns_index = {val: m for m, val in enumerate(self.ns)}
-                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
-                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
-                        mx_gev_index = {val: p for p, val in enumerate(self.mx_gev)}
-                        sigma45_index = {val: q for q, val in enumerate(self.sigma45)}
+                    # Fill T21 array
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
+                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
                         
-                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
-                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
-                        fX_index = {val: r for r, val in enumerate(self.fX)}
-                        wX_index = {val: r for r, val in enumerate(self.wX)}
-                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
-                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
-                        t_star_index = {val: r for r, val in enumerate(self.t_star)}
+                        T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
+                
+                elif self.sfrd_type=='semi-emp':
+                    T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
 
-                        # Fill T21 array
-                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, mx_gev_val, sigma45_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
-                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], mx_gev_index[mx_gev_val], sigma45_index[sigma45_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
-                            
-                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, :] = val
+                    # Create mapping from values to indices
+                    Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                    Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                    Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                    sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                    ns_index = {val: m for m, val in enumerate(self.ns)}
+                    Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                    Yp_index = {val: o for o, val in enumerate(self.Yp)}
+                    
+                    fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                    sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                    fX_index = {val: r for r, val in enumerate(self.fX)}
+                    wX_index = {val: r for r, val in enumerate(self.wX)}
+                    fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                    Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
+                    t_star_index = {val: r for r, val in enumerate(self.t_star)}
+
+                    # Fill T21 array
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
+                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
+                        
+                        T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, :] = val
                 else:
-                    #CDM
-                    if self.sfrd_type=='phy':
-                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                    #CDM, empirical
+                    T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
 
-                        # Create mapping from values to indices
-                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
-                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
-                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
-                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
-                        ns_index = {val: m for m, val in enumerate(self.ns)}
-                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
-                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
+                    # Create mapping from values to indices
+                    Ho_index = {val: i for i, val in enumerate(self.Ho)}
+                    Omm_index = {val: j for j, val in enumerate(self.Om_m)}
+                    Omb_index = {val: k for k, val in enumerate(self.Om_b)}
+                    sig8_index = {val: l for l, val in enumerate(self.sig8)}
+                    ns_index = {val: m for m, val in enumerate(self.ns)}
+                    Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
+                    Yp_index = {val: o for o, val in enumerate(self.Yp)}
+
+                    fLy_index = {val: r for r, val in enumerate(self.fLy)}
+                    sLy_index = {val: r for r, val in enumerate(self.sLy)}
+                    fX_index = {val: r for r, val in enumerate(self.fX)}
+                    wX_index = {val: r for r, val in enumerate(self.wX)}
+                    fesc_index = {val: r for r, val in enumerate(self.fesc)}
+                    a_index = {val: r for r, val in enumerate(self.a_vir)}
+
+                    # Fill T21 array
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_results:
+                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], a_index[a_val]
                         
-                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
-                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
-                        fX_index = {val: r for r, val in enumerate(self.fX)}
-                        wX_index = {val: r for r, val in enumerate(self.wX)}
-                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
-                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
-
-                        # Fill T21 array
-                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
-                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
-                            
-                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
-                    
-                    elif self.sfrd_type=='semi-emp':
-                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
-
-                        # Create mapping from values to indices
-                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
-                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
-                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
-                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
-                        ns_index = {val: m for m, val in enumerate(self.ns)}
-                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
-                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
-                        
-                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
-                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
-                        fX_index = {val: r for r, val in enumerate(self.fX)}
-                        wX_index = {val: r for r, val in enumerate(self.wX)}
-                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
-                        Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
-                        t_star_index = {val: r for r, val in enumerate(self.t_star)}
-
-                        # Fill T21 array
-                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
-                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
-                            
-                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, :] = val
-                    else:
-                        #CDM, empirical
-                        T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.a_sfrd),n_values))
-
-                        # Create mapping from values to indices
-                        Ho_index = {val: i for i, val in enumerate(self.Ho)}
-                        Omm_index = {val: j for j, val in enumerate(self.Om_m)}
-                        Omb_index = {val: k for k, val in enumerate(self.Om_b)}
-                        sig8_index = {val: l for l, val in enumerate(self.sig8)}
-                        ns_index = {val: m for m, val in enumerate(self.ns)}
-                        Tcmb_index = {val: n for n, val in enumerate(self.Tcmbo)}
-                        Yp_index = {val: o for o, val in enumerate(self.Yp)}
-
-                        fLy_index = {val: r for r, val in enumerate(self.fLy)}
-                        sLy_index = {val: r for r, val in enumerate(self.sLy)}
-                        fX_index = {val: r for r, val in enumerate(self.fX)}
-                        wX_index = {val: r for r, val in enumerate(self.wX)}
-                        fesc_index = {val: r for r, val in enumerate(self.fesc)}
-                        a_index = {val: r for r, val in enumerate(self.a_vir)}
-
-                        # Fill T21 array
-                        for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_results:
-                            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], a_index[a_val]
-                            
-                            T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
+                        T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
             
                 z_save_name = self.path+'one_plus_z'
                 T21_save_name = self.path+'T21'
