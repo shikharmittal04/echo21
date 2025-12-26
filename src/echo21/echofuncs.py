@@ -894,9 +894,15 @@ class funcs():
         '''        
         rho_b = Z**3*self.basic_cosmo_rho_crit()*self.Om_b
         rho_x = Z**3*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)
-        #print(Z, Tk, self.r_t(xe,Tk,Tx,v_bx,'p'), self.F(self.r_t(xe,Tk,Tx,v_bx,'p')))
-        return cE**4*self.sigma0*(rho_x+rho_b)/(self.mx+self.basic_cosmo_mu(xe)*mP) * self.F(self.r_t(xe,Tk,Tx,v_bx,'p'))/v_bx**2
-        
+        rp = self.r_t(xe,Tk,Tx,v_bx,'p')
+        up = self.u_t(xe,Tk,Tx,'p')
+        prefactor = cE**4*self.sigma0*(rho_x+rho_b)/(self.mx+self.basic_cosmo_mu(xe)*mP) * 1/up**2
+        if rp>=0.001:
+            D = prefactor * self.F(rp)/rp**2
+        else:
+            D = prefactor * np.sqrt(2/np.pi)*(rp/3 - rp**3/10 + rp**5/56)
+        return D
+
     def mu_bx(self,xe):
         '''
         Reduced mass for DM-baryon system.
@@ -1089,8 +1095,9 @@ class funcs():
         xe = V[0]
         Tk = V[1]
         Tx = V[2]
-        v_bx= V[3]
+        ln_v_bx= V[3]
         
+        v_bx = np.exp(np.clip(ln_v_bx, -300, None))
         #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).            
 
         #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
@@ -1098,7 +1105,6 @@ class funcs():
         if Z>Zstar:
             eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
 
-            
             eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b
         else:
             if xe<0.99:
@@ -1110,8 +1116,8 @@ class funcs():
         #eq3 is (1+z)dTx/dz;
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
         
-        #eq2 is (1+z)dv_bx/dz;
-        eq4 = v_bx + self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        #eq4 is (1+z)d ln(v_bx)/dz;
+        eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
         return np.array([eq1,eq2,eq3,eq4])
     
     def igm_eqns(self, Z,V):
@@ -1138,7 +1144,7 @@ class funcs():
 
         return [xe,Tk]
 
-    def _igm_solver_idm(self, Z_eval, xe_init = None, Tk_init = None, Tx_init = None, v_bx_init = None):
+    def _igm_solver_idm(self, Z_eval, xe_init = None, Tk_init = None, Tx_init = None, ln_v_bx_init = None):
 
         #Assuming Z_eval is in decreasing order.
         Z_start = Z_eval[0]
@@ -1148,15 +1154,17 @@ class funcs():
             Tk_init = self.basic_cosmo_Tcmb(Z_start)
             xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
             Tx_init = 0
-            v_bx_init = 43500
+            ln_v_bx_init = np.log(43500)
             
-        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init, Tx_init, v_bx_init],method='Radau',t_eval=1/Z_eval)
+        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init, Tx_init, ln_v_bx_init],method='Radau',t_eval=1/Z_eval)
 
         #Obtaining the solutions ...
         xe = Sol.y[0]
         Tk = Sol.y[1]
         Tx = Sol.y[2]
-        v_bx = Sol.y[3]
+        ln_v_bx = Sol.y[3]
+        
+        v_bx = np.exp(ln_v_bx)
 
         return [xe,Tk,Tx,v_bx]
 

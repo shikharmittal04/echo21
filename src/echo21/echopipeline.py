@@ -464,7 +464,7 @@ class pipeline():
                 Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
 
                 #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
+                #Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
 
                 if self.Z_eval is not None:
                     splxe = CubicSpline(flipped_Z_default, np.flip(xe))
