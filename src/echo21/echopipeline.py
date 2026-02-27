@@ -463,6 +463,13 @@ class pipeline():
                 except:
                     pass
 
+                tau_e = None
+                try:
+                    tau_e = myobj.reion_tau(50)     #To calculate tau even if reionisation is not complete 
+                except:
+                    pass
+
+
                 z50 = None
                 try:
                     idx = np.where(np.abs(Q_Hii-0.5)<=0.01)[0][0]
@@ -471,7 +478,7 @@ class pipeline():
                     try:
                         idx = np.where(Q_Hii>=0.98)[0][0]
                         z100 = Z_default[idx]-1
-                        tau_e = myobj.reion_tau(50)
+                        #tau_e = myobj.reion_tau(50)
                     except:
                         print('\n{:.1f} % universe reionised by {:.1f}'.format(100*Q_Hii[-1], Z_temp[-1]-1))
                 except:
@@ -483,7 +490,11 @@ class pipeline():
                     myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
                     if z100!=None:
                         myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
-                        myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
+                        #myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
+
+                if tau_e != None:
+                    myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))      #Adding to print tau in summary file, if it is computed successfully.
+
 
                 try: myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
                 except: pass
@@ -528,6 +539,9 @@ class pipeline():
                 param_grid = list(product(self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star))            
 
             T21_partial = []
+            xHI_partial = []    #Added to save xHI for each model as well as T21
+            tau_partial = []
+
             if self.cpu_ind==0:
                 #Master CPU
                 n_mod = len(param_grid)
@@ -547,7 +561,10 @@ class pipeline():
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
                 if self.sfrd_type=='phy':
                     for (fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
-                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)) )
+                        result = cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, fly,sly,fx,wx,fesc,tmin_vir,self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)
+                        T21_partial.append((fly, sly, fx, wx, fesc, tmin_vir, result[0]) )
+                        xHI_partial.append((fly, sly, fx, wx, fesc, tmin_vir, result[1]) )     #changes made to misc so that xHI is also output by cdm_phy_cd  
+                        tau_partial.append((fly, sly, fx, wx, fesc, tmin_vir, result[2]) )     #changes made to misc so that tau is also output by cdm_phy_cd
                         self.comm.send(1, dest=0, tag=77)
                 elif self.sfrd_type=='semi-emp':
                     for (fly, sly, fx, wx, fesc, tmin_vir,t_star) in partial_param:
@@ -559,15 +576,20 @@ class pipeline():
                         self.comm.send(1, dest=0, tag=77)
                             
             self.comm.Barrier()
-            gathered = self.comm.gather(T21_partial, root=0)           
-            
+            gathered_T21 = self.comm.gather(T21_partial, root=0)           
+            gathered_xHI = self.comm.gather(xHI_partial, root=0) 
+            gathered_tau = self.comm.gather(tau_partial, root=0)
             if self.cpu_ind == 0:
 
                 # Flatten results
-                all_results = [item for chunk in gathered for item in chunk]
+                all_T21 = [item for chunk in gathered_T21 for item in chunk]
+                all_xHI = [item for chunk in gathered_xHI for item in chunk]
+                all_tau = [item for chunk in gathered_tau for item in chunk]
 
                 if self.sfrd_type=='phy':
                     T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                    xHI_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                    tau = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir))) #tau does not depend on redshift, so it has one less dimension than T21 and xHI
 
                     # Create mapping from values to indices
                     fLy_index = {val: i for i, val in enumerate(self.fLy)}
@@ -578,10 +600,19 @@ class pipeline():
                     Tmin_index = {val: n for n, val in enumerate(self.Tmin_vir)}
 
                     # Fill T21 array
-                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_T21:
                         i, j, k, l, m, n = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
                         T21_cd[i, j, k, l, m, n, :] = val
                 
+                    # Fill xHI array, just mirroring logic for T21
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_xHI:
+                        i, j, k, l, m, n = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                        xHI_cd[i, j, k, l, m, n, :] = val
+                    # Fill tau array, just mirroring logic for T21
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_tau:
+                        i, j, k, l, m, n = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                        tau[i, j, k, l, m, n] = val
+
                 elif self.sfrd_type=='semi-emp':
                     T21_cd = np.zeros((np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
 
@@ -595,7 +626,7 @@ class pipeline():
                     t_star_index = {val: o for o, val in enumerate(self.t_star)}
 
                     # Fill T21 array
-                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_T21:
                         i, j, k, l, m, n, o = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
                         T21_cd[i, j, k, l, m, n, o, :] = val
 
@@ -611,15 +642,19 @@ class pipeline():
                     a_index = {val: n for n, val in enumerate(self.a_sfrd)}
 
                     # Fill T21 array
-                    for fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_results:
+                    for fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_T21:
                         i, j, k, l, m, n = fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], a_index[a_val]
                         T21_cd[i, j, k, l, m, n, :] = val
 
 
                 T21_save_name = self.path+'T21'
+                xHI_save_name = self.path+'xHI'
+                tau_save_name = self.path+'tau'
                 z_save_name = self.path+'one_plus_z'
                 
                 np.save(T21_save_name,T21_cd)
+                np.save(xHI_save_name,xHI_cd)
+                np.save(tau_save_name,tau)
                 np.save(z_save_name,Z_temp)
                 print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 
@@ -662,6 +697,8 @@ class pipeline():
             param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp))               
 
             T21_partial = []
+            xHI_partial = []
+            tau_partial = []
             if self.cpu_ind==0:
                 #Master CPU
                 n_mod = len(param_grid)
@@ -681,7 +718,10 @@ class pipeline():
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
                 if self.sfrd_type=='phy':
                     for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
-                        T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                        result = cdm_phy_full(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)
+                        T21_partial.append ((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, result[0]) )
+                        xHI_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, result[1]) )
+                        tau_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, result[2]) )     #changes made to misc so that tau is also output by cdm_phy_full
                         self.comm.send(1, dest=0, tag=77)
                 elif self.sfrd_type=='semi-emp':
                     for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp) in partial_param:
@@ -693,15 +733,20 @@ class pipeline():
                         self.comm.send(1, dest=0, tag=77)
 
             self.comm.Barrier()
-            gathered = self.comm.gather(T21_partial, root=0)           
+            gathered_T21 = self.comm.gather(T21_partial, root=0)           
+            gathered_xHI = self.comm.gather(xHI_partial, root=0)
+            gathered_tau = self.comm.gather(tau_partial, root=0)           
             
             if self.cpu_ind == 0:
 
                 # Flatten results
-                all_results = [item for chunk in gathered for item in chunk]
+                all_T21 = [item for chunk in gathered_T21 for item in chunk]
+                all_tau = [item for chunk in gathered_tau for item in chunk]
+                all_xHI = [item for chunk in gathered_xHI for item in chunk]
 
                 T21_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
-
+                xHI_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),n_values))
+                tau_mod2 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp)))   #No redshift dimension for tau, hence lack of n_values
                 # Create mapping from values to indices
                 Ho_index = {val: i for i, val in enumerate(self.Ho)}
                 Omm_index = {val: j for j, val in enumerate(self.Om_m)}
@@ -712,15 +757,30 @@ class pipeline():
                 Yp_index = {val: o for o, val in enumerate(self.Yp)}
 
                 # Fill T21 array
-                for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, val in all_results:
+                for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, val in all_T21:
                     i, j, k, l, m, n, o = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val]
-                    
+
                     T21_mod2[i, j, k, l, m, n, o, :] = val
+
+                # Fill xHI array
+                for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, val in all_xHI:
+                    i, j, k, l, m, n, o = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val]
+
+                    xHI_mod2[i, j, k, l, m, n, o, :] = val
+
+                # Fill tau array
+                for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, val in all_tau:
+                    i, j, k, l, m, n, o = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val]
+
+                    tau_mod2[i, j, k, l, m, n, o] = val
 
                 z_save_name = self.path+'one_plus_z'
                 T21_save_name = self.path+'T21'
-                
+                xHI_save_name = self.path+'xHI'
+                tau_save_name = self.path+'tau'
+                np.save(xHI_save_name,xHI_mod2)
                 np.save(T21_save_name,T21_mod2)
+                np.save(tau_save_name,tau_mod2)     #Saving tau for only cosmo params varied
                 np.save(z_save_name,Z_temp)
 
                 print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
@@ -768,6 +828,8 @@ class pipeline():
                 param_grid = list(product(self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd))
 
             T21_partial = []
+            xHI_partial = []
+            tau_partial = []
             if self.cpu_ind==0:
                 #Master CPU
                 n_mod = len(param_grid)
@@ -787,7 +849,10 @@ class pipeline():
                 partial_param = param_grid[self.cpu_ind-1::self.n_cpu-1]
                 if self.sfrd_type=='phy':
                     for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir) in partial_param:
-                        T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp,  fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)) )
+                        result = cdm_phy_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)
+                        T21_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir,result[0]))
+                        xHI_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, result[1]))
+                        tau_partial.append((Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, result[2]))     #changes made to misc so that tau is also output by cdm_phy_full
                         self.comm.send(1, dest=0, tag=77)
                 elif self.sfrd_type=='semi-emp':
                     for (Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fly, sly, fx, wx, fesc, tmin_vir, t_star) in partial_param:
@@ -799,16 +864,21 @@ class pipeline():
                         self.comm.send(1, dest=0, tag=77)
 
             self.comm.Barrier()
-            gathered = self.comm.gather(T21_partial, root=0)           
-            
+            gathered_T21 = self.comm.gather(T21_partial, root=0)           
+            gathered_xHI = self.comm.gather(xHI_partial, root=0)           
+            gathered_tau = self.comm.gather(tau_partial, root=0)           
+
             if self.cpu_ind == 0:
                 # Flatten results
-                all_results = [item for chunk in gathered for item in chunk]
+                all_T21 = [item for chunk in gathered_T21 for item in chunk]
+                all_xHI = [item for chunk in gathered_xHI for item in chunk]
+                all_tau = [item for chunk in gathered_tau for item in chunk]
 
                 #CDM
                 if self.sfrd_type=='phy':
                     T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
-
+                    xHI_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),n_values))
+                    tau_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir)))   #No redshift dimension for tau, hence lack of n_values
                     # Create mapping from values to indices
                     Ho_index = {val: i for i, val in enumerate(self.Ho)}
                     Omm_index = {val: j for j, val in enumerate(self.Om_m)}
@@ -826,11 +896,23 @@ class pipeline():
                     Tmin_index = {val: r for r, val in enumerate(self.Tmin_vir)}
 
                     # Fill T21 array
-                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_results:
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_T21:
                         i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
                         
                         T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
-                
+
+                    # Fill xHI array
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_xHI:
+                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                        
+                        xHI_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
+
+                    # Fill tau array
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, val in all_tau:
+                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val]
+                        
+                        tau_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13] = val
+
                 elif self.sfrd_type=='semi-emp':
                     T21_mod3 = np.zeros((np.size(self.Ho),np.size(self.Om_m),np.size(self.Om_b),np.size(self.sig8),np.size(self.ns),np.size(self.Tcmbo),np.size(self.Yp),np.size(self.fLy),np.size(self.sLy),np.size(self.fX),np.size(self.wX),np.size(self.fesc),np.size(self.Tmin_vir),np.size(self.t_star),n_values))
 
@@ -852,7 +934,7 @@ class pipeline():
                     t_star_index = {val: r for r, val in enumerate(self.t_star)}
 
                     # Fill T21 array
-                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_results:
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, tmin_val, t_star_val, val in all_T21:
                         i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], Tmin_index[tmin_val], t_star_index[t_star_val]
                         
                         T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, :] = val
@@ -877,17 +959,20 @@ class pipeline():
                     a_index = {val: r for r, val in enumerate(self.a_vir)}
 
                     # Fill T21 array
-                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_results:
+                    for Ho_val, Omm_val, Omb_val, sig8_val, ns_val, Tcmb_val, Yp_val, fly_val, sly_val, fx_val, w_val, fesc_val, a_val, val in all_T21:
                         i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = Ho_index[Ho_val], Omm_index[Omm_val], Omb_index[Omb_val], sig8_index[sig8_val], ns_index[ns_val], Tcmb_index[Tcmb_val], Yp_index[Yp_val], fLy_index[fly_val], sLy_index[sly_val], fX_index[fx_val], wX_index[w_val], fesc_index[fesc_val], a_index[a_val]
                         
                         T21_mod3[i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, :] = val
             
                 z_save_name = self.path+'one_plus_z'
                 T21_save_name = self.path+'T21'
-                
+                xHI_save_name = self.path+'xHI'
+                tau_save_name = self.path+'tau'
+
                 np.save(z_save_name,Z_temp)
                 np.save(T21_save_name,T21_mod3)
-                
+                np.save(xHI_save_name,xHI_mod3)
+                np.save(tau_save_name,tau_mod3)     #Saving tau for cosmo and astro params varied
 
                 print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
                 

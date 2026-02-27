@@ -4,3 +4,4 @@ _build
 _template
 _static
 .ipynb_checkpoints
+.DS_Store
