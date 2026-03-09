@@ -93,13 +93,16 @@ def cdm_emp_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, fLy,sLy,fX,wX,fesc,a_sfrd, xe_init
         Tk_cd = CubicSpline(flipped_Z_cd, np.flip(Tk_cd))(self_Z_eval)        
 
     Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
-    return myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
+
+    xHI_cd = (1 - Q_cd) * (1 - xe_cd)   # Neutral hydrogen fraction
+    tau_cd = myobj_cd.reion_tau(50)
+    return myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd), xHI_cd, tau_cd
 
 def cdm_semi_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, fLy,sLy,fX,wX,fesc,Tmin_vir,tstar,hmf,mdef, xe_init, Tk_init, self_Z_eval, Z_temp):
     '''
     CDM, Semi-empirical, cosmic dawn only
     '''
-    myobj_cd = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp, fLy=fLy,sLy=sLy,fX=fX,wX=wX,fesc=fesc,type='phy',hmf=hmf, mdef=mdef, Tmin_vir=Tmin_vir, tstar=tstar)
+    myobj_cd = funcs(Ho=Ho,Om_m=Om_m,Om_b=Om_b,sig8=sig8,ns=ns,Tcmbo=Tcmbo,Yp=Yp, fLy=fLy,sLy=sLy,fX=fX,wX=wX,fesc=fesc,type='semi-emp',hmf=hmf, mdef=mdef, Tmin_vir=Tmin_vir, tstar=tstar)
                             
     sol_cd = myobj_cd.igm_solver(Z_eval=Z_cd,xe_init=xe_init,Tk_init=Tk_init)
     
@@ -114,7 +117,10 @@ def cdm_semi_cd(Ho,Om_m,Om_b,sig8,ns,Tcmbo,Yp, fLy,sLy,fX,wX,fesc,Tmin_vir,tstar
         Tk_cd = CubicSpline(flipped_Z_cd, np.flip(Tk_cd))(self_Z_eval)        
 
     Ts_cd= myobj_cd.hyfi_spin_temp(Z=Z_temp,xe=xe_cd,Tk=Tk_cd)
-    return myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd)
+
+    xHI_cd = (1 - Q_cd) * (1 - xe_cd)   # Neutral hydrogen fraction
+    tau_cd = myobj_cd.reion_tau(50)
+    return myobj_cd.hyfi_twentyone_cm(Z=Z_temp,xe=xe_cd,Q=Q_cd,Ts=Ts_cd), xHI_cd, tau_cd
 
 #================================================================================
 
@@ -171,7 +177,9 @@ def cdm_semi_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fLy, sLy, fX, wX , fesc, 
         Tk = splTk(self_Z_eval)
 
     Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-    return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+    xHI = (1 - Q_Hii) * (1 - xe)
+    tau = myobj.reion_tau(50)
+    return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts), xHI, tau
 
 def cdm_emp_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fLy, sLy, fX, wX , fesc, a_sfrd, self_Z_eval, Z_temp):
     '''
@@ -196,4 +204,7 @@ def cdm_emp_full(Ho, Om_m, Om_b, sig8, ns, Tcmbo, Yp, fLy, sLy, fX, wX , fesc, a
         Tk = CubicSpline(flipped_Z_default, np.flip(Tk))(self_Z_eval)
 
     Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
-    return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+
+    xHI = (1 - Q_Hii) * (1 - xe)
+    tau = myobj.reion_tau(50)
+    return myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts), xHI, tau
