@@ -9,7 +9,7 @@ from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from tqdm import tqdm
 
-from .const import Zstar, Z_start, Z_end, Z_default, Z_da, Z_cd, flipped_Z_default, phy_sfrd_default_model, emp_sfrd_default_model, semi_emp_sfrd_default_model
+from .const import Zstar, Z_start, Z_end, Z_default, Z_da, Z_cd, flipped_Z_default
 from .echofuncs import funcs
 from .single_set_solver import *
 from .misc import *

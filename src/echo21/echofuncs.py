@@ -52,8 +52,46 @@ class funcs():
         
         '''
         params = {} if params is None else params
-        params = {**default_params, **params}
-        
+
+        ############################################################################
+        #Setting up the star formation rate density related parameters and functions
+        self.sfrd_type = params['type']
+
+        if self.sfrd_type == 'phy':
+            params = {**phy_sfrd_default_model, **params}
+            self._sfrd = self._sfrd_phy
+            self.hmf = params['hmf']
+            self.mdef = params['mdef']
+            self.Tmin_vir = params['Tmin_vir']
+
+            if self.hmf == 'press74':
+                self._f_coll = self._f_coll_press74
+            else:
+                self._f_coll = self._f_coll_nonpress74
+            
+        elif self.sfrd_type == 'semi-emp':
+            params = {**semi_emp_sfrd_default_model, **params}
+            self._sfrd = self._sfrd_semi_emp
+            self.hmf = params['hmf']
+            self.mdef = params['mdef']
+            self.Tmin_vir = params['Tmin_vir']
+            self.t_star = params['t_star']
+            
+            if self.hmf == 'press74':
+                self._f_coll = self._f_coll_press74
+            else:
+                self._f_coll = self._f_coll_nonpress74
+
+        elif self.sfrd_type == 'emp':
+            params = {**emp_sfrd_default_model, **params}
+            self._sfrd = self._sfrd_emp
+            self.a_sfrd = params['a']
+            self.b_sfrd = 4.0#params['b']
+
+        else:
+            raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
+        print(params)
+        ############################################################################
         self.Ho = params['Ho']
         self.Om_m = params['Om_m']
         self.Om_b = params['Om_b']
@@ -75,35 +113,9 @@ class funcs():
         self.h100 = self.Ho/100
         
         ############################################################################
-        #Setting up the star formation rate density related parameters and functions
-        self.sfrd_type = params['type']
-
-        if self.sfrd_type == 'phy' or self.sfrd_type == 'semi-emp':
-            self.hmf = params['hmf']
-            self.mdef = params['mdef']
-            self.Tmin_vir = params['Tmin_vir']
-
-            if self.hmf == 'press74':
-                self._f_coll = self._f_coll_press74
-            else:
-                self._f_coll = self._f_coll_nonpress74
-            
-            if self.sfrd_type == 'semi-emp':
-                self._sfrd = self._sfrd_semi_emp
-                self.t_star = params['t_star']
-            else:
-                self._sfrd = self._sfrd_phy
-
-        elif self.sfrd_type == 'emp':
-            self._sfrd = self._sfrd_emp
-            self.a_sfrd = params['a']
-            self.b_sfrd = 4.0#params['b']
-
-        else:
-            raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
-
         self._igm_eqns = self._igm_eqns_cdm
         self._igm_solver = self._igm_solver_cdm
+        
         ############################################################################        
         #Solve reionization at initialization itself        
 

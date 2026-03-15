@@ -75,11 +75,11 @@ Pn=np.array([0.2609,0.3078,0.3259,0.3353,0.3410,0.3448,0.3476,0.3496,0.3512,0.35
 
 #------------------------------------------------------------------------------
 # Defaults
-default_params = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245, 'fLy': 1.0, 'sLy': 2.64, 'fX': 1.0, 'wX': 1.5, 'fesc': 0.0106,'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
+phy_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245, 'fLy': 1.0, 'sLy': 2.64, 'fX': 1.0, 'wX': 1.5, 'fesc': 0.0106, 'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
 
-phy_sfrd_default_model = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
-semi_emp_sfrd_default_model = {'type':'semi-emp','hmf':'press74','mdef':'fof','Tmin_vir':1e4,'tstar':0.5}
-emp_sfrd_default_model = {'type':'emp','a':0.257,'b':4}
+semi_emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245, 'fLy': 1.0, 'sLy': 2.64, 'fX': 1.0, 'wX': 1.5, 'fesc': 0.0106,'type':'semi-emp','hmf':'press74','mdef':'fof','Tmin_vir':1e4,'tstar':0.5}
+
+emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245, 'fLy': 1.0, 'sLy': 2.64, 'fX': 1.0, 'wX': 1.5, 'fesc': 0.0106, 'type':'emp','a':0.257,'b':4}
 
 #------------------------------------------------------------------------------
 #Interacting dark matter related
