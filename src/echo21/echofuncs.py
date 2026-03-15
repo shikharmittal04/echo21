@@ -90,7 +90,7 @@ class funcs():
 
         else:
             raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
-        print(params)
+
         ############################################################################
         self.Ho = params['Ho']
         self.Om_m = params['Om_m']
