@@ -1,84 +1,28 @@
+import pandas as pd
 import numpy as np
 from mpi4py import MPI
 from mpi4py.util import pkl5
-from itertools import product
 import sys
 import time
 import os
-import pickle
 from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from tqdm import tqdm
 
 from .const import Zstar, Z_start, Z_end, Z_default, Z_da, Z_cd, flipped_Z_default, phy_sfrd_default_model, emp_sfrd_default_model, semi_emp_sfrd_default_model
 from .echofuncs import funcs
+from .single_set_solver import *
 from .misc import *
 
 #--------------------------------------------------------------------------------------------
 
-#The following 2 functions will be useful if you want to save and load `pipeline` object.
-def save_pipeline(obj, filename):
-    '''Saves the class object :class:`pipeline`.
-    
-    Save the class object :class:`pipeline` for later use. It will save the object in the path where you have all the other outputs from this package.
-    
-    Parameters
-    ~~~~~~~~~~
-
-    obj : class
-        This should be the class object you want to save.
-        
-    filename : str
-        Give a file name only to your object, not the full path. obj will be saved in the ``obj.path`` directory.
-    
-    '''
-    try:
-        comm = MPI.COMM_WORLD
-        cpu_ind = comm.Get_rank()
-        Ncpu = comm.Get_size()
-    except:
-        cpu_ind=0
-    if cpu_ind==0:
-        if filename[-4:]!='.pkl': filename=filename+'.pkl'
-        fullpath = obj.path+filename
-        with open(fullpath, 'wb') as outp:  # Overwrites any existing file.
-            pickle.dump(obj, outp, pickle.HIGHEST_PROTOCOL)
-    return None
-    
-def load_pipeline(filename):
-    '''To load the class object :class:`pipeline`.
-    
-    Parameters
-    ~~~~~~~~~~
-
-    filename : str
-        This should be the name of the file you gave in :func:`save_pipeline()` for saving class object :class:`pipeline`. Important: provide the full path for ``filename`` with the extension ``.pkl``.
-        
-    Returns
-    ~~~~~~~
-
-    class object    
-    '''
-    try:
-        comm = MPI.COMM_WORLD
-        cpu_ind = comm.Get_rank()
-        Ncpu = comm.Get_size()
-    except:
-        cpu_ind=0
-    if cpu_ind==0:
-        with open(filename, 'rb') as inp:
-            echo21obj = pickle.load(inp)
-        print('Loaded the echo21 pipeline class object.\n')
-    return echo21obj
-#--------------------------------------------------------------------------------------------
-
 class pipeline():
     '''
-    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts. There are 3 inputs required for a complete specification -- cosmological parameters, astrophysical parameter, and star formation related parameters. They are supplied through arguments, ``cosmo``, ``astro``, and ``sfrd_dic``, respectively. The notation for the parameters is as follows. All of these need to be dictionaries. For example:
+    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts. There are 3 inputs required for a complete specification -- cosmological parameters, astrophysical parameter, and star formation related parameters. They are supplied through arguments, ``cosmo``, ``astro``, and ``sfrd``, respectively. The notation for the parameters is as follows. All of these need to be dictionaries. For example:
 
     cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},
     astro = {'fLy':1,'sLy' : 2.64,'fX':1,'wX':1.5, 'fesc':0.0106},
-    sfrd_dic = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
+    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
     
     Parameters
     ~~~~~~~~~~
@@ -119,7 +63,7 @@ class pipeline():
     fesc : float, optional
         :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionizing photons. Default value ``0.01``.
 
-    sfrd_dic : dictionary, optional
+    sfrd : dictionary, optional
         
         This should be a dictionary containing all the details of SFRD.
         
@@ -149,136 +93,97 @@ class pipeline():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo=None,astro= None, sfrd_dic=None,Z_eval=None,path='echo21_outputs/'):
+    def __init__(self,cosmo=None,astro= None, sfrd=None,Z_eval=None,path='echo21_outputs/'):
 
         if cosmo is None:
-            cosmo = {
-                'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,
-                'Tcmbo': 2.725, 'Yp': 0.245}
+            cosmo = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245}
         if astro is None:
             astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.0106}
-        if sfrd_dic is None:
-            sfrd_dic = {'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
+        if sfrd is None:
+            sfrd = {'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
 
         
         self.comm = pkl5.Intracomm(MPI.COMM_WORLD)
         self.cpu_ind = self.comm.Get_rank()
         self.n_cpu = self.comm.Get_size()
-
-        self.cosmo=cosmo
-        self.astro=astro
-
-        
-        ####
-        #Here I decide whether astro, cosmo, or both parameters are varied.
-        self.model = 0
-        for keys in self.astro.keys():
-            if np.size(self.astro[keys])>1:
-                self.model = 1
-                break
-        
-        self.sfrd_type = sfrd_dic['type']
-        if self.sfrd_type == 'phy':
-            sfrd_dic={**phy_sfrd_default_model,**sfrd_dic}
-            self.hmf = sfrd_dic['hmf']
-            self.mdef = sfrd_dic['mdef']
-            self.Tmin_vir = sfrd_dic['Tmin_vir']
-            if self.model==0:
-                if np.size(self.Tmin_vir)>1:
-                    self.model=1
-        elif self.sfrd_type == 'semi-emp':
-            sfrd_dic={**semi_emp_sfrd_default_model,**sfrd_dic}
-            self.hmf = sfrd_dic['hmf']
-            self.mdef = sfrd_dic['mdef']
-            self.Tmin_vir = sfrd_dic['Tmin_vir']
-            self.t_star = sfrd_dic['t_star']
-            if self.model==0:
-                if np.size(self.Tmin_vir)>1 or np.size(self.t_star)>1:
-                    self.model=1
-        elif self.sfrd_type == 'emp':
-            sfrd_dic={**emp_sfrd_default_model,**sfrd_dic}
-            self.a_sfrd = sfrd_dic['a']
-            if self.model==0:
-                if np.size(self.a_sfrd)>1:
-                    self.model=1
-
-        for keys in self.cosmo.keys():
-            if np.size(self.cosmo[keys])>1:
-                self.model = self.model+2
-                break
-        ####
-
-        #echo21 uses a master-worker distribution. So atleast 2 CPUs are required. I check that below.
-        if self.model>0 and self.n_cpu==1:
-            print('\033[31mPlease use at least 2 CPUs. Terminating ... \033[00m')
-            sys.exit()
-
-
-        #Converting all parameters to array or float according to their multiplicity.
-        if self.model==0:
-            self.astro=to_float(self.astro)
-            self.cosmo=to_float(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = to_float(self.Tmin_vir)
-            elif self.sfrd_type == 'semi-emp':
-                self.Tmin_vir = to_float(self.Tmin_vir)
-                self.t_star = to_float(self.t_star)
-            else: self.a_sfrd = to_float(self.a_sfrd)
-        elif self.model==1:
-            self.astro=to_array(self.astro)
-            self.cosmo=to_float(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = to_array(self.Tmin_vir)
-            elif self.sfrd_type == 'semi-emp':
-                self.Tmin_vir = to_array(self.Tmin_vir)
-                self.t_star = to_array(self.t_star)
-            else: self.a_sfrd = to_array(self.a_sfrd)
-        elif self.model==2:
-            self.astro=to_float(self.astro)
-            self.cosmo=to_array(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = to_float(self.Tmin_vir)
-            elif self.sfrd_type == 'semi-emp':
-                self.Tmin_vir = to_float(self.Tmin_vir)
-                self.t_star = to_float(self.t_star)
-            else: self.a_sfrd = to_float(self.a_sfrd)
-        elif self.model==3:
-            self.astro=to_array(self.astro)
-            self.cosmo=to_array(self.cosmo)
-            if self.sfrd_type == 'phy': self.Tmin_vir = to_array(self.Tmin_vir)
-            elif self.sfrd_type == 'semi-emp':
-                self.Tmin_vir = to_array(self.Tmin_vir)
-                self.t_star = to_array(self.t_star)
-            else: self.a_sfrd = to_array(self.a_sfrd)
-        else:
-            print('Impossible!')
-            sys.exit()
         
         self.Z_eval = Z_eval
 
-        if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
-            self.Z_eval=np.array(self.Z_eval)
-            if self.Z_eval[1]>self.Z_eval[0]:
-                # Arranging redshifts from ascending to descending
-                self.Z_eval = self.Z_eval[::-1]
+        self.cosmo = ensure_array_dict(cosmo)
+        self.astro = ensure_array_dict(astro)
+        # sfrd contains strings → ignore them
+        self.sfrd = ensure_array_dict(sfrd, ignore_keys=['type','hmf','mdef'])
 
-        self.Ho = cosmo['Ho']
-        self.Om_m = cosmo['Om_m']
-        self.Om_b = cosmo['Om_b']
-        self.sig8 = cosmo['sig8']
-        self.ns = cosmo['ns']
-        self.Tcmbo = cosmo['Tcmbo']
-        self.Yp = cosmo['Yp']
+        cosmo_var, cosmo_fixed = split_params(self.cosmo)
+        astro_var, astro_fixed = split_params(self.astro)
+        sfrd_var, sfrd_fixed   = split_params(self.sfrd)
+
+        self.var_params = {**cosmo_var, **astro_var, **sfrd_var}
+        self.fixed_params = {**cosmo_fixed, **astro_fixed, **sfrd_fixed}#add defaults here
+
+        self.param_names = list(self.var_params.keys())
+        self.param_arrays = [self.var_params[k] for k in self.param_names]
+
+        self.shape = tuple(len(a) for a in self.param_arrays)
+        self.N_models = np.prod(self.shape)
+
+        cosmo_varying = any(np.size(v) > 1 for v in (cosmo_var).values())
+        astro_varying = any(np.size(v) > 1 for v in {**astro_var, **sfrd_var}.values())
+
+        #---------------------------------------------------------------------------------
+        if not cosmo_varying and not astro_varying:
+            self.run_type='single'
+            self.message = 'both cosmological and astrophysical parameters are fixed.\n'
+            self.Z_solver = Z_default
+            Z_init = Z_start
+
+        elif not cosmo_varying and astro_varying:
+            obj_dark_ages = funcs(self.fixed_params)
+            Tk_init = obj_dark_ages.basic_cosmo_Tcmb(Z_start)
+            xe_init = obj_dark_ages.recomb_Saha_xe(Z_start,Tk_init)
+            sol_da = obj_dark_ages.igm_solver(Z_solver=Z_da, xe_init=xe_init, Tk_init=Tk_init)
+            xe_da = sol_da[0]
+            Tk_da = sol_da[1]
+            
+            self.run_type='astro'
+            self.message = 'cosmological parameters are fixed. Astrophysical parameters are varied.'
+            self.Z_solver = Z_cd
+            self.xe_init, self.Tk_init = xe_da[-1] , Tk_da[-1]
+            self.simulator = cosmic_dawn_beyond
+            Z_init = Zstar
         
-        self.fLy = astro['fLy']
-        self.sLy = astro['sLy']
-        self.fX = astro['fX']
-        self.wX = astro['wX']
-        self.fesc = astro['fesc']
+        else:
+            self.run_type='else'
+            self.message = 'cosmological parameters are varied.\n'
+            self.Z_solver = Z_default           
+            self.xe_init, self.Tk_init = None , None
+            self.simulator = dark_ages_to_today
+            Z_init = Z_start
+        #---------------------------------------------------------------------------------
 
+        if self.Z_eval is not None:
+            if (self.Z_eval[0]>Z_init or self.Z_eval[-1]<Z_end):
+                print('\033[31mYour requested redshift values should satisfy ',Z_init,'>1+z>',Z_end)
+                print('Terminating ...\033[00m')
+                sys.exit()
+            
+            if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
+                self.Z_eval=np.array(self.Z_eval)
+                if self.Z_eval[1]>self.Z_eval[0]:
+                    # Arranging redshifts from ascending to descending
+                    self.Z_eval = self.Z_eval[::-1]
+        #---------------------------------------------------------------------------------
+
+        if self.run_type!='single' and self.n_cpu==1:
+            print('\033[31mPlease use at least 2 CPUs. Terminating ... \033[00m')
+            sys.exit()
+        #---------------------------------------------------------------------------------
 
         #Create an output folder where all results will be saved.
         self.path=path
         if self.cpu_ind==0:
             if os.path.isdir(self.path)==False:
-                print('The requested directory does not exist. Creating ',self.path)
+                print('\nThe requested directory does not exist. Creating ',self.path)
                 os.mkdir(self.path)
             
             self.timestamp = strftime("%Y%m%d-%H%M%S", localtime())
@@ -290,11 +195,23 @@ class pipeline():
             save_pipeline(self,'pipe')
         return None
 
+    def params_from_index(self, idx):
+        inds = np.unravel_index(idx, self.shape)
+
+        all_params = self.fixed_params.copy()
+        varying_params_only = {}
+
+        for name, i, arr in zip(self.param_names, inds, self.param_arrays):
+            all_params[name] = arr[i]
+            varying_params_only[name] = arr[i]
+
+        return all_params, varying_params_only
+
     def _write_summary(self, elapsed_time):
         '''
         Given the elapsed time of the code execution write the main summary of the run.
         '''
-        sumfile = self.path+"glob_sig_"+self.timestamp+".txt"
+        sumfile = self.path+"summary_"+self.timestamp+".txt"
         myfile = open(sumfile, "w")
         myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
 ██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
@@ -302,41 +219,22 @@ class pipeline():
 ██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
 ███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
 ╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-        myfile.write('Shikhar Mittal, 2025\n')
+        myfile.write('Shikhar Mittal, 2026\n')
         myfile.write('\nThis is output_'+self.timestamp)
         myfile.write('\n------------------------------\n')
         myfile.write('\nTime stamp: '+self.formatted_timestamp)
         myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
         myfile.write('\n\n')
         myfile.write('Dark matter type: cold')
+        myfile.write('\nSimulation type: '+self.message)
         myfile.write('\n\nParameters given:\n')
         myfile.write('-----------------')
-        myfile.write('\nHo = {}'.format(self.Ho))
-        myfile.write('\nOm_m = {}'.format(self.Om_m))
-        myfile.write('\nOm_b = {}'.format(self.Om_b))
-        myfile.write('\nsig8 = {}'.format(self.sig8))
-        myfile.write('\nns = {}'.format(self.ns))
-        myfile.write('\nTcmbo = {}'.format(self.Tcmbo))
-        myfile.write('\nYp = {}'.format(self.Yp))
-
-        myfile.write('\n\nfLy = {}'.format(self.fLy))
-        myfile.write('\nsLy = {}'.format(self.sLy))
-        myfile.write('\nfX = {}'.format(self.fX))
-        myfile.write('\nwX = {}'.format(self.wX))
-        myfile.write('\nfesc = {}'.format(self.fesc))
+        [myfile.write('\n{} = {}'.format(k, v)) for k, v in self.cosmo.items()]
+        myfile.write('\n')
+        [myfile.write('\n{} = {}'.format(k, v)) for k, v in self.astro.items()]
+        
         myfile.write('\n\nSFRD')
-        myfile.write('\n  Type = '+self.sfrd_type)
-        if self.sfrd_type == 'phy':
-            myfile.write('\n  HMF = '+self.hmf)
-            myfile.write('\n  mdef = '+self.mdef)
-            myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
-        elif self.sfrd_type == 'semi-emp':
-            myfile.write('\n  HMF = '+self.hmf)
-            myfile.write('\n  mdef = '+self.mdef)
-            myfile.write('\n  Tmin_vir = {}'.format(self.Tmin_vir))
-            myfile.write('\n  t_star = {}'.format(self.t_star))
-        else:
-            myfile.write('\n  a = {}'.format(self.a_sfrd))
+        [myfile.write('\n  {} = {}'.format(k, v)) for k, v in self.sfrd.items()]
         
         myfile.write('\n')
         return myfile
@@ -347,69 +245,38 @@ class pipeline():
         print('Dark matter type: cold')
 
         print('\n\033[93mParameters given:\n')
-        print('-----------------')
-        print('\nHo = {}'.format(self.Ho))
-        print('Om_m = {}'.format(self.Om_m))
-        print('Om_b = {}'.format(self.Om_b))
-        print('sig8 = {}'.format(self.sig8))
-        print('ns = {}'.format(self.ns))
-        print('Tcmbo = {}'.format(self.Tcmbo))
-        print('Yp = {}'.format(self.Yp))
-
-        print('\n\nfLy = {}'.format(self.fLy))
-        print('sLy = {}'.format(self.sLy))
-        print('fX = {}'.format(self.fX))
-        print('wX = {}'.format(self.wX))
-        print('fesc = {}'.format(self.fesc))
+        print('-----------------\n')
+        [print('\n{} = {}'.format(k, v)) for k, v in self.cosmo.items()]
+        print('\n')
+        [print('\n{} = {}'.format(k, v)) for k, v in self.astro.items()]
+        
         print('\n\nSFRD')
-        print('  Type = '+self.sfrd_type)
-        if self.sfrd_type == 'phy':
-            print('  HMF = '+self.hmf)
-            print('  mdef = '+self.mdef)
-            print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
-        elif self.sfrd_type == 'semi-emp':
-            print('  HMF = '+self.hmf)
-            print('  mdef = '+self.mdef)
-            print('  Tmin_vir = {}\033[00m\n'.format(self.Tmin_vir))
-            print('  t_star = {}\033[00m\n'.format(self.t_star))
-        else:
-            print('  a = {}\033[00m\n'.format(self.a_sfrd))
+        [print('\n  {} = {}'.format(k, v)) for k, v in self.sfrd.items()]
+        print('\033[00m\n')
 
         return None
     
-    def glob_sig(self):
+    def run_simulation(self):
         '''
         This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts. Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
         ''' 
 
-        if self.model==0:
+        if self.run_type=='single':
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
+                
+                st = time.perf_counter()
+                
                 print_banner()
                 print('Dark matter type: cold')
-                print('\nBoth cosmological and astrophysical parameters are fixed.\n')
+                print('\nSimulation type: ',self.message)
                 
-                st = time.process_time()
-                
-                if self.sfrd_type == 'phy':
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir)
-                elif self.sfrd_type == 'semi-emp':
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp, fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,hmf=self.hmf,mdef=self.mdef,Tmin_vir=self.Tmin_vir, t_star=self.t_star)
-                else:
-                    myobj = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp,fLy=self.fLy,sLy=self.sLy,fX=self.fX,wX=self.wX,fesc=self.fesc,type = self.sfrd_type,a=self.a_sfrd)
-                
-                Z_temp = Z_default
+                myobj = funcs(self.fixed_params)
+                Tk_init = myobj.basic_cosmo_Tcmb(Z_start)
+                xe_init = myobj.recomb_Saha_xe(Z_start,Tk_init)
 
-                if self.Z_eval is not None:
-                    if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
-                        print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
-                        print('Terminating ...\033[00m')
-                        sys.exit()
-                    else:
-                        Z_temp = self.Z_eval
-                
                 print('Obtaining the thermal and ionisation history ...')
-                sol = myobj.igm_solver(Z_eval=Z_default)
+                sol = myobj.igm_solver(Z_solver=Z_default, xe_init=xe_init, Tk_init = Tk_init)
                 
                 xe = sol[0]
                 Tk = sol[1]
@@ -421,17 +288,24 @@ class pipeline():
                 Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
 
                 if self.Z_eval is not None:
-                    splxe = CubicSpline(flipped_Z_default, np.flip(xe))
-                    xe = splxe(self.Z_eval)
+                    xe = CubicSpline(flipped_Z_default, np.flip(xe))(self.Z_eval)
                     Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
-                    splTk = CubicSpline(flipped_Z_default, np.flip(Tk))
-                    Tk = splTk(self.Z_eval)
+                    Tk = CubicSpline(flipped_Z_default, np.flip(Tk))(self.Z_eval)
+                    
+                    print('Obtaining spin temperature ...')
+                    Ts = myobj.hyfi_spin_temp(Z=self.Z_eval,xe=xe,Tk=Tk)
+                    
+                    print('Computing the 21-cm signal ...')
+                    T21 = myobj.hyfi_twentyone_cm(Z=self.Z_eval,xe=xe,Q=Q_Hii,Ts=Ts)
+                    x = self.Z_eval
+                else:
+                    print('Obtaining spin temperature ...')
+                    Ts = myobj.hyfi_spin_temp(Z=Z_default,xe=xe,Tk=Tk)
 
-                print('Obtaining spin temperature ...')
-                Ts = myobj.hyfi_spin_temp(Z=Z_temp,xe=xe,Tk=Tk)
+                    print('Computing the 21-cm signal ...')
+                    T21 = myobj.hyfi_twentyone_cm(Z=Z_default,xe=xe,Q=Q_Hii,Ts=Ts)
 
-                print('Computing the 21-cm signal ...')
-                T21_mod1 = myobj.hyfi_twentyone_cm(Z=Z_temp,xe=xe,Q=Q_Hii,Ts=Ts)
+                    x = Z_default
                 
                 print('Done.')
 
@@ -447,59 +321,36 @@ class pipeline():
                 np.save(Q_save_name,Q_Hii)
                 np.save(Tk_save_name,Tk)
                 np.save(Ts_save_name,Ts)
-                np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(Z_temp))
-                np.save(T21_save_name,T21_mod1)
-                np.save(z_save_name,Z_temp)
+                np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(x))
+                np.save(T21_save_name,T21)
+                np.save(z_save_name,x)
                
                 print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
                 
-                et = time.process_time()
+                et = time.perf_counter()
                 # get the execution time
                 elapsed_time = et - st
                 print('\nExecution time: %.2f seconds' %elapsed_time)
 
                 #========================================================
                 #Writing to a summary file
+                myfile = self._write_summary(elapsed_time=elapsed_time)
+
                 try:
-                    max_T21 = np.min(T21_mod1)
-                    max_ind = np.where(T21_mod1==max_T21)
-                    [max_z] = Z_temp[max_ind]
+                    max_T21 = np.min(T21)
+                    max_ind = np.where(T21==max_T21)
+                    [max_z] = x[max_ind]
+                    myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
                 except:
                     pass
 
                 tau_e = None
                 try:
-                    tau_e = myobj.reion_tau(50)     #To calculate tau even if reionisation is not complete 
+                    tau_e = myobj.reion_tau(50)     #To calculate tau even if reionisation is not complete
+                    myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
                 except:
                     pass
 
-
-                z50 = None
-                try:
-                    idx = np.where(np.abs(Q_Hii-0.5)<=0.01)[0][0]
-                    z50 = Z_default[idx]-1
-                    z100 = None
-                    try:
-                        idx = np.where(Q_Hii>=0.98)[0][0]
-                        z100 = Z_default[idx]-1
-                    except:
-                        print('\n{:.1f} % universe reionised by {:.1f}'.format(100*Q_Hii[-1], Z_temp[-1]-1))
-                except:
-                    print('\n{:.1f} % universe reionised by {:.1f}'.format(100*Q_Hii[-1], Z_temp[-1]-1))
-
-                myfile = self._write_summary(elapsed_time=elapsed_time)
-                
-                if z50!=None:
-                    myfile.write('\n50% reionisation complete at z = {:.2f}'.format(z50))
-                    if z100!=None:
-                        myfile.write("\nReionisation complete at z = {:.2f}".format(z100))
-
-                if tau_e != None:
-                    myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))      #Print tau in summary file, if it is computed successfully.
-
-
-                try: myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
-                except: pass
                 myfile.write('\n')
                 myfile.close()
                 #========================================================
@@ -507,58 +358,21 @@ class pipeline():
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
                 return None
 
-#=========================================================================
-#=========================================================================
-        elif self.model==1:
-        #Cosmological parameters are fixed so dark ages is solved only once.
-            if self.cpu_ind==0:
-                print_banner()
-                print('Dark matter type: cold')
-                print('\nCosmological parameters are fixed. Astrophysical parameters are varied.')
-                print('\nGenerating once the thermal and ionization history for dark ages ...')
-            
-            myobj_da = funcs(Ho=self.Ho,Om_m=self.Om_m,Om_b=self.Om_b,sig8=self.sig8,ns=self.ns,Tcmbo=self.Tcmbo,Yp=self.Yp)
-
-            sol_da = myobj_da.igm_solver(Z_eval=Z_da)
-            xe_da = sol_da[0]
-            Tk_da = sol_da[1]
-
-            Z_temp = Z_cd
-            if self.Z_eval is not None:
-                if (self.Z_eval[0]>Zstar or self.Z_eval[-1]<Z_end):
-                    print('\033[31mYour requested redshift values should satisfy ',Zstar,'>1+z>',Z_end)
-                    print('Terminating ...\033[00m')
-                    sys.exit()
-                else:
-                    Z_temp = self.Z_eval
-
-            n_values = len(Z_temp)
-            if self.sfrd_type=='phy':
-                params = [self.fLy, self.sLy, self.fX, self.wX, self.fesc, self.Tmin_vir]   
-            
-            elif self.sfrd_type=='semi-emp':
-                params = [self.fLy, self.sLy, self.fX, self.wX, self.fesc, self.Tmin_vir, self.t_star]
-            
-            elif self.sfrd_type=='emp':
-                params = [self.fLy, self.sLy, self.fX, self.wX, self.fesc, self.a_sfrd]
-
+        #=========================================================================
+        else:
             partial_results = []
-
-            shape = tuple(len(p) for p in params)
-            n_mod = int(np.prod(shape))
-
+            partial_params = []
             if self.cpu_ind==0:
                 #Master CPU
-                T21_cd = np.zeros((*shape,n_values))
-                xHI_cd = np.zeros((*shape,n_values))
-                tau = np.zeros(shape) #tau is only one number so no redshift dependence
-                
-                print('Done.\n\nGenerating',n_mod,'models for cosmic dawn ...\n')
+                print_banner()
+                print('Dark matter type: cold')
+                print('\nSimulation type: ',self.message)
+                print('\nGenerating',self.N_models,'models ...')
                 st = time.perf_counter()
                 done = 0
-                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
+                pbar = tqdm(total=self.N_models, desc="Processing models", ncols=100)
 
-                while done < n_mod:
+                while done < self.N_models:
                     status = MPI.Status()
                     progress = self.comm.recv(source=MPI.ANY_SOURCE, tag=77, status=status)
                     done += progress
@@ -566,196 +380,51 @@ class pipeline():
                 pbar.close()
             else:
                 #Worker CPU
-                
-                if self.sfrd_type=='phy':    
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i, j, k, l, m, n = np.unravel_index(idx, shape)
-                        
-                        result = cdm_phy_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, self.fLy[i],self.sLy[j],self.fX[k],self.wX[l],self.fesc[m],self.Tmin_vir[n],self.hmf,self.mdef,xe_da[-1] , Tk_da[-1], self.Z_eval, Z_temp)
-                        partial_results.append((i, j, k, l, m, n, result[0], result[1], result[2]) )
-                        self.comm.send(1, dest=0, tag=77)
-                
-                elif self.sfrd_type=='semi-emp':    
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i, j, k, l, m, n, o = np.unravel_index(idx, shape)
+                for idx in range(self.cpu_ind-1, self.N_models, self.n_cpu-1):
+                    all_params_dict, varying_params_only = self.params_from_index(idx)
 
-                        result = cdm_semi_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, self.fLy[i],self.sLy[j],self.fX[k],self.wX[l],self.fesc[m],self.Tmin_vir[n],self.t_star[o],self.hmf,self.mdef, xe_da[-1],Tk_da[-1],self.Z_eval,Z_temp)
-                        partial_results.append((i, j, k, l, m, n, o, result[0], result[1], result[2]) )
-
-                        self.comm.send(1, dest=0, tag=77)
-                
-                elif self.sfrd_type=='emp':
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i, j, k, l, m, n = np.unravel_index(idx, shape)
-                        result = cdm_emp_cd(self.Ho,self.Om_m,self.Om_b,self.sig8,self.ns,self.Tcmbo,self.Yp, self.fLy[i],self.sLy[j],self.fX[k],self.wX[l],self.fesc[m],self.a_sfrd[n], xe_da[-1],Tk_da[-1],self.Z_eval, Z_temp)
-                        partial_results.append((i, j, k, l, m, n, result[0], result[1], result[2]) )
-                        self.comm.send(1, dest=0, tag=77)
-
-#=========================================================================
-#=========================================================================
-        elif self.model==2:
-
-            if self.cpu_ind==0:
-                print_banner()
-                print('Dark matter type: cold')
-                print('\nOnly cosmological parameters are varied.')
-            
-            Z_temp = Z_default
-            if self.Z_eval is not None:
-                if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
-                    print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
-                    print('Terminating ...\033[00m')
-                    sys.exit()
-                else:
-                    Z_temp = self.Z_eval
-
-            n_values = len(Z_temp)
-            params = [self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp]
-
-            partial_results = []
-            
-            shape = tuple(len(p) for p in params)
-            n_mod = int(np.prod(shape))
-
-            if self.cpu_ind==0:
-                #Master CPU
-                T21_cd = np.zeros((*shape,n_values))
-                xHI_cd = np.zeros((*shape,n_values))
-                tau = np.zeros(shape) #tau is only one number so no redshift dependence
-
-                print('\nGenerating',n_mod,'models ...')
-                st = time.perf_counter()
-                done = 0
-                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
-
-                while done < n_mod:
-                    status = MPI.Status()
-                    progress = self.comm.recv(source=MPI.ANY_SOURCE, tag=77, status=status)
-                    done += progress
-                    pbar.update(progress)
-                pbar.close()
-            else:
-                #Worker CPU
-
-                if self.sfrd_type=='phy':
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i, j, k, l, m, n, o = np.unravel_index(idx, shape)
-                        
-                        result = cdm_phy_full(self.Ho[i], self.Om_m[j], self.Om_b[k], self.sig8[l], self.ns[m], self.Tcmbo[n], self.Yp[o], self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.hmf,self.mdef, self.Z_eval, Z_temp)
-                        partial_results.append ((i, j, k, l, m, n, o, result[0], result[1], result[2]) )
-                        #changes made to misc so that tau is also output by cdm_phy_full
-                        self.comm.send(1, dest=0, tag=77)
-                elif self.sfrd_type=='semi-emp':
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i, j, k, l, m, n, o = np.unravel_index(idx, shape)
-                        result = cdm_semi_full(self.Ho[i], self.Om_m[j], self.Om_b[k], self.sig8[l], self.ns[m], self.Tcmbo[n], self.Yp[o], self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir,self.t_star,self.hmf,self.mdef, self.Z_eval,Z_temp)
-                        partial_results.append ((i, j, k, l, m, n, o, result[0], result[1], result[2]) )
-                        self.comm.send(1, dest=0, tag=77)
-                elif self.sfrd_type=='emp':
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i, j, k, l, m, n, o = np.unravel_index(idx, shape)
-                        result = cdm_emp_full(self.Ho[i], self.Om_m[j], self.Om_b[k], self.sig8[l], self.ns[m], self.Tcmbo[n], self.Yp[o], self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd, self.Z_eval, Z_temp)
-                        partial_results.append ((i, j, k, l, m, n, o, result[0], result[1], result[2]) )
-                        self.comm.send(1, dest=0, tag=77)
-
-#=========================================================================
-#=========================================================================
-
-        elif self.model==3:
-
-            if self.cpu_ind==0:
-                print_banner()
-                print('Dark matter type: cold')
-                print('\nBoth cosmological and astrophysical parameters are varied.')
-            
-            Z_temp = Z_default
-            if self.Z_eval is not None:
-                if (self.Z_eval[0]>1501 or self.Z_eval[-1]<Z_end):
-                    print('\033[31mYour requested redshift values should satisfy ',1501,'>1+z>',Z_end)
-                    print('Terminating ...\033[00m')
-                    sys.exit()
-                else:
-                    Z_temp = self.Z_eval
-
-            n_values = len(Z_temp)
-            if self.sfrd_type=='phy':                
-                params = [self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir]
-            elif self.sfrd_type=='semi-emp':
-                params = [self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.Tmin_vir, self.t_star]
-            else:
-                params = [self.Ho, self.Om_m, self.Om_b, self.sig8, self.ns, self.Tcmbo, self.Yp, self.fLy,self.sLy,self.fX,self.wX,self.fesc,self.a_sfrd]
-
-            partial_results = []
-            
-            shape = tuple(len(p) for p in params)
-            n_mod = int(np.prod(shape))
-
-            if self.cpu_ind==0:
-                #Master CPU
-                T21_cd = np.zeros((*shape,n_values))
-                xHI_cd = np.zeros((*shape,n_values))
-                tau = np.zeros(shape)
-
-                print('\nGenerating',n_mod,'models ...')
-                st = time.perf_counter()
-                done = 0
-                pbar = tqdm(total=n_mod, desc="Processing models", ncols=100)
-
-                while done < n_mod:
-                    status = MPI.Status()
-                    progress = self.comm.recv(source=MPI.ANY_SOURCE, tag=77, status=status)
-                    done += progress
-                    pbar.update(progress)
-                pbar.close()
-            else:
-                #Worker CPU
-                
-                if self.sfrd_type=='phy':
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = np.unravel_index(idx, shape)
-                        result = cdm_phy_full(self.Ho[i1], self.Om_m[i2], self.Om_b[i3], self.sig8[i4], self.ns[i5], self.Tcmbo[i6], self.Yp[i7], self.fLy[i8], self.sLy[i9], self.fX[i10], self.wX[i11], self.fesc[i12], self.Tmin_vir[i13],self.hmf,self.mdef, self.Z_eval, Z_temp)
-                        partial_results.append((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13,result[0], result[1], result[2]) )
-                        #changes made to misc so that tau is also output by cdm_phy_full
-                        self.comm.send(1, dest=0, tag=77)
-                elif self.sfrd_type=='semi-emp':
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14 = np.unravel_index(idx, shape)
-                        result = cdm_semi_full(self.Ho[i1], self.Om_m[i2], self.Om_b[i3], self.sig8[i4], self.ns[i5], self.Tcmbo[i6], self.Yp[i7], self.fLy[i8], self.sLy[i9], self.fX[i10], self.wX[i11], self.fesc[i12], self.Tmin_vir[i13],self.t_star[i14],self.hmf,self.mdef, self.Z_eval, Z_temp)
-                        partial_results.append((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13,i14,result[0], result[1], result[2]) )
-                        self.comm.send(1, dest=0, tag=77)
-                elif self.sfrd_type=='emp':
-                    for idx in range(self.cpu_ind-1, n_mod, self.n_cpu-1):
-                        i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13 = np.unravel_index(idx, shape)
-                        result = cdm_emp_full(self.Ho[i1], self.Om_m[i2], self.Om_b[i3], self.sig8[i4], self.ns[i5], self.Tcmbo[i6], self.Yp[i7], self.fLy[i8], self.sLy[i9], self.fX[i10], self.wX[i11], self.fesc[i12], self.a_sfrd[i13], self.Z_eval, Z_temp)
-                        partial_results.append((i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13,result[0], result[1], result[2]))
-                        self.comm.send(1, dest=0, tag=77)
+                    result = self.simulator(all_params_dict, xe_init= self.xe_init, Tk_init= self.Tk_init, Z_eval = self.Z_eval)
+                    
+                    partial_params.append(varying_params_only)
+                    partial_results.append(result)
+                    
+                    self.comm.send(1, dest=0, tag=77)
 
         
         self.comm.Barrier()
         gathered_results = self.comm.gather(partial_results, root=0)
+        gathered_params = self.comm.gather(partial_params, root=0)
+
         if self.cpu_ind == 0:
 
             # Flatten results
-            all_results = [item for chunk in gathered_results for item in chunk]
+            all_params  = [p for chunk in gathered_params for p in chunk]
+            all_results = [r for chunk in gathered_results for r in chunk]
 
-            for res in all_results:
-                *idx, T21_val, xHI_val, tau_val = res
-                idx = tuple(idx)
+            param_df = pd.DataFrame(all_params)
+            #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
+            T21 = np.vstack([r[0] for r in all_results])
+            xHI = np.vstack([r[1] for r in all_results])
+            tau = np.array([r[2] for r in all_results])
 
-                T21_cd[idx + (slice(None),)] = T21_val
-                xHI_cd[idx + (slice(None),)] = xHI_val
-                tau[idx] = tau_val
+            save_path = self.path + 'echo_output.h5'
+            with pd.HDFStore(save_path, mode="w") as store:
 
-            T21_save_name = self.path+'T21'
-            xHI_save_name = self.path+'xHI'
-            tau_save_name = self.path+'tau'
-            z_save_name = self.path+'one_plus_z'
-            
-            np.save(T21_save_name,T21_cd)
-            np.save(xHI_save_name,xHI_cd)
-            np.save(tau_save_name,tau)
-            np.save(z_save_name,Z_temp)
-            print('\033[32m\nOutput saved into folder:',self.path,'\033[00m')
+                # first layer
+                store.put("params", param_df)
+
+                # second layer
+                if self.Z_eval is not None:
+                    store.put("Z", pd.Series(self.Z_eval))
+                else:
+                    store.put("Z", pd.Series(self.Z_solver))
+
+                # subsequent layers
+                store.put("T21", pd.DataFrame(T21))
+                store.put("xHI", pd.DataFrame(xHI))
+                store.put("tau", pd.Series(tau))
+
+            print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
             
             et = time.perf_counter()
             # get the execution time
@@ -766,7 +435,7 @@ class pipeline():
             #Writing to a summary file
 
             myfile = self._write_summary(elapsed_time=elapsed_time)
-            myfile.write('\n{} models generated'.format(n_mod))
+            myfile.write('\n{} models generated'.format(self.N_models))
             myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
             myfile.write('\n')
             myfile.close()

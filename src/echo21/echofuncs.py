@@ -47,79 +47,57 @@ class funcs():
     Methods
     ~~~~~~~
     '''
-    def __init__(self,Ho=67.4,Om_m=0.315,Om_b=0.049,sig8=0.811,ns=0.965,Tcmbo=2.725,Yp=0.245,mx_gev=None,sigma45=None,fLy=1.0,sLy=2.64,fX=1,wX=1.5,fesc=0.0106,cosmo=None,astro=None,**kwargs):
+    def __init__(self,params=None):
         '''
         
         '''
-        if cosmo!=None:
-            Ho = cosmo['Ho']
-            Om_m = cosmo['Om_m']
-            Om_b = cosmo['Om_b']
-            sig8 = cosmo['sig8']
-            ns = cosmo['ns']
-            Tcmbo = cosmo['Tcmbo']
-            Yp = cosmo['Yp']
+        params = {} if params is None else params
+        params = {**default_params, **params}
+        
+        self.Ho = params['Ho']
+        self.Om_m = params['Om_m']
+        self.Om_b = params['Om_b']
+        self.sig8 = params['sig8']
+        self.ns = params['ns']
+        self.Tcmbo = params['Tcmbo']
+        self.Yp = params['Yp']
             
-        if astro!=None:
-            fLy = astro['fLy']
-            sLy = astro['sLy']
-            fX = astro['fX']
-            wX = astro['wX']
-            fesc = astro['fesc']
-
-        self.Ho = Ho
-        self.Om_m = Om_m
-        self.Om_b = Om_b
-        self.sig8 = sig8
-        self.ns = ns
-        self.Tcmbo = Tcmbo
-        self.Yp = Yp
-        
-        self.fLy = fLy
-        self.sLy = sLy
-        self.fX = fX
-        self.wX = wX
-        self.fesc = fesc
+        self.fLy = params['fLy']
+        self.sLy = params['sLy']
+        self.fX = params['fX']
+        self.wX = params['wX']
+        self.fesc = params['fesc']
         
         ############################################################################
         #Setting up cosmology for COLOSSUS package
-        self.cosmo_par = {'flat': True, 'H0': Ho, 'Om0': Om_m, 'Ob0': Om_b, 'sigma8': sig8, 'ns': ns,'relspecies': True,'Tcmb0': Tcmbo}
+        self.cosmo_par = {'flat': True, 'H0': self.Ho, 'Om0': self.Om_m, 'Ob0': self.Om_b, 'sigma8': self.sig8, 'ns': self.ns,'relspecies': True,'Tcmb0': self.Tcmbo}
         self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
         self.h100 = self.Ho/100
         
         ############################################################################
         #Setting up the star formation rate density related parameters and functions
-        self.sfrd_type = kwargs.pop('type', 'phy')
+        self.sfrd_type = params['type']
 
-        if self.sfrd_type == 'phy':
-            self.mdef = kwargs.pop('mdef','fof')
-            self.hmf = kwargs.pop('hmf','press74')
-            self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
+        if self.sfrd_type == 'phy' or self.sfrd_type == 'semi-emp':
+            self.hmf = params['hmf']
+            self.mdef = params['mdef']
+            self.Tmin_vir = params['Tmin_vir']
 
             if self.hmf == 'press74':
                 self._f_coll = self._f_coll_press74
             else:
                 self._f_coll = self._f_coll_nonpress74
             
-            self._sfrd = self._sfrd_phy
+            if self.sfrd_type == 'semi-emp':
+                self._sfrd = self._sfrd_semi_emp
+                self.t_star = params['t_star']
+            else:
+                self._sfrd = self._sfrd_phy
 
         elif self.sfrd_type == 'emp':
             self._sfrd = self._sfrd_emp
-            self.a_sfrd = kwargs.pop('a',0.257)
-            self.b_sfrd = kwargs.pop('b',4)
-
-        elif self.sfrd_type == 'semi-emp':
-            self.mdef = kwargs.pop('mdef','fof')
-            self.hmf = kwargs.pop('hmf','press74')
-            self.Tmin_vir = kwargs.pop('Tmin_vir',1e4)
-            self.t_star = kwargs.pop('t_star',0.5)
-
-            if self.hmf == 'press74':
-                self._f_coll = self._f_coll_press74
-            else:
-                self._f_coll = self._f_coll_nonpress74
-            
-            self._sfrd = self._sfrd_semi_emp
+            self.a_sfrd = params['a']
+            self.b_sfrd = 4.0#params['b']
 
         else:
             raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
@@ -242,9 +220,7 @@ class funcs():
         return self.Ho*(Om_r*Z**4+self.Om_m*Z**3+Om_lam)**0.5/Mpc2km
 
     #End of functions related to basic cosmology.
-    #========================================================================================================
-
-
+    #===================================================================================================
 
     def recomb_alpha(self, T):
         '''
@@ -359,8 +335,7 @@ class funcs():
         return (np.sqrt(Saha**2+4*Saha)-Saha)/2
 
     #End of functions related to recombination
-    #========================================================================================================
-    
+    #===================================================================================================    
     
     def dndlnM(self, M,Z):
         '''
@@ -508,7 +483,7 @@ class funcs():
         return self._sfrd(Z)
     
     #End of functions related to HMF and SFRD.
-    #========================================================================================================
+    #===================================================================================================
 
     def _fXh(self,xe):
         return 1-(1-xe**0.2663)**1.3163
@@ -645,9 +620,7 @@ class funcs():
         return tuple(J[0]) if np.isscalar(Z) else J
 
     #End of functions related to Lyman-alpha photons.
-    #========================================================================================================
-
-
+    #===================================================================================================
 
     def heating_Ecomp(self,Z,xe,Tk):
         '''
@@ -739,7 +712,7 @@ class funcs():
         return prefactor*self.fX*self._fXh(xe)*self.sfrd(Z)*CX_fid*CX_modifier
 
     #End of functions related to heating.
-    #========================================================================================================
+    #===================================================================================================
 
     def Gamma_x(self,Z,xe):
         '''
@@ -765,7 +738,8 @@ class funcs():
         ionization_rate = HX*(1/Ew+secondary_ionization)/eC
         return ionization_rate
 
-    #========================================================================================================
+    #===================================================================================================
+    
     def reion_clump(self,Z):
         '''
         Clumping factor for the ionization of hydrogen. From `Shull et al. (2012) <https://iopscience.iop.org/article/10.1088/0004-637X/747/2/100>`__.
@@ -803,7 +777,7 @@ class funcs():
 
         return tau
     #End of functions related to reionization.
-    #========================================================================================================
+    #===================================================================================================
     
     def _igm_eqns_cdm(self, Z,V):
         xe = V[0]
@@ -832,17 +806,13 @@ class funcs():
         '''
         return self._igm_eqns(Z,V)
 
-    def _igm_solver_cdm(self, Z_eval, xe_init = None, Tk_init = None):
+    def _igm_solver_cdm(self, Z_solver, xe_init, Tk_init):
 
         #Assuming Z_eval is in decreasing order.
-        Z_start = Z_eval[0]
-        Z_end = Z_eval[-1]
-
-        if Z_start == 1501:
-            Tk_init = self.basic_cosmo_Tcmb(Z_start)
-            xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
+        Z_start = Z_solver[0]
+        Z_end = Z_solver[-1]
             
-        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init],method='Radau',t_eval=1/Z_eval)
+        Sol = scint.solve_ivp(lambda a, Var: -self.igm_eqns(1/a,Var)/a, [1/Z_start, 1/Z_end],[xe_init,Tk_init],method='Radau',t_eval=1/Z_solver)
 
         #Obtaining the solutions ...
         xe = Sol.y[0]
@@ -850,11 +820,16 @@ class funcs():
 
         return [xe,Tk]
 
-    def igm_solver(self,Z_eval,**kwargs):
+    def igm_solver(self,Z_solver, xe_init, Tk_init):
         '''
         This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved.
+
+        Arguments
+        ---------
+        Z_solver: array
+            This is one of three redshift arrays for which the ODEs will be simultaneously solved. For the case 'astro', it should be Z_cd. For 'astro' case you also need to solve dark ages once. In which case Z_solver = Z_da. For all other cases, Z_solver = Z_default. 
         '''
-        return self._igm_solver(Z_eval,**kwargs)
+        return self._igm_solver(Z_solver, xe_init, Tk_init)
     
     def reion_eqn(self,Z,QHii):
         '''
@@ -899,7 +874,7 @@ class funcs():
         return QHii
     
     #End of functions related to history equations.
-    #========================================================================================================
+    #===================================================================================================
 
     def hyfi_kHH(self,Tk):
         '''
@@ -1067,5 +1042,5 @@ class funcs():
         return 27*xHI*((1-self.Yp)/0.76)*(self.Om_b*self.h100**2/0.023)*np.sqrt(0.15*Z/(10*self.Om_m*self.h100**2))*(1-self.basic_cosmo_Tcmb(Z)/Ts)
 
 #End of class echofuncs.
-#========================================================================================================
-#========================================================================================================
+#=======================================================================================================
+#=======================================================================================================
