@@ -45,7 +45,7 @@ The following code more or less captures the main functionalities of this packag
    from echo21 import echopipeline
 
    pipe = echopipeline.pipeline()
-   pipe.glob_sig()
+   pipe.run_simulation()
 
 Save the above code as (say) ``my_echo_script.py`` and run it as
 
