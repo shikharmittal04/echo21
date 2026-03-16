@@ -1,3 +1,10 @@
+"""
+echofuncs
+=========
+This module contains class funcs.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+"""
 import scipy.special as scsp
 import scipy.integrate as scint
 from scipy.interpolate import RectBivariateSpline
@@ -44,6 +51,11 @@ class funcs():
     Function names starting with 'hyfi' include all the functions related to the computation of 21-cm signal. These are
     :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\mathrm{Ly}}, T_{\\mathrm{s}}` and :math:`T_{21}`.
 
+    Arguments
+    ~~~~~~~~~
+    params: dict
+        A dictionary containing all the cosmological and astrophysical parameters.
+    
     Methods
     ~~~~~~~
     '''
@@ -784,7 +796,7 @@ class funcs():
             he_factor = (1 + np.where(Z < 5, 2 * xHe, xHe))
             return prefac*he_factor*spl(Z)*Z**2/self.basic_cosmo_H(Z)
 
-        Z_int = np.linspace(1,Z,100)
+        Z_int = np.linspace(1,Z,60)
         tau = scint.trapezoid(dtaudz(Z_int),Z_int,axis=0)
 
         return tau
@@ -1054,5 +1066,5 @@ class funcs():
         return 27*xHI*((1-self.Yp)/0.76)*(self.Om_b*self.h100**2/0.023)*np.sqrt(0.15*Z/(10*self.Om_m*self.h100**2))*(1-self.basic_cosmo_Tcmb(Z)/Ts)
 
 #End of class echofuncs.
-#=======================================================================================================
-#=======================================================================================================
+#======================================================================================================
+#======================================================================================================

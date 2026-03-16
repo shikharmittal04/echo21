@@ -1,3 +1,7 @@
+"""
+This module contains the functions required for running IGM solver for one set of parameters.
+"""
+
 import numpy as np
 from scipy.interpolate import CubicSpline
 from .echofuncs import funcs
@@ -6,7 +10,25 @@ from .const import  Z_start, Z_cd, flipped_Z_cd, Z_default, flipped_Z_default
 
 def cosmic_dawn_beyond(params_dict, xe_init, Tk_init, Z_eval=None):
     '''
-    Cosmic dawn only
+    Runs IGM solver starting from cosmic dawn until today, i.e., for :math:`z_{\\star} > z`.
+
+    Arguments
+    ---------
+    params_dict: dict
+        Dictionary containing all the parameters.
+    
+    xe_init: float
+        Initial condition for electron fraction, i.e., :math:`x_{\\mathrm{e}}` at :math:`z = z_{\\star}`.
+    
+    Tk_init: float
+        Initial condition for gas temperature, i.e., :math:`T_{\\mathrm{k}}` at :math:`z = z_{\\star}`.
+    
+    Z_eval: float
+        Array of :math:`1+z` where you want to compute the quantities. Default is ``Z_cd``.
+    
+    Returns
+    -------
+    21-cm signal, global-averaged neutral hydrogen fraction, and optical depth.
     '''
     myobj_cd = funcs(params_dict)
     sol_cd = myobj_cd.igm_solver(Z_solver=Z_cd, xe_init=xe_init, Tk_init=Tk_init)
@@ -36,7 +58,19 @@ def cosmic_dawn_beyond(params_dict, xe_init, Tk_init, Z_eval=None):
 
 def dark_ages_to_today(params_dict, xe_init, Tk_init, Z_eval=None):
     '''
-    Dark ages to today.
+    Runs IGM solver starting from :math:`z=1500` to today. Note that arguments ``xe_init`` and ``Tk_init`` are provided only to match the signiture for :py:func:`cosmic_dawn_beyond`. The initial condition is calculated from Saha's equation at :math:`z=1500`. 
+
+    Arguments
+    ---------
+    params_dict: dict
+        Dictionary containing all the parameters.
+    
+    Z_eval: float
+        Array of :math:`1+z` where you want to compute the quantities. Default is ``Z_default``.
+    
+    Returns
+    -------
+    21-cm signal, global-averaged neutral hydrogen fraction, and optical depth.
     '''
     myobj = funcs(params_dict)
     Tk_init = myobj.basic_cosmo_Tcmb(Z_start)

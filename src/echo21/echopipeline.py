@@ -1,10 +1,15 @@
+"""
+echopipeline
+============
+This module contains the class pipeline.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+"""
 import pandas as pd
 import numpy as np
 from mpi4py import MPI
 from mpi4py.util import pkl5
-import sys
-import time
-import os
+import os, sys, time
 from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from tqdm import tqdm
@@ -18,53 +23,59 @@ from .misc import *
 
 class pipeline():
     '''
-    This class runs the cosmic history solver and produces the global signal and the corresponding redshifts. There are 3 inputs required for a complete specification -- cosmological parameters, astrophysical parameter, and star formation related parameters. They are supplied through arguments, ``cosmo``, ``astro``, and ``sfrd``, respectively. The notation for the parameters is as follows. All of these need to be dictionaries. For example:
+    This class runs the cosmic history solver and produces the global signal, globally-averaged nuetral hydrogen fraction, optical depth and the corresponding redshifts. There are three inputs required for a complete specification -- cosmological parameters, astrophysical parameter, and star formation related parameters. They are supplied through arguments, ``cosmo``, ``astro``, and ``sfrd``, respectively. The notation for the parameters is as follows. All of these need to be dictionaries. For example:
 
-    cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245},
-    astro = {'fLy':1,'sLy' : 2.64,'fX':1,'wX':1.5, 'fesc':0.0106},
-    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
-    
-    Parameters
-    ~~~~~~~~~~
-
-    Ho : float, optional
-        Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
-    
-    Om_m : float, optional
-        Relative matter density. Default value ``0.315``.
-    
-    Om_b : float, optional
-        Relative baryon density. Default value ``0.049``.            
-    
-    sig8 : float, optional
-        Amplitude of density fluctuations. Default value ``0.811``.
-    
-    ns : float, optional
-        Spectral index of the primordial scalar spectrum. Default value ``0.965``. 
-
-    Tcmbo : float, optional
-        CMB temperature today in kelvin. Default value ``2.725``.
-    
-    Yp : float, optional
-        Primordial helium fraction by mass. Default value ``0.245``.
-    
-    fLy : float, optional
-        :math:`f_{\\mathrm{Ly}}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value ``1.0``.
-    
-    sLy : float, optional
-        :math:`s`, spectral index of Lyman series SED, when expressed as :math:`\\epsilon\\propto E^{-s}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``2.64``.
-
-    fX : float, optional
-        :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value ``1``.
-    
-    wX : float, optional
-        :math:`w`, spectral index of X-ray SED, when expressed as :math:`\\epsilon\\propto E^{-w}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``1.5``.
-
-    fesc : float, optional
-        :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionizing photons. Default value ``0.01``.
-
-    sfrd : dictionary, optional
+    .. code:: python
         
+        cosmo = {'Ho':67.4, 'Om_m':0.315, 'Om_b':0.049, 'sig8':0.811, 'ns':0.965, 'Tcmbo':2.725, 'Yp':0.245},
+        astro = {'fLy':1, 'sLy' : 2.64, 'fX':1, 'wX':1.5, 'fesc':0.01},
+        sfrd = {'type':'phy', 'hmf':'press74', 'mdef':'fof', 'Tmin_vir':1e4}
+    
+    Arguments
+    ---------
+    cosmo: dict
+        Dictionary of cosmological parameters. They are:
+
+        Ho : float, optional
+            Hubble parameter today in units of :math:`\\mathrm{km\\,s^{-1}\\,Mpc^{-1}}`. Default value ``67.4``.
+        
+        Om_m : float, optional
+            Relative matter density. Default value ``0.315``.
+        
+        Om_b : float, optional
+            Relative baryon density. Default value ``0.049``.            
+        
+        sig8 : float, optional
+            Amplitude of density fluctuations. Default value ``0.811``.
+        
+        ns : float, optional
+            Spectral index of the primordial scalar spectrum. Default value ``0.965``. 
+
+        Tcmbo : float, optional
+            CMB temperature today in kelvin. Default value ``2.725``.
+        
+        Yp : float, optional
+            Primordial helium fraction by mass. Default value ``0.245``.
+    
+    astro: dict
+        Dictionary of cosmological parameters. They are:
+
+        fLy : float, optional
+            :math:`f_{\\mathrm{Ly}}`, a dimensionless parameter which controls the emissivity of the Lyman series photons. Default value ``1.0``.
+        
+        sLy : float, optional
+            :math:`s`, spectral index of Lyman series SED, when expressed as :math:`\\epsilon\\propto E^{-s}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``2.64``.
+
+        fX : float, optional
+            :math:`f_{\\mathrm{X}}`, a dimensionless parameter which controls the emissivity of the X-ray photons. Default value ``1.0``.
+        
+        wX : float, optional
+            :math:`w`, spectral index of X-ray SED, when expressed as :math:`\\epsilon\\propto E^{-w}`. :math:`\\epsilon` is energy emitted per unit energy range and per unit volume. Default value ``1.5``.
+
+        fesc : float, optional
+            :math:`f_{\\mathrm{esc}}`, a dimensionless parameter which controls the escape fraction of the ionizing photons. Default value ``0.01``.
+
+    sfrd : dict
         This should be a dictionary containing all the details of SFRD.
         
         type : str, optional
@@ -90,6 +101,10 @@ class pipeline():
 
         a : float, optional
             Power law index for the SFRD in the empirical model. Default value ``0.257``. (This is only relevant for the empirical SFRD model.)
+    
+    Z_eval: float
+        Array of :math:`1+z` where you want to compute the quantities.
+        
     Methods
     ~~~~~~~
     '''
@@ -98,11 +113,10 @@ class pipeline():
         if cosmo is None:
             cosmo = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245}
         if astro is None:
-            astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.0106}
+            astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.01}
         if sfrd is None:
             sfrd = {'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
 
-        
         self.comm = pkl5.Intracomm(MPI.COMM_WORLD)
         self.cpu_ind = self.comm.Get_rank()
         self.n_cpu = self.comm.Get_size()
@@ -119,7 +133,7 @@ class pipeline():
         sfrd_var, sfrd_fixed   = split_params(self.sfrd)
 
         self.var_params = {**cosmo_var, **astro_var, **sfrd_var}
-        self.fixed_params = {**cosmo_fixed, **astro_fixed, **sfrd_fixed}#add defaults here
+        self.fixed_params = {**cosmo_fixed, **astro_fixed, **sfrd_fixed}
 
         self.param_names = list(self.var_params.keys())
         self.param_arrays = [self.var_params[k] for k in self.param_names]
@@ -193,67 +207,6 @@ class pipeline():
             self.formatted_timestamp = self.timestamp[9:11]+':'+self.timestamp[11:13]+':'+self.timestamp[13:15]+' '+self.timestamp[6:8]+'/'+self.timestamp[4:6]+'/'+ self.timestamp[:4]
 
             save_pipeline(self,'pipe')
-        return None
-
-    def params_from_index(self, idx):
-        inds = np.unravel_index(idx, self.shape)
-
-        all_params = self.fixed_params.copy()
-        varying_params_only = {}
-
-        for name, i, arr in zip(self.param_names, inds, self.param_arrays):
-            all_params[name] = arr[i]
-            varying_params_only[name] = arr[i]
-
-        return all_params, varying_params_only
-
-    def _write_summary(self, elapsed_time):
-        '''
-        Given the elapsed time of the code execution write the main summary of the run.
-        '''
-        sumfile = self.path+"summary_"+self.timestamp+".txt"
-        myfile = open(sumfile, "w")
-        myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
-██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
-█████╗  ██║     ███████║██║   ██║ █████╔╝╚██║
-██╔══╝  ██║     ██╔══██║██║   ██║██╔═══╝  ██║
-███████╗╚██████╗██║  ██║╚██████╔╝███████╗ ██║
-╚══════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═╝\n''')
-        myfile.write('Shikhar Mittal, 2026\n')
-        myfile.write('\nThis is output_'+self.timestamp)
-        myfile.write('\n------------------------------\n')
-        myfile.write('\nTime stamp: '+self.formatted_timestamp)
-        myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
-        myfile.write('\n\n')
-        myfile.write('Dark matter type: cold')
-        myfile.write('\nSimulation type: '+self.message)
-        myfile.write('\n\nParameters given:\n')
-        myfile.write('-----------------')
-        [myfile.write('\n{} = {}'.format(k, v)) for k, v in self.cosmo.items()]
-        myfile.write('\n')
-        [myfile.write('\n{} = {}'.format(k, v)) for k, v in self.astro.items()]
-        
-        myfile.write('\n\nSFRD')
-        [myfile.write('\n  {} = {}'.format(k, v)) for k, v in self.sfrd.items()]
-        
-        myfile.write('\n')
-        return myfile
-
-    def print_input(self):
-        '''Prints the input parameters you gave.'''
-
-        print('Dark matter type: cold')
-
-        print('\n\033[93mParameters given:\n')
-        print('-----------------\n')
-        [print('\n{} = {}'.format(k, v)) for k, v in self.cosmo.items()]
-        print('\n')
-        [print('\n{} = {}'.format(k, v)) for k, v in self.astro.items()]
-        
-        print('\n\nSFRD')
-        [print('\n  {} = {}'.format(k, v)) for k, v in self.sfrd.items()]
-        print('\033[00m\n')
-
         return None
     
     def run_simulation(self):
@@ -334,7 +287,7 @@ class pipeline():
 
                 #========================================================
                 #Writing to a summary file
-                myfile = self._write_summary(elapsed_time=elapsed_time)
+                myfile = write_summary(self, elapsed_time=elapsed_time)
 
                 try:
                     max_T21 = np.min(T21)
@@ -381,7 +334,7 @@ class pipeline():
             else:
                 #Worker CPU
                 for idx in range(self.cpu_ind-1, self.N_models, self.n_cpu-1):
-                    all_params_dict, varying_params_only = self.params_from_index(idx)
+                    all_params_dict, varying_params_only = params_from_index(self, idx)
 
                     result = self.simulator(all_params_dict, xe_init= self.xe_init, Tk_init= self.Tk_init, Z_eval = self.Z_eval)
                     
@@ -434,7 +387,7 @@ class pipeline():
             #========================================================
             #Writing to a summary file
 
-            myfile = self._write_summary(elapsed_time=elapsed_time)
+            myfile = write_summary(self, elapsed_time=elapsed_time)
             myfile.write('\n{} models generated'.format(self.N_models))
             myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
             myfile.write('\n')
@@ -443,6 +396,7 @@ class pipeline():
 
             print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
         return None
-    #End of function glob_sig               
+    
+    #End of function run_simulation               
 #End of class pipeline
-#========================================================================================================
+#=======================================================================================================

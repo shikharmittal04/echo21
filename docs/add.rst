@@ -9,18 +9,20 @@ Related to 21-cm signal computation, ``ECHO21`` can be used to calculate Ly :mat
 Saving & loading pipeline object
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Suppose you want to save the :class:`echopipeline.pipeline` class object ``myobj`` (see section :ref:`single`) and reuse it for later purpose or simply want to check what parameters you gave. You can do this using the saving and loading functions available in the module :mod:`echopipeline`. To save, put the following in your script
+Suppose you want to save the :class:`echopipeline.pipeline` class object ``myobj`` (see section :ref:`single`) and reuse it for later purpose or simply want to check what parameters you gave. You can do this using the saving and loading functions available in the module :mod:`misc`. To save, put the following in your script
 
 .. code:: python
     
-    save_pipeline(myobj, 'myechoobj')
+    from echo21 import misc
+    misc.save_pipeline(myobj, 'myechoobj')
 
-where ``myechoobj`` is the name of the object file. If you check your ``output_*`` folder it will contain a file ``myechoobj.pkl``. Note that when you define class object :class:`echopipeline.pipeline`, the object is automatically saved, so you may never need to save it by yourself.
+where ``myechoobj`` is the name of the object file. It will be available in your ``output_*`` folder. Note that when you define class object :class:`echopipeline.pipeline`, the object is automatically saved (``pipe.pkl``), so you may never need to save it by yourself.
 
 Now if you want to load it later, then put the following in your script
 
 .. code:: python
 
-    myobj=load_pipeline('/full/path/to/myechoobj.pkl')
+    from echo21 import misc
+    myobj = misc.load_pipeline('/full/path/to/myechoobj.pkl')
 
 where you need to supply the full path to your file ``myechoobj.pkl``.
