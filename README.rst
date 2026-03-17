@@ -66,7 +66,6 @@ License and citation
 --------------------
 The software is free to use on the MIT open-source license. If you use the software then please cite `Mittal et al (2026) <https://doi.org/10.1093/rasti/rzag001>`_.
 
-Contact
--------
+If the code is used in a project where the author has provided significant scientific input, guidance on methodology, or assistance with interpretation of results, then co-authorship on resulting publications is expected, following standard academic practice.
 
-In case of any confusion or suggestions for improvement please do not hesitate to contact me.
+Users are encouraged to contact the author when using the code for new scientific applications or major projects.
