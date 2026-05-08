@@ -2,6 +2,9 @@
 Beyond standard model cosmologies
 ---------------------------------
 
+:Authors: `Shikhar Mittal <https://sites.google.com/view/shikharmittal/home>`_ and Prakhar Bansal
+:Paper: `Mittal et al (2026) <https://arxiv.org/abs/2605.00991>`_
+
 Interacting dark matter model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
