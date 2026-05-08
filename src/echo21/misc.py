@@ -160,7 +160,7 @@ def write_summary(pipe, elapsed_time):
     myfile.write('\nTime stamp: '+pipe.formatted_timestamp)
     myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
     myfile.write('\n\n')
-    myfile.write('Dark matter type: cold')
+    myfile.write('Dark matter type: {}\n'.format(pipe.dm_model))
     myfile.write('\nSimulation type: '+pipe.message)
     myfile.write('\n\nParameters given:\n')
     myfile.write('-----------------')
@@ -177,7 +177,7 @@ def write_summary(pipe, elapsed_time):
 def print_input(pipe):
     '''Prints the input parameters you gave.'''
 
-    print('Dark matter type: cold')
+    print(f'Dark matter type: {pipe.dm_model}')
 
     print('\n\033[93mParameters given:\n')
     print('-----------------\n')

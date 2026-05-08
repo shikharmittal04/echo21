@@ -123,6 +123,8 @@ class pipeline():
         
         self.Z_eval = Z_eval
 
+        self.dm_model = 'IDM' if {'mx_gev', 'sigma45'} & cosmo.keys() else 'CDM'
+
         self.cosmo = ensure_array_dict(cosmo)
         self.astro = ensure_array_dict(astro)
         # sfrd contains strings → ignore them
@@ -152,17 +154,16 @@ class pipeline():
             Z_init = Z_start
 
         elif not cosmo_varying and astro_varying:
-            obj_dark_ages = funcs(self.fixed_params)
-            Tk_init = obj_dark_ages.basic_cosmo_Tcmb(Z_start)
-            xe_init = obj_dark_ages.recomb_Saha_xe(Z_start,Tk_init)
-            sol_da = obj_dark_ages.igm_solver(Z_solver=Z_da, xe_init=xe_init, Tk_init=Tk_init)
-            xe_da = sol_da[0]
-            Tk_da = sol_da[1]
-            
+            obj_dark_ages = funcs(self.fixed_params, dm_model=self.dm_model)
+            ic_da = obj_dark_ages.initial_conditions()
+
+            sol_da = obj_dark_ages.igm_solver(Z_da, *ic_da)
+            self.initial_conditions = tuple(x[-1] for x in sol_da)
+
             self.run_type='astro'
             self.message = 'cosmological parameters are fixed. Astrophysical parameters are varied.'
             self.Z_solver = Z_cd
-            self.xe_init, self.Tk_init = xe_da[-1] , Tk_da[-1]
+            
             self.simulator = cosmic_dawn_beyond
             Z_init = Zstar
         
@@ -170,7 +171,7 @@ class pipeline():
             self.run_type='else'
             self.message = 'cosmological parameters are varied.\n'
             self.Z_solver = Z_default           
-            self.xe_init, self.Tk_init = None , None
+            self.initial_conditions = (None , None, None, None)
             self.simulator = dark_ages_to_today
             Z_init = Z_start
         #---------------------------------------------------------------------------------
@@ -221,18 +222,20 @@ class pipeline():
                 st = time.perf_counter()
                 
                 print_banner()
-                print('Dark matter type: cold')
+                print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
                 
-                myobj = funcs(self.fixed_params)
-                Tk_init = myobj.basic_cosmo_Tcmb(Z_start)
-                xe_init = myobj.recomb_Saha_xe(Z_start,Tk_init)
+                myobj = funcs(self.fixed_params, dm_model=self.dm_model)
+                ic = myobj.initial_conditions()
 
                 print('Obtaining the thermal and ionisation history ...')
-                sol = myobj.igm_solver(Z_solver=Z_default, xe_init=xe_init, Tk_init = Tk_init)
+                sol = myobj.igm_solver(Z_default, *ic)
                 
                 xe = sol[0]
                 Tk = sol[1]
+                if self.dm_model == 'IDM':
+                    Tx = sol[2]
+                    ln_v_bx = sol[3]
 
                 Q_Hii = myobj.QHii
                 Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
@@ -244,7 +247,10 @@ class pipeline():
                     xe = CubicSpline(flipped_Z_default, np.flip(xe))(self.Z_eval)
                     Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
                     Tk = CubicSpline(flipped_Z_default, np.flip(Tk))(self.Z_eval)
-                    
+                    if self.dm_model == 'IDM':
+                        Tx = CubicSpline(flipped_Z_default, np.flip(Tx))(self.Z_eval)
+                        ln_v_bx = CubicSpline(flipped_Z_default, np.flip(ln_v_bx))(self.Z_eval)
+
                     print('Obtaining spin temperature ...')
                     Ts = myobj.hyfi_spin_temp(Z=self.Z_eval,xe=xe,Tk=Tk)
                     
@@ -277,7 +283,13 @@ class pipeline():
                 np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(x))
                 np.save(T21_save_name,T21)
                 np.save(z_save_name,x)
-               
+
+                if self.dm_model == 'IDM':
+                    Tx_save_name = self.path+'Tx'
+                    v_bx_save_name = self.path+'v_bx'
+                    np.save(Tx_save_name,Tx)
+                    np.save(v_bx_save_name,np.exp(ln_v_bx))
+
                 print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
                 
                 et = time.perf_counter()
@@ -318,7 +330,7 @@ class pipeline():
             if self.cpu_ind==0:
                 #Master CPU
                 print_banner()
-                print('Dark matter type: cold')
+                print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
                 print('\nGenerating',self.N_models,'models ...')
                 st = time.perf_counter()
@@ -336,7 +348,7 @@ class pipeline():
                 for idx in range(self.cpu_ind-1, self.N_models, self.n_cpu-1):
                     all_params_dict, varying_params_only = params_from_index(self, idx)
 
-                    result = self.simulator(all_params_dict, xe_init= self.xe_init, Tk_init= self.Tk_init, Z_eval = self.Z_eval)
+                    result = self.simulator(all_params_dict, *self.initial_conditions, Z_eval = self.Z_eval, dm_model=self.dm_model)
                     
                     partial_params.append(varying_params_only)
                     partial_results.append(result)
