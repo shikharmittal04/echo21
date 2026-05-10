@@ -45,9 +45,9 @@ Zstar = 60 #redshift of the beginning of star formation
 Z_start = 1501
 Z_end = 1
 
-Z_da = np.linspace(Z_start,Zstar+0.1,2000)
+Z_da = np.linspace(Z_start,Zstar,2001)
 Z_cd = np.concatenate((1/np.linspace(1/Zstar,1/5.05,200),1/np.linspace(1/5,1/Z_end,100)))
-Z_default = np.concatenate((Z_da,Z_cd))
+Z_default = np.concatenate((Z_da[:-1],Z_cd))
 
 flipped_Z_default = np.flip(Z_default)
 flipped_Z_cd = np.flip(Z_cd)

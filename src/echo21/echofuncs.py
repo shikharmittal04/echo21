@@ -125,7 +125,8 @@ class funcs():
         self.h100 = self.Ho/100
         
         ############################################################################
-        self._igm_eqns = self._igm_eqns_cdm
+        self.igm_eqns_da = self._igm_eqns_cdm_da
+        self.igm_eqns_cd = self._igm_eqns_cdm_cd
 
         self.dm_model = dm_model
         if dm_model == 'IDM':
@@ -159,9 +160,10 @@ class funcs():
             self.rbs = RectBivariateSpline(zvals, halomass_vals, log_fcoll_slice)
 
             self._f_coll = self._f_coll_idm
-            self._igm_eqns = self._igm_eqns_idm        
-        
-        ############################################################################        
+            self.igm_eqns_da = self._igm_eqns_idm_da
+            self.igm_eqns_cd = self._igm_eqns_idm_cd
+
+        ############################################################################
         #Solve reionization at initialization itself        
 
         self.QHii = self.reion_solver()
@@ -1078,78 +1080,85 @@ class funcs():
         ic = (xe_init,Tk_init,Tx_init,ln_vbx_init) if self.dm_model == 'IDM' else (xe_init,Tk_init)
         return ic
 
-    def _igm_eqns_cdm(self, Z,V):
+    def _igm_eqns_cdm_da(self, Z, V):
+        '''
+        Differential equations for the IGM in the CDM model during the dark ages phase.
+        '''
         xe = V[0]
         Tk = V[1]
-        
-        #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).            
-
-        #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
-        
-        if Z>Zstar:
-            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
-
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
-        else:
-            if xe<0.99:
-                eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
-            else:
-                eq1 = 0.0
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
-        
+        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
+        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
         return np.array([eq1,eq2])
-    
-    def _igm_eqns_idm(self, Z,V):
+
+    def _igm_eqns_cdm_cd(self, Z, V):
+        '''
+        Differential equations for the IGM in the CDM model during the cosmic dawn phase.
+        '''
+        xe = V[0]
+        Tk = V[1]
+        if xe<0.99:
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
+        else:
+            eq1 = 0.0
+        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
+        return np.array([eq1,eq2])
+
+    def _igm_eqns_idm_da(self, Z, V):
+        '''
+        Differential equations for the IGM in the IDM model during the dark ages phase.
+        '''
         xe = V[0]
         Tk = V[1]
         Tx = V[2]
-        ln_v_bx= V[3]
-        
+        ln_v_bx = V[3]
         v_bx = np.exp(np.clip(ln_v_bx, -300, None))
-        #eq1 is (1+z)d(xe)/dz; see Weinberg's Cosmology book or eq.(71) from Seager et al (2000), ApJSS. Addtional correction based on Chluba et al (2015).            
-
-        #eq2 is (1+z)dT/dz; see eq.(2.31) from Mittal et al (2022), JCAP
         H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
-        if Z>Zstar:
-            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
-
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b
-        else:
-            if xe<0.99:
-                eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
-            else:
-                eq1 = 0.0
-            eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
-
-        #eq3 is (1+z)dTx/dz;
+        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
+        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
-        
-        #eq4 is (1+z)d ln(v_bx)/dz;
         eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
         return np.array([eq1,eq2,eq3,eq4])
-    
-    
-    def igm_eqns(self, Z,V):
-        '''
-        This function has the differential equations governing the ionization and thermal history of the bulk of IGM. When solving upto the end of dark ages, only cosmological parameters will be used. Beyond ``Zstar``, i.e., after the beginning of cosmic dawn astrophysical will also be used.
-        '''
-        return self._igm_eqns(Z,V)
 
-    def igm_solver(self, Z_solver, *initial_conditions):
+    def _igm_eqns_idm_cd(self, Z, V):
+        '''
+        Differential equations for the IGM in the IDM model during the cosmic dawn phase.
+        '''
+        xe = V[0]
+        Tk = V[1]
+        Tx = V[2]
+        ln_v_bx = V[3]
+        v_bx = np.exp(np.clip(ln_v_bx, -300, None))
+        H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
+        if xe<0.99:
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
+        else:
+            eq1 = 0.0
+        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
+        eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
+        eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        return np.array([eq1,eq2,eq3,eq4])
+
+
+    def igm_solver(self, Z_solver, *initial_conditions, eqns_func):
         '''
         This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved. Note that in case of IDM, the last value of the solution array is ln(v_bx) and not v_bx itself.
 
         Arguments
         ---------
         Z_solver: array
-            This is one of three redshift arrays for which the ODEs will be simultaneously solved. For the case 'astro', it should be Z_cd. For 'astro' case you also need to solve dark ages once. In which case Z_solver = Z_da. For all other cases, Z_solver = Z_default. 
+            Redshift array (decreasing) over which to solve. Use Z_da for dark ages, Z_cd for cosmic dawn, or Z_default for the full range.
+
+        initial_conditions: tuple
+            Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, Tk_init). For IDM, the tuple is (xe_init, Tk_init, Tx_init, ln_vbx_init). Use self.initial_conditions() to get the initial conditions for the start of the solver.
+        
+        eqns_func: callable, optional
+            The RHS function to pass to the ODE solver. Either dark ages or cosmic dawn.
         '''
-        # Assuming Z_solver is in decreasing order
         Z_start = Z_solver[0]
         Z_end   = Z_solver[-1]
 
         Sol = scint.solve_ivp(
-            lambda a, Var: -self.igm_eqns(1/a, Var) / a,
+            lambda a, Var: -eqns_func(1/a, Var) / a,
             [1 / Z_start, 1 / Z_end],
             list(initial_conditions),
             method='Radau',

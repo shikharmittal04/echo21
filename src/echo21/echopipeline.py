@@ -157,7 +157,7 @@ class pipeline():
             obj_dark_ages = funcs(self.fixed_params, dm_model=self.dm_model)
             ic_da = obj_dark_ages.initial_conditions()
 
-            sol_da = obj_dark_ages.igm_solver(Z_da, *ic_da)
+            sol_da = obj_dark_ages.igm_solver(Z_da, *ic_da, obj_dark_ages.igm_eqns_da)
             self.initial_conditions = tuple(x[-1] for x in sol_da)
 
             self.run_type='astro'
@@ -229,19 +229,20 @@ class pipeline():
                 ic = myobj.initial_conditions()
 
                 print('Obtaining the thermal and ionisation history ...')
-                sol = myobj.igm_solver(Z_default, *ic)
-                
-                xe = sol[0]
-                Tk = sol[1]
-                if self.dm_model == 'IDM':
-                    Tx = sol[2]
-                    ln_v_bx = sol[3]
+                sol_da = myobj.igm_solver(Z_da, *ic, myobj.igm_eqns_da)
+                ic_cd = tuple(s[-1] for s in sol_da)
+                sol_cd = myobj.igm_solver(Z_cd, *ic_cd, myobj.igm_eqns_cd)
+
+                xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
+                Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
 
                 Q_Hii = myobj.QHii
-                Q_Hii = np.concatenate((np.zeros(2000),Q_Hii))
+                Q_Hii = np.concatenate((np.zeros(len(Z_da)-1), Q_Hii))
+                
+                if self.dm_model == 'IDM':
+                    Tx = np.concatenate([sol_da[2][:-1], sol_cd[2]])
+                    ln_v_bx = np.concatenate([sol_da[3][:-1], sol_cd[3]])
 
-                #Because of the stiffness of the ODE at high z, we need to smoothen Tk.
-                Tk[0:1806] = smoother(Z_default[0:1806],Tk[0:1806])
 
                 if self.Z_eval is not None:
                     xe = CubicSpline(flipped_Z_default, np.flip(xe))(self.Z_eval)
