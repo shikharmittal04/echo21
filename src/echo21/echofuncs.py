@@ -1163,8 +1163,10 @@ class funcs():
         '''
         This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved.
         Note the following two points:
-        - For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`\\delta_T = (T_{\\mathrm{k}}-T_{\\gamma})/T_{\\gamma}`.
-        - In case of IDM, the last value of the solution array is :math:`\\ln v_{\\mathrm{b}\\chi}` and not :math:`v_{\\mathrm{b}\\chi}` itself.
+        
+            1. For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`\\delta_T = (T_{\\mathrm{k}}-T_{\\gamma})/T_{\\gamma}`.
+        
+            2. In case of IDM, the last value of the solution array is :math:`\\ln v_{\\mathrm{b}\\chi}` and not :math:`v_{\\mathrm{b}\\chi}` itself.
 
         Arguments
         ---------
