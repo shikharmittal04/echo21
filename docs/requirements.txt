@@ -9,3 +9,4 @@ sphinx-autoapi
 requests
 tqdm
 pandas
+tables

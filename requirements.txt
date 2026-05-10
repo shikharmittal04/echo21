@@ -6,3 +6,4 @@ pybaselines
 requests
 tqdm
 pandas
+tables
