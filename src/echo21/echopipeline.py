@@ -157,7 +157,7 @@ class pipeline():
             obj_dark_ages = funcs(self.fixed_params, dm_model=self.dm_model)
             ic_da = obj_dark_ages.initial_conditions()
 
-            sol_da = obj_dark_ages.igm_solver(Z_da, *ic_da, obj_dark_ages.igm_eqns_da)
+            sol_da = obj_dark_ages.igm_solver(Z_da, *ic_da, eqns_func=obj_dark_ages.igm_eqns_da)
             self.initial_conditions = tuple(x[-1] for x in sol_da)
 
             self.run_type='astro'
@@ -229,9 +229,9 @@ class pipeline():
                 ic = myobj.initial_conditions()
 
                 print('Obtaining the thermal and ionisation history ...')
-                sol_da = myobj.igm_solver(Z_da, *ic, myobj.igm_eqns_da)
+                sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
                 ic_cd = tuple(s[-1] for s in sol_da)
-                sol_cd = myobj.igm_solver(Z_cd, *ic_cd, myobj.igm_eqns_cd)
+                sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
 
                 xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
                 Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])

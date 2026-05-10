@@ -32,7 +32,7 @@ def cosmic_dawn_beyond(params_dict, *initial_conditions, Z_eval=None, dm_model='
     21-cm signal, global-averaged neutral hydrogen fraction, and optical depth.
     '''
     myobj_cd = funcs(params_dict, dm_model=dm_model)
-    sol_cd = myobj_cd.igm_solver(Z_cd, *initial_conditions, myobj_cd.igm_eqns_cd)
+    sol_cd = myobj_cd.igm_solver(Z_cd, *initial_conditions, eqns_func=myobj_cd.igm_eqns_cd)
     
     xe_cd = sol_cd[0]
     Tk_cd = sol_cd[1]
@@ -80,9 +80,9 @@ def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='
     myobj = funcs(params_dict, dm_model=dm_model)
     ic = myobj.initial_conditions()
 
-    sol_da = myobj.igm_solver(Z_da, *ic, myobj.igm_eqns_da)
+    sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
     ic_cd = tuple(s[-1] for s in sol_da)
-    sol_cd = myobj.igm_solver(Z_cd, *ic_cd, myobj.igm_eqns_cd)
+    sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
 
     xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
     Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
