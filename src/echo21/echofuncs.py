@@ -16,7 +16,7 @@ from colossus.lss import mass_function
 import warnings
 from pathlib import Path
 from .const import *
-from misc import build_fcoll_spline
+from .misc import build_fcoll_spline
 
 warnings.filterwarnings('ignore')
 home_path = str(Path.home())
