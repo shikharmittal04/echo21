@@ -130,7 +130,7 @@ Moving on to the main content of this section, when you do not specify the redsh
    
    import numpy as np
    Z_cd = np.concatenate((1/np.linspace(1/60,1/5.05,200),1/np.linspace(1/5,1,100)))
-   Z_default = np.concatenate((np.linspace(1501,60.1,2000),Z_cd))
+   Z_default = np.concatenate((np.linspace(1501,60,2001)[:-1],Z_cd))
 
 When you run the code for a single set of parameters or vary cosmological parameters (irrespective of astrophysical ones) then the code will output the signal at redshits defined by ``Z_default`` by default. When you vary only astrophysical parameters then the code will output the signals at cosmic dawn redshifts defined by ``Z_cd``.
 
@@ -167,4 +167,4 @@ Use the following lines of code to load the output:
     xHI = store["xHI"].values
     tau = store["tau"].values
 
-Thus, each row in ``params`` table corresponds to a unique model. Corresponding to this model (say at :math:`r^{\mathrm{th}}` row) is the 21-cm signal at :math:`r^{\mathrm{th}}` row, i.e., ``T21[r,:]`` (similarly for neutral hydrogen fraction and CMB optical depth). Note that single-valued parameters do not appear in the table. To see what values you gave, check the summary text file.
+Thus, each row in ``params`` table corresponds to a unique model. Corresponding to this model (say at :math:`r^{\mathrm{th}}` row) is the 21-cm signal at :math:`r^{\mathrm{th}}` row, i.e., ``T21[r,:]`` (similarly for neutral hydrogen fraction and CMB optical depth). (Note that single-valued parameters do not appear in the table.) To see what values you gave, check the summary text file.

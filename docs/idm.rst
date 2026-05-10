@@ -8,7 +8,7 @@ Beyond standard model cosmologies
 Interacting dark matter model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``ECHO21`` can be used to study a special class of interacting dark matter model: Coulomb-like DM. We assume that all DM particles are Coulomb-like and that they can interact with all baryons. The interaction cross-section for such a system is given by :math:`\sigma(v_{\mathrm{b}\chi}) = \sigma_0(v_{\mathrm{b}\chi}/c)^{-4}`, where :math:`v_{\mathrm{b}\chi}` is the baryon-DM relative velocity. In addition to cooling, IDM leads to a suppression and delay in star formation. We follow the strategy outlined by `Mittal et al. (2026) <https://arxiv.org/abs/2605.00991>`__.
+``ECHO21`` can be used to study a special class of interacting dark matter model: Coulomb-like DM. We assume that all DM particles are Coulomb-like and that they can interact with all baryons. The interaction cross-section for such a system is given by :math:`\sigma(v_{\mathrm{b}\chi}) = \sigma_0(v_{\mathrm{b}\chi}/c)^{-4}`, where :math:`v_{\mathrm{b}\chi}` is the baryon-DM relative velocity. In addition to cooling, IDM leads to a suppression and delay in star formation. We follow the strategy outlined by `Mittal et al (2026) <https://arxiv.org/abs/2605.00991>`__.
 
 IDM requires two additional parameters, namely :math:`m_{\chi}` (mass of Coulomb-like DM) and :math:`\sigma_{45}` (dimensionless cross-section, expressed as :math:`\sigma_0/10^{-45}\,\mathrm{m^2}`). If you want work with IDM, supply both these parameters in your ``cosmo`` dictionary. Note that :math:`m_{\chi}` should be provided in units of GeV. The ``cosmo`` dictionary now looks like 
 

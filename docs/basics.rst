@@ -12,7 +12,18 @@ Overview
 Why do you need this code?
 --------------------------
 
-Use this code to generate the global 21-cm signal, neutral hydrogen fraction, CMB optical depth for a given set of astrophysical and cosmological parameters.
+``ECHO21`` is a fast and flexible Python package for modelling the global 21-cm signal across cosmic history - from the dark ages to reionization. Given a set of astrophysical and cosmological parameters, the code self-consistently generates the global 21-cm signal, neutral hydrogen fraction, and CMB optical depth.
+
+Designed for both precision studies and large-scale parameter inference, ``ECHO21`` combines physical realism with computational efficiency. Its key features include:
+
+- simultaneous variation of astrophysical and cosmological parameters,
+- flexible prescriptions for halo mass functions and star formation models,
+- inclusion of Ly :math:`\alpha` heating and detailed IGM thermal evolution,
+- support for non-standard cosmologies such as interacting dark matter `(Mittal et al 2026) <https://arxiv.org/abs/2605.00991>`_.
+
+A single realization of the signal can be generated in :math:`\sim 1` second, making the code ideally suited for Bayesian inference, emulator training, and large parameter-space explorations.
+
+``ECHO21`` is MPI-parallelized and scalable - equally at home on a laptop or a high-performance computing cluster.
 
 Read more about it in the paper `Mittal et al (2026) <https://doi.org/10.1093/rasti/rzag001>`_.
 
@@ -34,6 +45,7 @@ We recommend working on a Python version > 3.8. Packages required are
 - `colossus <https://pypi.org/project/colossus/>`_ (recommended version 1.3.6)
 - `pybaselines <https://pypi.org/project/pybaselines/>`_ (recommended version 1.1.0)
 - `pandas <https://pypi.org/project/pandas/>`_ (recommended version 3.0.1)
+- `tables <https://pypi.org/project/tables/>`_ (recommended version 3.11.1)
 
 Quick start
 -----------
