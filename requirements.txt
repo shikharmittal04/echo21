@@ -2,7 +2,6 @@ numpy
 scipy
 colossus
 mpi4py
-pybaselines
 requests
 tqdm
 pandas

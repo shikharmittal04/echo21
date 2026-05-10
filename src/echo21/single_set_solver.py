@@ -5,9 +5,8 @@ This module contains the functions required for running IGM solver for one set o
 import numpy as np
 from scipy.interpolate import CubicSpline
 from .echofuncs import funcs
-from .misc import smoother
 from .const import  Zstar, Z_cd, flipped_Z_cd, Z_default, flipped_Z_default, Z_da
-
+from .misc import frac_diff_temp_to_temp
 
 def cosmic_dawn_beyond(params_dict, *initial_conditions, Z_eval=None, dm_model='CDM'):
     '''
@@ -35,8 +34,8 @@ def cosmic_dawn_beyond(params_dict, *initial_conditions, Z_eval=None, dm_model='
     sol_cd = myobj_cd.igm_solver(Z_cd, *initial_conditions, eqns_func=myobj_cd.igm_eqns_cd)
     
     xe_cd = sol_cd[0]
-    Tk_cd = sol_cd[1]
-
+    Tk_cd = frac_diff_temp_to_temp(myobj_cd, Z_cd, sol_cd[1])
+    
     Q_cd = myobj_cd.QHii
 
     if Z_eval is not None:
@@ -85,8 +84,10 @@ def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='
     sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
 
     xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
-    Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
-
+    Tk_da = frac_diff_temp_to_temp(myobj, Z_da, sol_da[1])
+    Tk_cd = frac_diff_temp_to_temp(myobj, Z_cd, sol_cd[1])
+    Tk = np.concatenate((Tk_da[:-1], Tk_cd))
+    
     Q_Hii = myobj.QHii
     Q_Hii = np.concatenate((np.zeros(len(Z_da)-1), Q_Hii))
 

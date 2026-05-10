@@ -234,7 +234,10 @@ class pipeline():
                 sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
 
                 xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
-                Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
+
+                Tk_da = frac_diff_temp_to_temp(myobj, Z_da, sol_da[1])
+                Tk_cd = frac_diff_temp_to_temp(myobj, Z_cd, sol_cd[1])
+                Tk = np.concatenate((Tk_da[:-1], Tk_cd))
 
                 Q_Hii = myobj.QHii
                 Q_Hii = np.concatenate((np.zeros(len(Z_da)-1), Q_Hii))

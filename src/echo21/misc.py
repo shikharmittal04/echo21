@@ -194,6 +194,28 @@ def print_input(pipe):
 
     return None
 
+def frac_diff_temp_to_temp(funcs_obj, Z, frac_diff_temp):
+    '''
+    Given :math:`\\delta_T`, compute :math:`T_{\\mathrm{k}}`.
+
+    Arguments
+    ---------
+    funcs_obj : funcs
+        funcs class object
+    
+    Z : float
+        redshift, :math:`1+z`
+
+    frac_diff_temp: float
+        :math:`\\delta_T`
+    
+    Returns
+    -------
+        :math:`T_{\\mathrm{k}} = (1+\\delta_T)T_{\\gamma}(z)`
+    '''
+    Tgamma = funcs_obj.basic_cosmo_Tcmb(Z)
+    Tk = (1 + frac_diff_temp)*Tgamma
+    return Tk
 
 def build_fcoll_spline(funcs_obj, n_points=100):
     '''

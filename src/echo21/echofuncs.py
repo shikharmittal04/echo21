@@ -16,7 +16,7 @@ from colossus.lss import mass_function
 import warnings
 from pathlib import Path
 from .const import *
-from .misc import build_fcoll_spline
+from .misc import frac_diff_temp_to_temp, build_fcoll_spline
 
 warnings.filterwarnings('ignore')
 home_path = str(Path.home())
@@ -1056,7 +1056,9 @@ class funcs():
     #===================================================================================================
     def initial_conditions(self):
         '''
-        Initial conditions for the IGM equations. For CDM, we need electron fraction and gas kinetic temperature. For IDM, we also need DM temperature and relative velocity of DM and baryons.
+        Initial conditions for the IGM equations at :math:`z=1500`. For CDM, we need electron fraction and gas kinetic temperature. For IDM, we also need DM temperature and relative velocity of DM and baryons.
+
+        Also, note that for gas temperature it is a transformed variable. Instead of :math:`T_{\\mathrm{k}}` we have :math:`\\delta_T = (T_{\\mathrm{k}}-T_{\\gamma})/T_{\\gamma}`.
         
         Arguments
         ---------
@@ -1067,77 +1069,102 @@ class funcs():
         Returns
         -------
         tuple
-            Initial conditions. For CDM, the tuple is (xe_init, Tk_init). For IDM, the tuple is (xe_init, Tk_init, Tx_init, ln_vbx_init).
+            Initial conditions. For CDM, the tuple is (xe_init, frac_temp_diff_init). For IDM, the tuple is (xe_init, frac_temp_diff_init, Tx_init, ln_vbx_init).
         '''
-        Tk_init = self.basic_cosmo_Tcmb(Z_start)
-        xe_init = self.recomb_Saha_xe(Z_start,Tk_init)
+
+        xe_init = self.recomb_Saha_xe(Z_start,self.basic_cosmo_Tcmb(Z_start))
         Tx_init = 0
         ln_vbx_init = np.log(43500)
-        ic = (xe_init,Tk_init,Tx_init,ln_vbx_init) if self.dm_model == 'IDM' else (xe_init,Tk_init)
+        ic = (xe_init,0,Tx_init,ln_vbx_init) if self.dm_model == 'IDM' else (xe_init,0)
         return ic
 
     def _igm_eqns_cdm_da(self, Z, V):
         '''
         Differential equations for the IGM in the CDM model during the dark ages phase.
         '''
-        xe = V[0]
-        Tk = V[1]
-        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
-        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)
+        xe, frac_temp_diff = V
+        
+        Tgamma = self.basic_cosmo_Tcmb(Z)
+        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
+
+        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
+        
+        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe) - 1/Tgamma*self.heating_Ecomp(Z,xe,Tk)
+        
         return np.array([eq1,eq2])
 
     def _igm_eqns_cdm_cd(self, Z, V):
         '''
         Differential equations for the IGM in the CDM model during the cosmic dawn phase.
         '''
-        xe = V[0]
-        Tk = V[1]
+        xe, frac_temp_diff = V
+        
+        Tgamma = self.basic_cosmo_Tcmb(Z)
+        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
+
         if xe<0.99:
-            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
         else:
             eq1 = 0.0
-        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-self.heating_Ex(Z,xe)-self.heating_Elya(Z,xe,Tk)
+        
+        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe) - 1/Tgamma*self.heating_Ecomp(Z,xe,Tk) - 1/Tgamma*self.heating_Ex(Z,xe) - 1/Tgamma*self.heating_Elya(Z,xe,Tk)
+        
         return np.array([eq1,eq2])
 
     def _igm_eqns_idm_da(self, Z, V):
         '''
         Differential equations for the IGM in the IDM model during the dark ages phase.
         '''
-        xe = V[0]
-        Tk = V[1]
-        Tx = V[2]
-        ln_v_bx = V[3]
+        xe, frac_temp_diff, Tx, ln_v_bx = V
+
         v_bx = np.exp(np.clip(ln_v_bx, -300, None))
+        
+        Tgamma = self.basic_cosmo_Tcmb(Z)
+        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
         H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
-        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))
-        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b
+
+        eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
+        
+        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-1/Tgamma*H_d2b
+        
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
+        
         eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        
         return np.array([eq1,eq2,eq3,eq4])
 
     def _igm_eqns_idm_cd(self, Z, V):
         '''
         Differential equations for the IGM in the IDM model during the cosmic dawn phase.
         '''
-        xe = V[0]
-        Tk = V[1]
-        Tx = V[2]
-        ln_v_bx = V[3]
+        xe, frac_temp_diff, Tx, ln_v_bx = V
+
         v_bx = np.exp(np.clip(ln_v_bx, -300, None))
+        
+        Tgamma = self.basic_cosmo_Tcmb(Z)
+        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
         H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
+
         if xe<0.99:
-            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,self.basic_cosmo_Tcmb(Z))*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(self.basic_cosmo_Tcmb(Z))*(1-xe)*np.exp(-Ea/(kB*self.basic_cosmo_Tcmb(Z))))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
+            eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
         else:
             eq1 = 0.0
-        eq2 = 2*Tk-Tk*eq1/(1+self.basic_cosmo_xHe()+xe)-self.heating_Ecomp(Z,xe,Tk)-H_d2b-self.heating_Elya(Z,xe,Tk)-self.heating_Ex(Z,xe)
+        
+        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-H_d2b-1/Tgamma*self.heating_Elya(Z,xe,Tk)-1/Tgamma*self.heating_Ex(Z,xe)
+        
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
+        
         eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        
         return np.array([eq1,eq2,eq3,eq4])
 
 
     def igm_solver(self, Z_solver, *initial_conditions, eqns_func):
         '''
-        This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved. Note that in case of IDM, the last value of the solution array is ln(v_bx) and not v_bx itself.
+        This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved.
+        Note the following two points:
+        - For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`\\delta_T = (T_{\\mathrm{k}}-T_{\\gamma})/T_{\\gamma}`.
+        - In case of IDM, the last value of the solution array is :math:`\\ln v_{\\mathrm{b}\\chi}` and not :math:`v_{\\mathrm{b}\\chi}` itself.
 
         Arguments
         ---------
@@ -1145,10 +1172,15 @@ class funcs():
             Redshift array (decreasing) over which to solve. Use Z_da for dark ages, Z_cd for cosmic dawn, or Z_default for the full range.
 
         initial_conditions: tuple
-            Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, Tk_init). For IDM, the tuple is (xe_init, Tk_init, Tx_init, ln_vbx_init). Use self.initial_conditions() to get the initial conditions for the start of the solver.
+            Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, frac_temp_diff_init). For IDM, the tuple is (xe_init, frac_temp_diff_init, Tx_init, ln_vbx_init). Use initial_conditions() to get the initial conditions when the starting redshift is 1500.
         
         eqns_func: callable
             The RHS function to pass to the ODE solver. Either dark ages or cosmic dawn.
+        
+        Returns
+        -------
+        array
+            :math:`x_{\\mathrm{e}}`, :math:`\\delta_T`, :math:`T_{\\chi}`, :math:`\\ln v_{\\mathrm{b}\\chi}`
         '''
         Z_start = Z_solver[0]
         Z_end   = Z_solver[-1]
@@ -1162,7 +1194,7 @@ class funcs():
         )
 
         results = [y for y in Sol.y]
-
+        
         return results
     
     def reion_eqn(self,Z,QHii):

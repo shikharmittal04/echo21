@@ -43,7 +43,6 @@ We recommend working on a Python version > 3.8. Packages required are
 - `mpi4py <https://pypi.org/project/mpi4py/>`_ (recommended version 4.0.1)
 - `tqdm <https://pypi.org/project/tqdm/>`_ (recommended version 4.67.1)
 - `colossus <https://pypi.org/project/colossus/>`_ (recommended version 1.3.6)
-- `pybaselines <https://pypi.org/project/pybaselines/>`_ (recommended version 1.1.0)
 - `pandas <https://pypi.org/project/pandas/>`_ (recommended version 3.0.1)
 - `tables <https://pypi.org/project/tables/>`_ (recommended version 3.11.1)
 
