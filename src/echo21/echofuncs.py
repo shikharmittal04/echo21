@@ -1147,7 +1147,7 @@ class funcs():
         initial_conditions: tuple
             Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, Tk_init). For IDM, the tuple is (xe_init, Tk_init, Tx_init, ln_vbx_init). Use self.initial_conditions() to get the initial conditions for the start of the solver.
         
-        eqns_func: callable, optional
+        eqns_func: callable
             The RHS function to pass to the ODE solver. Either dark ages or cosmic dawn.
         '''
         Z_start = Z_solver[0]
