@@ -8,6 +8,9 @@ This module contains non-physics functions.
 from pybaselines import Baseline
 import pickle
 import numpy as np
+import scipy.integrate as scint
+from scipy.interpolate import CubicSpline
+from .const import Zstar, Msolar_by_Mpc3_to_kg_by_m3
 
 #The following 2 functions will be useful if you want to save and load `pipeline` object.
 def save_pipeline(obj, filename):
@@ -184,9 +187,38 @@ def print_input(pipe):
     [print('\n{} = {}'.format(k, v)) for k, v in pipe.cosmo.items()]
     print('\n')
     [print('\n{} = {}'.format(k, v)) for k, v in pipe.astro.items()]
-    
+
     print('\n\nSFRD')
     [print('\n  {} = {}'.format(k, v)) for k, v in pipe.sfrd.items()]
     print('\033[00m\n')
 
     return None
+
+
+def build_fcoll_spline(funcs_obj, n_points=100):
+    '''
+    Precompute the collapse fraction on a redshift grid and return a CubicSpline.
+    Called once per funcs() instantiation for non-press74 HMFs, replacing the
+    per-ODE-step numerical integration with a cheap spline evaluation.
+
+    Arguments
+    ---------
+    funcs_obj : funcs
+        An initialised funcs instance whose cosmology and HMF are already set up.
+
+    n_points : int
+        Number of redshift grid points. Default 100.
+
+    Returns
+    -------
+    CubicSpline
+        Spline of f_coll(Z) over Z in [1, Zstar], with Z = 1+z.
+    '''
+    Z_grid = np.linspace(1, Zstar, n_points)
+    f_grid = np.zeros(n_points)
+    norm = Msolar_by_Mpc3_to_kg_by_m3 / (funcs_obj.Om_m * funcs_obj.basic_cosmo_rho_crit())
+    for i, Zv in enumerate(Z_grid):
+        M_space = np.logspace(np.log10(funcs_obj.m_min(Zv) / funcs_obj.h100), 18, 1500)
+        f_grid[i] = scint.simpson(funcs_obj.dndlnM(M=M_space, Z=Zv), x=M_space)
+    f_grid *= norm
+    return CubicSpline(Z_grid, f_grid)

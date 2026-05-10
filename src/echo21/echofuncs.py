@@ -16,6 +16,7 @@ from colossus.lss import mass_function
 import warnings
 from pathlib import Path
 from .const import *
+from misc import build_fcoll_spline
 
 warnings.filterwarnings('ignore')
 home_path = str(Path.home())
@@ -66,44 +67,6 @@ class funcs():
         params = {} if params is None else params
 
         ############################################################################
-        #Setting up the star formation rate density related parameters and functions
-        self.sfrd_type = params['type']
-
-        if self.sfrd_type == 'phy':
-            params = {**phy_sfrd_default_model, **params}
-            self._sfrd = self._sfrd_phy
-            self.hmf = params['hmf']
-            self.mdef = params['mdef']
-            self.Tmin_vir = params['Tmin_vir']
-
-            if self.hmf == 'press74':
-                self._f_coll = self._f_coll_press74
-            else:
-                self._f_coll = self._f_coll_nonpress74
-            
-        elif self.sfrd_type == 'semi-emp':
-            params = {**semi_emp_sfrd_default_model, **params}
-            self._sfrd = self._sfrd_semi_emp
-            self.hmf = params['hmf']
-            self.mdef = params['mdef']
-            self.Tmin_vir = params['Tmin_vir']
-            self.t_star = params['t_star']
-            
-            if self.hmf == 'press74':
-                self._f_coll = self._f_coll_press74
-            else:
-                self._f_coll = self._f_coll_nonpress74
-
-        elif self.sfrd_type == 'emp':
-            params = {**emp_sfrd_default_model, **params}
-            self._sfrd = self._sfrd_emp
-            self.a_sfrd = params['a']
-            self.b_sfrd = 4.0#params['b']
-
-        else:
-            raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
-
-        ############################################################################
         self.Ho = params['Ho']
         self.Om_m = params['Om_m']
         self.Om_b = params['Om_b']
@@ -123,6 +86,46 @@ class funcs():
         self.cosmo_par = {'flat': True, 'H0': self.Ho, 'Om0': self.Om_m, 'Ob0': self.Om_b, 'sigma8': self.sig8, 'ns': self.ns,'relspecies': True,'Tcmb0': self.Tcmbo}
         self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
         self.h100 = self.Ho/100
+        
+        ############################################################################
+        #Setting up the star formation rate density related parameters and functions
+        self.sfrd_type = params['type']
+
+        if self.sfrd_type == 'phy':
+            params = {**phy_sfrd_default_model, **params}
+            self._sfrd = self._sfrd_phy
+            self.hmf = params['hmf']
+            self.mdef = params['mdef']
+            self.Tmin_vir = params['Tmin_vir']
+
+            if self.hmf == 'press74':
+                self._f_coll = self._f_coll_press74
+            else:
+                self._f_coll_spline = build_fcoll_spline(self)
+                self._f_coll = self._f_coll_nonpress74
+            
+        elif self.sfrd_type == 'semi-emp':
+            params = {**semi_emp_sfrd_default_model, **params}
+            self._sfrd = self._sfrd_semi_emp
+            self.hmf = params['hmf']
+            self.mdef = params['mdef']
+            self.Tmin_vir = params['Tmin_vir']
+            self.t_star = params['t_star']
+            
+            if self.hmf == 'press74':
+                self._f_coll = self._f_coll_press74
+            else:
+                self._f_coll_spline = build_fcoll_spline(self)
+                self._f_coll = self._f_coll_nonpress74
+
+        elif self.sfrd_type == 'emp':
+            params = {**emp_sfrd_default_model, **params}
+            self._sfrd = self._sfrd_emp
+            self.a_sfrd = params['a']
+            self.b_sfrd = 4.0#params['b']
+
+        else:
+            raise ValueError(f"Unknown SFRD type: {self.sfrd_type}")
         
         ############################################################################
         self.igm_eqns_da = self._igm_eqns_cdm_da
@@ -462,20 +465,13 @@ class funcs():
 
     def _f_coll_press74(self, Z):
         return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
-    
-    def _f_coll_nonpress74(self,Z):
-        Z = np.atleast_1d(Z)
-        single_value = Z.size == 1
-        rho_halo_arr = np.zeros_like(Z)
 
-        for idx, z in enumerate(Z):
-            M_space = np.logspace(np.log10(self.m_min(z)/self.h100),18,1500)    #These masses are in solar mass. Strictly speaking we should integrate up to infinity but for numerical purposes 10^18.Msun is sufficient.
-            hmf_space = self.dndlnM(M=M_space,Z=z)    #Corresponding HMF values are in cMpc^-3
-            rho_halo_arr[idx]=scint.simpson(hmf_space,x=M_space)
+    def _f_coll_nonpress74(self, Z):
+        scalar = np.isscalar(Z)
+        Z = np.atleast_1d(np.asarray(Z, dtype=float))
+        result = np.where(Z <= Zstar, np.maximum(self._f_coll_spline(Z), 0.0), 0.0)
+        return float(result[0]) if scalar else result
 
-        F_coll = rho_halo_arr *Msolar_by_Mpc3_to_kg_by_m3/(self.Om_m*self.basic_cosmo_rho_crit())
-        return F_coll[0] if single_value else F_coll
-    
     def _f_coll_idm(self, Z):
         scalar_input = np.isscalar(Z)
         Z = np.atleast_1d(Z)
