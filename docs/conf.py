@@ -14,7 +14,7 @@ sys.path.insert(0,os.path.abspath('../src'))
 project = 'echo21'
 copyright = '2026, Shikhar Mittal'
 author = 'Shikhar Mittal'
-release = '4.1.0'
+release = '4.1.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
