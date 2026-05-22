@@ -5,7 +5,6 @@ This module contains non-physics functions.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 '''
-from pybaselines import Baseline
 import pickle
 import numpy as np
 import scipy.integrate as scint
@@ -126,12 +125,6 @@ def split_params(d):
             fixed[k] = arr.item()
 
     return varying, fixed
-
-def smoother(x,y):
-    baseline_fitter = Baseline(x_data = x)
-    y = baseline_fitter.imodpoly(y, poly_order=4)[0]
-    return y
-
 
 def params_from_index(pipe, idx):
     inds = np.unravel_index(idx, pipe.shape)
