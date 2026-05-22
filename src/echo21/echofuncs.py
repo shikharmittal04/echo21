@@ -75,12 +75,12 @@ class funcs():
         self.Tcmbo = params['Tcmbo']
         self.Yp = params['Yp']
             
-        self.fLy = params['fLy']
-        self.sLy = params['sLy']
-        self.fX = params['fX']
-        self.wX = params['wX']
-        self.fesc = params['fesc']
-        
+        self.fLy = params.get('fLy',1.0)
+        self.sLy = params.get('sLy',2.64)
+        self.fX = params.get('fX',1.0)
+        self.wX = params.get('wX',1.5)
+        self.fesc = params.get('fesc',0.01)
+
         ############################################################################
         #Setting up cosmology for COLOSSUS package
         self.cosmo_par = {'flat': True, 'H0': self.Ho, 'Om0': self.Om_m, 'Ob0': self.Om_b, 'sigma8': self.sig8, 'ns': self.ns,'relspecies': True,'Tcmb0': self.Tcmbo}

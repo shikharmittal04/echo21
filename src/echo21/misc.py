@@ -126,7 +126,7 @@ def split_params(d):
 
     return varying, fixed
 
-def params_from_index(pipe, idx):
+def grid_on_index(pipe, idx):
     inds = np.unravel_index(idx, pipe.shape)
 
     all_params = pipe.fixed_params.copy()
@@ -135,6 +135,17 @@ def params_from_index(pipe, idx):
     for name, i, arr in zip(pipe.param_names, inds, pipe.param_arrays):
         all_params[name] = arr[i]
         varying_params_only[name] = arr[i]
+
+    return all_params, varying_params_only
+
+def grid_off_index(pipe, idx):
+
+    all_params = pipe.fixed_params.copy()
+    varying_params_only = {}
+
+    for name, arr in zip(pipe.param_names, pipe.param_arrays):
+        all_params[name] = arr[idx]
+        varying_params_only[name] = arr[idx]
 
     return all_params, varying_params_only
 
@@ -158,6 +169,7 @@ def write_summary(pipe, elapsed_time):
     myfile.write('\n\n')
     myfile.write('Dark matter type: {}\n'.format(pipe.dm_model))
     myfile.write('\nSimulation type: '+pipe.message)
+    myfile.write('\nGrid on: {}'.format(pipe.grid_on))
     myfile.write('\n\nParameters given:\n')
     myfile.write('-----------------')
     [myfile.write('\n{} = {}'.format(k, v)) for k, v in pipe.cosmo.items()]

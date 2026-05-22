@@ -40,10 +40,15 @@ Please see the paper for an understanding of parameters ``fLy``, ``sLy``, etc. I
 
 .. _multi:
 
-Charting a parameter space of IGM: running ECHO21 in parallel mode
+Charting a parameter space of IGM: running `ECHO21` in parallel mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Now suppose you want to generate many 21-cm signals, neutral hydrogen fraction, and optical depths for different astrophysical (or cosmological) parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays. The following example shows you how. Replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.01}`` in ``my_echo_script.py`` by
+Now suppose you want to generate many 21-cm signals, neutral hydrogen fraction, and optical depths for different astrophysical (or cosmological) parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays.
+
+**Grid or no grid?**: there is an additional consideration. You can choose to generate the results for all possible combinations of the parameters (i.e., a grid) or only for the combinations of parameters at the same index in the lists/arrays. For example, if you have two parameters, each with three values, then in the grid case you will have 9 models corresponding to all possible combinations of the parameters, but in the no-grid case you will have only 3 models corresponding to the combinations of parameters at the same index. The choice is yours. By default, ``ECHO21`` generates signals for all possible combinations of parameters (i.e., grid). To turn off this feature set ``grid_on=False`` when defining your :class:`pipeline` object.
+
+
+The following example shows you how. Replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.01}`` in ``my_echo_script.py`` by
 
 .. code:: python
 
@@ -70,12 +75,32 @@ Thus, **the complete script to generate a large space of** :math:`T_{21}`, :math
    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,5)}
 
    #Step-2 Create an object and run
-   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd,path='/path/where/you/want/your/outputs/')
+   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd, grid_on=True, path='/path/where/you/want/your/outputs/')
    myobj.run_simulation()
 
 Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be generated corresponding to 5 values of :math:`f_{\mathrm{Ly}}`, 3 values of :math:`s_{\mathrm{Ly}}`, 5 values of :math:`f_{\mathrm{X}}`, 3 values of :math:`w_{\mathrm{X}}`, 3 values of :math:`f_{\mathrm{esc}}`, and 5 values of :math:`T_{\mathrm{vir}}`. (In the paper, I have used :math:`s` for ``sLy`` and :math:`w` for ``wX``.)
 
 Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of** :math:`T_{21}`, :math:`x_{\mathrm{HI}}`, **and** :math:`\tau_{\mathrm{e}}` **with varying cosmological parameters**. Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
+
+The above example showed you have to run when grid is on. If you choose ``grid_on=False``, then the parameters you wish to vary should have the same number of values. In this case, the script will generate models for combinations of parameters at the same index in the lists/arrays. As an exmaple
+
+.. code:: python
+   
+   import numpy as np
+   from echo21 import echopipeline
+
+   #Step-1 Set you parameter choices
+   cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245}
+   astro = {'fLy':np.logspace(-2,2,3),'sLy':[-1,0,1],'fX':np.logspace(-2,2,3),'wX':[0,1,2],'fesc':[0.01,0.1,1]}
+
+   #and choose your SFRD model type by defining a dictionary
+   sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,3)}
+
+   #Step-2 Create an object and run
+   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd, grid_on=False, path='/path/where/you/want/your/outputs/')
+   myobj.run_simulation()
+
+The above script will generate 3 models.
 
 
 

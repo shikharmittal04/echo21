@@ -104,11 +104,14 @@ class pipeline():
     
     Z_eval: float
         Array of :math:`1+z` where you want to compute the quantities.
-        
+    
+    grid_on: bool
+        Whether to do generate a grid of parameter combinations. Default is True, i.e., then all possible combinations of the parameters will be generated. If False, parameters are varied one at a time. In this case all varied parameters should have the same number of values.
+    
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo=None,astro= None, sfrd=None,Z_eval=None,path='echo21_outputs/'):
+    def __init__(self,cosmo=None,astro= None, sfrd=None,Z_eval=None,grid_on=False,path='echo21_outputs/'):
 
         if cosmo is None:
             cosmo = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245}
@@ -116,6 +119,8 @@ class pipeline():
             astro = {'fLy': 1, 'sLy': 2.64, 'fX': 1, 'wX': 1.5, 'fesc': 0.01}
         if sfrd is None:
             sfrd = {'type': 'phy', 'hmf': 'press74', 'mdef': 'fof', 'Tmin_vir': 1e4}
+
+        self.grid_on = grid_on
 
         self.comm = pkl5.Intracomm(MPI.COMM_WORLD)
         self.cpu_ind = self.comm.Get_rank()
@@ -137,11 +142,19 @@ class pipeline():
         self.var_params = {**cosmo_var, **astro_var, **sfrd_var}
         self.fixed_params = {**cosmo_fixed, **astro_fixed, **sfrd_fixed}
 
+        #param_names is a list of the names of the varying parameters.
         self.param_names = list(self.var_params.keys())
+        #param_arrays is a list of the corresponding arrays of values for those parameters.
         self.param_arrays = [self.var_params[k] for k in self.param_names]
 
-        self.shape = tuple(len(a) for a in self.param_arrays)
-        self.N_models = np.prod(self.shape)
+        #---------------------------------------------------------------------------------
+        if grid_on:
+            self.shape = tuple(len(a) for a in self.param_arrays)
+            self.N_models = np.prod(self.shape)
+            self.get_index = grid_on_index
+        else:
+            self.N_models = len(self.param_arrays[0])
+            self.get_index = grid_off_index
 
         cosmo_varying = any(np.size(v) > 1 for v in (cosmo_var).values())
         astro_varying = any(np.size(v) > 1 for v in {**astro_var, **sfrd_var}.values())
@@ -350,7 +363,7 @@ class pipeline():
             else:
                 #Worker CPU
                 for idx in range(self.cpu_ind-1, self.N_models, self.n_cpu-1):
-                    all_params_dict, varying_params_only = params_from_index(self, idx)
+                    all_params_dict, varying_params_only = self.get_index(self, idx)
 
                     result = self.simulator(all_params_dict, *self.initial_conditions, Z_eval = self.Z_eval, dm_model=self.dm_model)
                     
