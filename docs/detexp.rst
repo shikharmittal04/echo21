@@ -45,7 +45,7 @@ Charting a parameter space of IGM: running `ECHO21` in parallel mode
 
 Now suppose you want to generate many 21-cm signals, neutral hydrogen fraction, and optical depths for different astrophysical (or cosmological) parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays.
 
-**Grid or no grid?**: there is an additional consideration. You can choose to generate the results for all possible combinations of the parameters (i.e., a grid) or only for the combinations of parameters at the same index in the lists/arrays. For example, if you have two parameters, each with three values, then in the grid case you will have 9 models corresponding to all possible combinations of the parameters, but in the no-grid case you will have only 3 models corresponding to the combinations of parameters at the same index. The choice is yours. By default, ``ECHO21`` generates signals for all possible combinations of parameters (i.e., grid). To turn off this feature set ``grid_on=False`` when defining your :class:`pipeline` object.
+**Grid or no grid?** there is an additional consideration. You can choose to generate the results for all possible combinations of the parameters (i.e., a grid) or only for the combinations of parameters at the same index in the lists/arrays. For example, if you have two parameters, each with three values, then in the grid case you will have 9 models corresponding to all possible combinations of the parameters, but in the no-grid case you will have only 3 models corresponding to the combinations of parameters at the same index. The choice is yours. By default, ``ECHO21`` generates signals for all possible combinations of parameters (i.e., grid). To turn off this feature set ``grid_on=False`` when defining your :class:`pipeline` object.
 
 
 The following example shows you how. Replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.01}`` in ``my_echo_script.py`` by
@@ -82,7 +82,7 @@ Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be 
 
 Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of** :math:`T_{21}`, :math:`x_{\mathrm{HI}}`, **and** :math:`\tau_{\mathrm{e}}` **with varying cosmological parameters**. Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
 
-The above example showed you have to run when grid is on. If you choose ``grid_on=False``, then the parameters you wish to vary should have the same number of values. In this case, the script will generate models for combinations of parameters at the same index in the lists/arrays. As an exmaple
+In the above example we set `grid_on` to True. If you choose ``grid_on=False``, *then the parameters you wish to vary should have the same number of values*. In this case, the code will generate models for combinations of parameters at the same index in the lists/arrays. As an exmaple
 
 .. code:: python
    
@@ -100,7 +100,7 @@ The above example showed you have to run when grid is on. If you choose ``grid_o
    myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd, grid_on=False, path='/path/where/you/want/your/outputs/')
    myobj.run_simulation()
 
-The above script will generate 3 models.
+The above script will generate 3 models only.
 
 
 
