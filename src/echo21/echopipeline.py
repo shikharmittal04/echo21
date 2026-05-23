@@ -153,7 +153,12 @@ class pipeline():
             self.N_models = np.prod(self.shape)
             self.get_index = grid_on_index
         else:
-            self.N_models = len(self.param_arrays[0])
+            #Before proceeding check if all the arrays of varying parameters have the same length. If not, then terminate and ask user to correct the input.
+            if len(set(map(len, self.param_arrays))) > 1:
+                if self.cpu_ind == 0: print('\033[31mWhen grid_on=False, all varying parameters should have the same number of values. Terminating ... \033[00m')
+                sys.exit()
+            self.N_models = len(self.param_arrays[0]) if self.param_arrays else 1
+
             self.get_index = grid_off_index
 
         cosmo_varying = any(np.size(v) > 1 for v in (cosmo_var).values())
@@ -349,6 +354,7 @@ class pipeline():
                 print_banner()
                 print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
+                print('\nGrid on = ',self.grid_on)
                 print('\nGenerating',self.N_models,'models ...')
                 st = time.perf_counter()
                 done = 0
