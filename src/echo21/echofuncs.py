@@ -1086,6 +1086,7 @@ class funcs():
         
         Tgamma = self.basic_cosmo_Tcmb(Z)
         Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
+        xe = np.clip(xe, 0.0, 1.0)  # Ensure xe stays within physical bounds
 
         eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
         
@@ -1118,6 +1119,7 @@ class funcs():
         xe, frac_temp_diff, Tx, ln_v_bx = V
 
         v_bx = np.exp(np.clip(ln_v_bx, -300, None))
+        xe = np.clip(xe, 0.0, 1.0)
         
         Tgamma = self.basic_cosmo_Tcmb(Z)
         Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
