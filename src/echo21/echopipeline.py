@@ -354,7 +354,7 @@ class pipeline():
                 print_banner()
                 print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
-                print('\nGrid on = ',self.grid_on)
+                print('Grid on = ',self.grid_on)
                 print('\nGenerating',self.N_models,'models ...')
                 st = time.perf_counter()
                 done = 0

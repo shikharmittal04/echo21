@@ -1194,7 +1194,8 @@ class funcs():
             [1 / Z_start, 1 / Z_end],
             list(initial_conditions),
             method='Radau',
-            t_eval=1 / Z_solver
+            t_eval=1 / Z_solver,
+            rtol=1e-4, atol=1e-7
         )
 
         results = [y for y in Sol.y]
