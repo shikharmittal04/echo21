@@ -7,19 +7,16 @@ This module contains class funcs.
 """
 import scipy.special as scsp
 import scipy.integrate as scint
-from scipy.interpolate import RectBivariateSpline
 from scipy.interpolate import CubicSpline
 import numpy as np
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings
-from pathlib import Path
 from .const import *
 from .misc import frac_diff_temp_to_temp, build_fcoll_spline, build_fcoll_spline_idm
 
 warnings.filterwarnings('ignore')
-home_path = str(Path.home())
 
 def _gaif(xe,Q):
     '''
@@ -67,14 +64,14 @@ class funcs():
         params = {} if params is None else params
 
         ############################################################################
-        self.Ho = params['Ho']
-        self.Om_m = params['Om_m']
-        self.Om_b = params['Om_b']
-        self.sig8 = params['sig8']
-        self.ns = params['ns']
-        self.Tcmbo = params['Tcmbo']
-        self.Yp = params['Yp']
-            
+        self.Ho = params.get('Ho', 67.4)
+        self.Om_m = params.get('Om_m', 0.315)
+        self.Om_b = params.get('Om_b', 0.049)
+        self.sig8 = params.get('sig8', 0.844)
+        self.ns = params.get('ns', 0.965)
+        self.Tcmbo = params.get('Tcmbo', 2.726)
+        self.Yp = params.get('Yp', 0.245)
+
         self.fLy = params.get('fLy',1.0)
         self.sLy = params.get('sLy',2.64)
         self.fX = params.get('fX',1.0)
@@ -137,32 +134,6 @@ class funcs():
             sigma45 = params['sigma45']
             self.mx = self.mx_gev*GeV2kg #Now mx is in kg
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
-
-            """
-            npz_file = f'{home_path}/.echo21/f_coll_idm.npz'
-            # Load the compressed grid
-            data = np.load(npz_file)
-            
-            f_coll = data['fcoll']            # Shape: (Nmdm, Nsigma, Nz, Nmass)
-
-            mdmeff_vals = data['mdmeff']
-            sigma0_vals = data['sigma0']
-            zvals = data['zvals']
-            halomass_vals = data['halomass']
-
-            i_mdm = np.argmin(np.abs(mdmeff_vals - self.mx_gev))
-            i_sigma = np.argmin(np.abs(sigma0_vals - self.sigma0))
-            
-            fcoll_slice = f_coll[i_mdm, i_sigma, :, :]
-
-            ###########################################
-            # add a small epsilon to avoid log(0)
-            eps = 1e-40  
-            log_fcoll_slice = np.log(fcoll_slice + eps)
-            ###########################################
-
-            self.rbs = RectBivariateSpline(zvals, halomass_vals, log_fcoll_slice)
-            """
 
             self._f_coll_spline = build_fcoll_spline_idm(self)
             self._f_coll = self._f_coll_nonpress74
