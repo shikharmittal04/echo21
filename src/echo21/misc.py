@@ -9,6 +9,9 @@ import pickle
 import numpy as np
 import scipy.integrate as scint
 from scipy.interpolate import CubicSpline
+from colossus.lss import mass_function
+import classy
+import os, glob
 from .const import Zstar, Msolar_by_Mpc3_to_kg_by_m3
 
 #The following 2 functions will be useful if you want to save and load `pipeline` object.
@@ -245,7 +248,69 @@ def build_fcoll_spline(funcs_obj, n_points=100):
     f_grid = np.zeros(n_points)
     norm = Msolar_by_Mpc3_to_kg_by_m3 / (funcs_obj.Om_m * funcs_obj.basic_cosmo_rho_crit())
     for i, Zv in enumerate(Z_grid):
-        M_space = np.logspace(np.log10(funcs_obj.m_min(Zv) / funcs_obj.h100), 18, 1500)
+        M_space = np.logspace(np.log10(funcs_obj.m_min(Zv) / funcs_obj.h100), 16, 800)
         f_grid[i] = scint.simpson(funcs_obj.dndlnM(M=M_space, Z=Zv), x=M_space)
     f_grid *= norm
+
+    print(f_grid)
+    return CubicSpline(Z_grid, f_grid)
+
+def build_fcoll_spline_idm(funcs_obj, n_points=100):
+    '''
+    Collapse fraction for Coulomb-like IDM HMFs.
+
+    Arguments
+    ---------
+    funcs_obj : funcs
+        An initialised funcs instance whose cosmology and HMF are already set up.
+
+    n_points : int
+        Number of redshift grid points. Default 100.
+
+    Returns
+    -------
+    CubicSpline
+        Spline of f_coll(Z) over Z in [1, Zstar], with `Z` :math:`= 1+z`.
+    '''
+    Z_grid = np.linspace(1, Zstar, n_points)
+    f_grid = np.zeros(n_points)
+    k = np.logspace(-6,3,600) #in h/Mpc
+
+    #---------------------------------------------------------------------------------
+    #Initialize CLASS for IDM power spectrum generation.
+    cosmo_idm = classy.Class()
+
+    h100 = funcs_obj.h100
+    input_idm = {'h':h100, 'Omega_b':funcs_obj.Om_b, 'Omega_cdm':0.0, 'Omega_dmeff':funcs_obj.Om_m-funcs_obj.Om_b, 'YHe':funcs_obj.Yp, 'n_s':funcs_obj.ns, 'sigma8': funcs_obj.sig8, 'm_dmeff': funcs_obj.mx_gev, 'N_dmeff': 1, 'sigma_dmeff': 1e4*funcs_obj.sigma0, 'npow_dmeff':-4, 'dmeff_target':'baryon', 'Vrel_dmeff': 30}
+
+    out = {'output':'mPk','P_k_max_1/Mpc':1e3, 'z_max_pk':Zstar}
+
+    cosmo_idm.set(input_idm)
+    cosmo_idm.set(out)
+
+    cosmo_idm.compute()
+    
+    #---------------------------------------------------------------------------------
+    norm = Msolar_by_Mpc3_to_kg_by_m3 / (funcs_obj.Om_m * funcs_obj.basic_cosmo_rho_crit())
+
+    for i, Zv in enumerate(Z_grid):
+        #First run CLASS and generate matter power spectrum. This will be fed to COLOSSUS.
+        Pk_z = np.array([h100**3*cosmo_idm.pk(h100*kk,Zv-1) for kk in k]) #in (Mpc/h)**3
+
+        data = np.vstack((np.log10(k),np.log10(Pk_z))).T
+        np.savetxt(f'Pk_idm_{i}.txt', data, delimiter = ' ', newline = '\n')
+        ps_idm_dict = dict(model = f'idm_{i}', path = f'Pk_idm_{i}.txt')
+
+        #Now compute the collapse fraction by feeding CLASS's matter power spectrum into COLOSSUS.
+        M_space = np.logspace(np.log10(funcs_obj.m_min(Zv) / h100), 16, 800) #solar mass units
+        dn_dlnM = h100**3*mass_function.massFunction(h100*M_space, Zv-1, q_in='M',
+         q_out='dndlnM', mdef = funcs_obj.mdef, model = funcs_obj.hmf, ps_args = ps_idm_dict)
+        f_grid[i] = scint.simpson(dn_dlnM, x=M_space)
+
+    f_grid *= norm
+
+    # cleanup
+    for f in glob.glob('Pk_idm_*.txt'):
+        os.remove(f)
+    print(f_grid)
     return CubicSpline(Z_grid, f_grid)

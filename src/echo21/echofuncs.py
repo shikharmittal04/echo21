@@ -16,7 +16,7 @@ from colossus.lss import mass_function
 import warnings
 from pathlib import Path
 from .const import *
-from .misc import frac_diff_temp_to_temp, build_fcoll_spline
+from .misc import frac_diff_temp_to_temp, build_fcoll_spline, build_fcoll_spline_idm
 
 warnings.filterwarnings('ignore')
 home_path = str(Path.home())
@@ -133,11 +133,12 @@ class funcs():
 
         self.dm_model = dm_model
         if dm_model == 'IDM':
-            mx_gev = params['mx_gev']
+            self.mx_gev = params['mx_gev']
             sigma45 = params['sigma45']
-            self.mx = mx_gev*GeV2kg #Now mx is in kg
+            self.mx = self.mx_gev*GeV2kg #Now mx is in kg
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
 
+            """
             npz_file = f'{home_path}/.echo21/f_coll_idm.npz'
             # Load the compressed grid
             data = np.load(npz_file)
@@ -149,7 +150,7 @@ class funcs():
             zvals = data['zvals']
             halomass_vals = data['halomass']
 
-            i_mdm = np.argmin(np.abs(mdmeff_vals - mx_gev))
+            i_mdm = np.argmin(np.abs(mdmeff_vals - self.mx_gev))
             i_sigma = np.argmin(np.abs(sigma0_vals - self.sigma0))
             
             fcoll_slice = f_coll[i_mdm, i_sigma, :, :]
@@ -161,8 +162,11 @@ class funcs():
             ###########################################
 
             self.rbs = RectBivariateSpline(zvals, halomass_vals, log_fcoll_slice)
-
-            self._f_coll = self._f_coll_idm
+            """
+            print('Building f_coll spline for IDM. This may take a while...')
+            self._f_coll_spline = build_fcoll_spline_idm(self)
+            self._f_coll = self._f_coll_nonpress74 #self._f_coll_idm
+            print('Done building f_coll spline for IDM.')
             self.igm_eqns_da = self._igm_eqns_idm_da
             self.igm_eqns_cd = self._igm_eqns_idm_cd
 
@@ -506,6 +510,7 @@ class funcs():
         float 
             Collapse fraction. Single number or an array accordingly as ``Z`` is single number or an array.
         '''
+        #print(Z, self._f_coll(Z))
         return self._f_coll(Z)
 
     def dfcoll_dz(self,Z):
