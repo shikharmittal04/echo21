@@ -476,9 +476,9 @@ class funcs():
         scalar_input = np.isscalar(Z)
         Z = np.atleast_1d(Z)
 
-        results = np.zeros_like(Z, dtype=float)  # Initialize all results to 0
+        results = np.full_like(Z, -np.inf, dtype=float)#np.zeros_like(Z, dtype=float)  # Initialize all results to 0
 
-        valid = Z <= 1+Zstar  # Boolean mask for Z values that are <= 60
+        valid = Z <= Zstar  # Boolean mask for Z values that are <= 60
 
         if np.any(valid):
             Z_valid = Z[valid]
@@ -1152,7 +1152,7 @@ class funcs():
         else:
             eq1 = 0.0
         
-        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-H_d2b-1/Tgamma*self.heating_Elya(Z,xe,Tk)-1/Tgamma*self.heating_Ex(Z,xe)
+        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-1/Tgamma*H_d2b-1/Tgamma*self.heating_Elya(Z,xe,Tk)-1/Tgamma*self.heating_Ex(Z,xe)
         
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
         
