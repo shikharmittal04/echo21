@@ -163,10 +163,10 @@ class funcs():
 
             self.rbs = RectBivariateSpline(zvals, halomass_vals, log_fcoll_slice)
             """
-            print('Building f_coll spline for IDM. This may take a while...')
+
             self._f_coll_spline = build_fcoll_spline_idm(self)
-            self._f_coll = self._f_coll_nonpress74 #self._f_coll_idm
-            print('Done building f_coll spline for IDM.')
+            self._f_coll = self._f_coll_nonpress74
+
             self.igm_eqns_da = self._igm_eqns_idm_da
             self.igm_eqns_cd = self._igm_eqns_idm_cd
 
@@ -1157,7 +1157,7 @@ class funcs():
         else:
             eq1 = 0.0
         
-        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-H_d2b-1/Tgamma*self.heating_Elya(Z,xe,Tk)-1/Tgamma*self.heating_Ex(Z,xe)
+        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-1/Tgamma*H_d2b-1/Tgamma*self.heating_Elya(Z,xe,Tk)-1/Tgamma*self.heating_Ex(Z,xe)
         
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
         

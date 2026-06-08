@@ -252,7 +252,6 @@ def build_fcoll_spline(funcs_obj, n_points=100):
         f_grid[i] = scint.simpson(funcs_obj.dndlnM(M=M_space, Z=Zv), x=M_space)
     f_grid *= norm
 
-    print(f_grid)
     return CubicSpline(Z_grid, f_grid)
 
 def build_fcoll_spline_idm(funcs_obj, n_points=100):
@@ -312,5 +311,5 @@ def build_fcoll_spline_idm(funcs_obj, n_points=100):
     # cleanup
     for f in glob.glob('Pk_idm_*.txt'):
         os.remove(f)
-    print(f_grid)
+
     return CubicSpline(Z_grid, f_grid)
