@@ -9,34 +9,15 @@ import scipy.special as scsp
 import scipy.integrate as scint
 from scipy.interpolate import CubicSpline
 import numpy as np
+import classy
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
-import warnings
+import warnings, os
 from .const import *
-from .misc import frac_diff_temp_to_temp, build_fcoll_spline, build_fcoll_spline_idm
 
 warnings.filterwarnings('ignore')
 
-def _gaif(xe,Q):
-    '''
-    Computes the globally-averaged ionisation factor for a two-zone IGM model.
-    
-    Arguments
-    ---------
-    xe: float
-        Is the electron fraction of the bulk IGM.
-
-    Q: float
-        Volume-filling factor.
-    
-    Return
-    ------
-    float
-        :math:`x_{\\mathrm{i}}=Q+(1-Q)x_{\\mathrm{e}}`.
-
-    '''
-    return Q+(1-Q)*xe
 
 class funcs():
     '''
@@ -98,7 +79,7 @@ class funcs():
             if self.hmf == 'press74':
                 self._f_coll = self._f_coll_press74
             else:
-                self._f_coll_spline = build_fcoll_spline(self)
+                self._f_coll_spline = self._build_cdm_fcoll_spline()
                 self._f_coll = self._f_coll_nonpress74
             
         elif self.sfrd_type == 'semi-emp':
@@ -112,7 +93,7 @@ class funcs():
             if self.hmf == 'press74':
                 self._f_coll = self._f_coll_press74
             else:
-                self._f_coll_spline = build_fcoll_spline(self)
+                self._f_coll_spline = self._build_cdm_fcoll_spline()
                 self._f_coll = self._f_coll_nonpress74
 
         elif self.sfrd_type == 'emp':
@@ -135,7 +116,7 @@ class funcs():
             self.mx = self.mx_gev*GeV2kg #Now mx is in kg
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
 
-            self._f_coll_spline = build_fcoll_spline_idm(self)
+            self._f_coll_spline = self._build_idm_fcoll_spline()
             self._f_coll = self._f_coll_nonpress74
 
             self.igm_eqns_da = self._igm_eqns_idm_da
@@ -438,31 +419,105 @@ class funcs():
         
         return 1e8*self.Om_m**(-0.5)*(10/Z*0.6/1.22*self.Tmin_vir/1.98e4)**1.5
 
-    def _f_coll_press74(self, Z):
+    def _f_coll_cdm_press74(self, Z):
+        '''
+        Collapse fraction only for the Press-Schechter HMF and CDM.
+        '''
         return scsp.erfc(peaks.peakHeight(self.m_min(Z),Z-1)/np.sqrt(2))
 
-    def _f_coll_nonpress74(self, Z):
+    def _f_coll_not_cdm_press74(self, Z):
+        '''
+        Collapse fraction for all other cases. E.g. CDM Tinker08, IDM Press74, or IDM Tinker08.
+        '''
         scalar = np.isscalar(Z)
         Z = np.atleast_1d(np.asarray(Z, dtype=float))
         result = np.where(Z <= Zstar, np.maximum(self._f_coll_spline(Z), 0.0), 0.0)
         return float(result[0]) if scalar else result
-
-    def _f_coll_idm(self, Z):
-        scalar_input = np.isscalar(Z)
-        Z = np.atleast_1d(Z)
-
-        results = np.full_like(Z, -np.inf, dtype=float)#np.zeros_like(Z, dtype=float)  # Initialize all results to 0
-
-        valid = Z <= Zstar  # Boolean mask for Z values that are <= 60
-
-        if np.any(valid):
-            Z_valid = Z[valid]
-            mmin = self.m_min(Z_valid) / self.h100
-            results[valid] = self.rbs.ev(Z_valid - 1,mmin)
-        
-        fcoll_val = np.exp(results)
-        return fcoll_val[0] if scalar_input else fcoll_val
     
+    def _build_cdm_fcoll_spline(self, n_points=60):
+        '''
+        Precompute the collapse fraction on a redshift grid and return a CubicSpline.
+        Called once per funcs() instantiation for non-press74 HMFs, replacing the
+        per-ODE-step numerical integration with a cheap spline evaluation.
+
+        Arguments
+        ---------
+        funcs_obj : funcs
+            An initialised funcs instance whose cosmology and HMF are already set up.
+
+        n_points : int
+            Number of redshift grid points. Default 60.
+
+        Returns
+        -------
+        CubicSpline
+            Spline of f_coll(Z) over Z in [1, Zstar], with Z = 1+z.
+        '''
+        Z_grid = np.linspace(1, Zstar, n_points)
+        f_grid = np.zeros(n_points)
+        norm = Msolar_by_Mpc3_to_kg_by_m3 / (self.Om_m * self.basic_cosmo_rho_crit())
+        for i, Zv in enumerate(Z_grid):
+            M_space = np.logspace(np.log10(self.m_min(Zv) / self.h100), 16, 200)
+            f_grid[i] = scint.simpson(self.dndlnM(M=M_space, Z=Zv), x=M_space)
+        f_grid *= norm
+
+        return CubicSpline(Z_grid, f_grid)
+
+    def _build_idm_fcoll_spline(self, n_points=60):
+        '''
+        Collapse fraction for Coulomb-like IDM HMFs.
+
+        Arguments
+        ---------
+        n_points : int
+            Number of redshift grid points. Default 60.
+
+        Returns
+        -------
+        CubicSpline
+            Spline of f_coll(Z) over Z in [1, Zstar], with `Z` :math:`= 1+z`.
+        '''
+        Z_grid = np.linspace(1, Zstar, n_points)
+        f_grid = np.zeros(n_points)
+        k = np.logspace(-6,3,50) #in h/Mpc
+
+        #---------------------------------------------------------------------------------
+        #Initialize CLASS for IDM power spectrum generation.
+        cosmo_idm = classy.Class()
+
+        input_idm = {'h':self.h100, 'Omega_b':self.Om_b, 'Omega_cdm':0.0, 'Omega_dmeff':self.Om_m-self.Om_b, 'YHe':self.Yp, 'n_s':self.ns, 'sigma8': self.sig8, 'm_dmeff': self.mx_gev, 'N_dmeff': 1, 'sigma_dmeff': 1e4*self.sigma0, 'npow_dmeff':-4, 'dmeff_target':'baryon', 'Vrel_dmeff': 30}
+
+        out = {'output':'mPk','P_k_max_1/Mpc':k.max(), 'z_max_pk':0.1}
+
+        cosmo_idm.set(input_idm)
+        cosmo_idm.set(out)
+
+        cosmo_idm.compute()
+        
+        #Now run CLASS and generate matter power spectrum. This will be fed to COLOSSUS.
+        Pk_0 = np.array([self.h100**3*cosmo_idm.pk(self.h100*kk,0.0) for kk in k]) #in (Mpc/h)**3
+
+        data = np.vstack((np.log10(k),np.log10(Pk_0))).T
+        np.savetxt('Pk_idm.txt', data, delimiter = ' ', newline = '\n')
+
+        #---------------------------------------------------------------------------------
+        #Now compute the collapse fraction by feeding CLASS's matter power spectrum into COLOSSUS.
+
+        norm = Msolar_by_Mpc3_to_kg_by_m3 / (self.Om_m * self.basic_cosmo_rho_crit())
+        ps_idm_dict = dict(model = f'idm_m{self.mx_gev:.4e}_s{self.sigma0:.4e}', path = 'Pk_idm.txt')
+
+        for i, Zv in enumerate(Z_grid):
+            M_space = np.logspace(np.log10(self.m_min(Zv) / self.h100), 16, 200) #solar mass units
+            dn_dlnM = self.h100**3*mass_function.massFunction(self.h100*M_space, Zv-1, q_in='M',
+            q_out='dndlnM', mdef = self.mdef, model = self.hmf, ps_args = ps_idm_dict)
+            f_grid[i] = scint.simpson(dn_dlnM, x=M_space)
+
+        f_grid *= norm
+
+        # cleanup
+        os.remove('Pk_idm.txt')
+
+        return CubicSpline(Z_grid, f_grid)
 
     def f_coll(self,Z):
         '''
@@ -1030,6 +1085,27 @@ class funcs():
         return tau
     #End of functions related to reionization.
     #===================================================================================================
+    def _frac_diff_temp_to_temp(self, Z, frac_diff_temp):
+        '''
+        Given :math:`\\delta_T`, compute :math:`T_{\\mathrm{k}}`.
+
+        Arguments
+        ---------
+        
+        Z : float
+            redshift, :math:`1+z`
+
+        frac_diff_temp: float
+            :math:`\\delta_T`
+        
+        Returns
+        -------
+            :math:`T_{\\mathrm{k}} = (1+\\delta_T)T_{\\gamma}(z)`
+        '''
+        Tgamma = self.basic_cosmo_Tcmb(Z)
+        Tk = (1 + frac_diff_temp)*Tgamma
+        return Tk
+
     def initial_conditions(self):
         '''
         Initial conditions for the IGM equations at :math:`z=1500`. For CDM, we need electron fraction and gas kinetic temperature. For IDM, we also need DM temperature and relative velocity of DM and baryons.
@@ -1061,7 +1137,7 @@ class funcs():
         xe, frac_temp_diff = V
         
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
+        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
         xe = np.clip(xe, 0.0, 1.0)  # Ensure xe stays within physical bounds
 
         eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
@@ -1077,7 +1153,7 @@ class funcs():
         xe, frac_temp_diff = V
         
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
+        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
 
         if xe<0.99:
             eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
@@ -1098,7 +1174,7 @@ class funcs():
         xe = np.clip(xe, 0.0, 1.0)
         
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
+        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
         H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
 
         eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
@@ -1120,7 +1196,7 @@ class funcs():
         v_bx = np.exp(np.clip(ln_v_bx, -300, None))
         
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = frac_diff_temp_to_temp(self, Z, frac_temp_diff)
+        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
         H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
 
         if xe<0.99:
@@ -1385,7 +1461,7 @@ class funcs():
             :math:`T_{21}`, mK.
         '''
         #Get the two-zone model averaged ionisation fraction.
-        xHI = 1-_gaif(xe,Q)
+        xHI = (1-xe)*(1-Q)
         return 27*xHI*((1-self.Yp)/0.76)*(self.Om_b*self.h100**2/0.023)*np.sqrt(0.15*Z/(10*self.Om_m*self.h100**2))*(1-self.basic_cosmo_Tcmb(Z)/Ts)
 
 #End of class echofuncs.
