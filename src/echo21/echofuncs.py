@@ -9,12 +9,16 @@ import scipy.special as scsp
 import scipy.integrate as scint
 from scipy.interpolate import CubicSpline
 import numpy as np
-import classy
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings, os
 from .const import *
+
+try:
+    import classy
+except ImportError:
+    print("")
 
 warnings.filterwarnings('ignore')
 
@@ -77,10 +81,10 @@ class funcs():
             self.Tmin_vir = params['Tmin_vir']
 
             if self.hmf == 'press74':
-                self._f_coll = self._f_coll_press74
+                self._f_coll = self._f_coll_cdm_press74
             else:
                 self._f_coll_spline = self._build_cdm_fcoll_spline()
-                self._f_coll = self._f_coll_nonpress74
+                self._f_coll = self._f_coll_not_cdm_press74
             
         elif self.sfrd_type == 'semi-emp':
             params = {**semi_emp_sfrd_default_model, **params}
@@ -91,10 +95,10 @@ class funcs():
             self.t_star = params['t_star']
             
             if self.hmf == 'press74':
-                self._f_coll = self._f_coll_press74
+                self._f_coll = self._f_coll_cdm_press74
             else:
                 self._f_coll_spline = self._build_cdm_fcoll_spline()
-                self._f_coll = self._f_coll_nonpress74
+                self._f_coll = self._f_coll_not_cdm_press74
 
         elif self.sfrd_type == 'emp':
             params = {**emp_sfrd_default_model, **params}
@@ -117,7 +121,7 @@ class funcs():
             self.sigma0 = sigma45*sig_ten45m2   #Now sigma0 is in m^2
 
             self._f_coll_spline = self._build_idm_fcoll_spline()
-            self._f_coll = self._f_coll_nonpress74
+            self._f_coll = self._f_coll_not_cdm_press74
 
             self.igm_eqns_da = self._igm_eqns_idm_da
             self.igm_eqns_cd = self._igm_eqns_idm_cd

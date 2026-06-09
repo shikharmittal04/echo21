@@ -11,6 +11,8 @@ Welcome to echo21's documentation!
    :caption: Contents:
 
    Basics <basics>
+
+   Installation <install>
    
    In-depth usage <detexp>
 

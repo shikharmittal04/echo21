@@ -82,7 +82,7 @@ Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be 
 
 Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of** :math:`T_{21}`, :math:`x_{\mathrm{HI}}`, **and** :math:`\tau_{\mathrm{e}}` **with varying cosmological parameters**. Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
 
-In the above example we set `grid_on` to True. If you choose ``grid_on=False``, *then the parameters you wish to vary should have the same number of values*. In this case, the code will generate models for combinations of parameters at the same index in the lists/arrays. As an exmaple
+In the above example we set `grid_on` to True. If you choose ``grid_on=False``, *then the parameters you wish to vary should have the same number of values*. In this case, the code will generate models for combinations of parameters at the same index in the lists/arrays. As an example
 
 .. code:: python
    
@@ -116,7 +116,7 @@ Using a similar strategy you can now generate thousands of models in a few minut
 Choosing a different HMF
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Until now we have been using the Press & Schechter (1974) HMF. In ``ECHO21`` you can choose a different HMF also. Suppose you want to generate a signal for Sheth & Tormen (1999) HMF. Then set ``'sheth99'`` for the ``hmf`` keyword in the SFRD dictionary. For some HMFs you will have to change your definition of halo mass which is done by the keyword ``mdef``. For example both Press & Schechter (1974) and Sheth & Tormen (1999) are based on the friends-of-friends definition (which is why we set ``'fof'`` for  ``mdef``), but Tinker et al. (2008) is based on an integer multiple of mean matter density of the Universe. So you can give, say, ``'200m'`` for ``mdef``. For a complete list of available HMFs see the `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_ page.
+Until now we have been using the Press & Schechter (1974) HMF. In ``ECHO21`` you can choose a different HMF also. Suppose you want to generate a signal for Sheth & Tormen (1999) HMF. Then set ``'sheth99'`` for the ``hmf`` keyword in the SFRD dictionary. For some HMFs you will have to change your definition of halo mass which is done by the keyword ``mdef``. For example both Press & Schechter (1974) and Sheth & Tormen (1999) are based on the friends-of-friends definition (which is why we set ``'fof'`` for  ``mdef``), but Tinker et al. (2008) is based on an integer multiple of mean or critical matter density of the Universe. So you can give, say, ``'200m'`` for ``mdef``. For a complete list of available HMFs see the `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_ page.
 
 Below is an example syntax for SFRD dictionary using Tinker et al. (2008) HMF.
 
@@ -149,7 +149,7 @@ Choosing the redshifts at which you want to evaluate the physical quantities
 
 Before anything I want to clarify that I always work with :math:`1+z` and NOT :math:`z`. So wherever, I write redshift I talk about :math:`1+z`. To avoid confusion I have used the capital letter zed ('Z') to represent :math:`1+z`.
 
-Moving on to the main content of this section, when you do not specify the redshift range the code will evaluate the quantities at default redshifts. This default has 2300 values defined by the array ``Z_default`` given below.
+Moving on to the main content of this section, when you do not specify the redshift range, the code will evaluate the quantities at default redshifts. This default has 2300 values defined by the array ``Z_default`` given below.
 
 .. code:: python
    
@@ -179,7 +179,7 @@ The text file contains all the basic information regarding your simulation such 
 
 Simulation with a multi-valued parameters outputs differ slightly. The code will generate a summary file, pipeline object and an HDF5 file. The HDF5 file called, ``echo_output.h5`` contains parameters as a pandas dataframe (``params``), and 1+redshift (``Z``), global signal (``T21``), neutral hydrogen fraction (``xHI``), and CMB optical depth (``tau``) as arrays. If :math:`N_{\mathrm{p}}, N_{z}`, and :math:`N_{\mathrm{mod}}` are the number of parameters that are multi-valued, number of redshift points, and number of models, respectively then ``params`` is a table of shape :math:`N_{\mathrm{mod}} \times N_{\mathrm{p}}`, ``Z`` is 1D numpy array of length :math:`N_{z}`, ``T21`` & ``xHI`` are 2D arrays of shape :math:`N_{\mathrm{mod}} \times N_{z}`, and ``tau`` is a 1D array of length :math:`N_{\mathrm{mod}}`.
 
-Use the following lines of code to load the output:
+**Read the output:** Use the following lines of code to load the output:
 
 .. code:: python
 
@@ -192,4 +192,6 @@ Use the following lines of code to load the output:
     xHI = store["xHI"].values
     tau = store["tau"].values
 
-Thus, each row in ``params`` table corresponds to a unique model. Corresponding to this model (say at :math:`r^{\mathrm{th}}` row) is the 21-cm signal at :math:`r^{\mathrm{th}}` row, i.e., ``T21[r,:]`` (similarly for neutral hydrogen fraction and CMB optical depth). (Note that single-valued parameters do not appear in the table.) To see what values you gave, check the summary text file.
+Thus, each row in ``params`` table corresponds to a unique model. Corresponding to this model (say at :math:`r^{\mathrm{th}}` row) is the 21-cm signal at :math:`r^{\mathrm{th}}` row, i.e., ``T21[r,:]`` (similarly for neutral hydrogen fraction and CMB optical depth). (Note that single-valued parameters do not appear in the table.)
+
+To see what values you gave, check the summary text file.
