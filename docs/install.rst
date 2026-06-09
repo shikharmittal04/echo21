@@ -33,7 +33,7 @@ Follow the `Anaconda website <https://www.anaconda.com/docs/getting-started/mini
    conda create -n echoenv python
    conda install numpy scipy matplotlib cython=0.29 gcc_linux-64 gxx_linux-64 make
 
-   git clone https://github.com/kboddy/class_public.git
+   git clone -b dmeff https://github.com/kboddy/class_public.git
    cd class_public
    make clean
    make

@@ -12,7 +12,7 @@ import numpy as np
 from colossus.cosmology import cosmology
 from colossus.lss import peaks
 from colossus.lss import mass_function
-import warnings, os
+import warnings, os, tempfile
 from .const import *
 
 try:
@@ -66,7 +66,7 @@ class funcs():
         ############################################################################
         #Setting up cosmology for COLOSSUS package
         self.cosmo_par = {'flat': True, 'H0': self.Ho, 'Om0': self.Om_m, 'Ob0': self.Om_b, 'sigma8': self.sig8, 'ns': self.ns,'relspecies': True,'Tcmb0': self.Tcmbo}
-        self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par)
+        self.my_cosmo = cosmology.setCosmology('cosmo_par', self.cosmo_par, persistence = 'r')
         self.h100 = self.Ho/100
         
         ############################################################################
@@ -501,14 +501,16 @@ class funcs():
         #Now run CLASS and generate matter power spectrum. This will be fed to COLOSSUS.
         Pk_0 = np.array([self.h100**3*cosmo_idm.pk(self.h100*kk,0.0) for kk in k]) #in (Mpc/h)**3
 
-        data = np.vstack((np.log10(k),np.log10(Pk_0))).T
-        np.savetxt('Pk_idm.txt', data, delimiter = ' ', newline = '\n')
+        fd, pk_path = tempfile.mkstemp(prefix='Pk_idm_', suffix='.txt')   # unique per process
+        os.close(fd)
+        np.savetxt(pk_path, np.vstack((np.log10(k),np.log10(Pk_0))).T)
 
         #---------------------------------------------------------------------------------
         #Now compute the collapse fraction by feeding CLASS's matter power spectrum into COLOSSUS.
+        ps_idm_dict = dict(model = f'idm_m{self.mx_gev:.4e}_s{self.sigma0:.4e}', path = pk_path)
+
 
         norm = Msolar_by_Mpc3_to_kg_by_m3 / (self.Om_m * self.basic_cosmo_rho_crit())
-        ps_idm_dict = dict(model = f'idm_m{self.mx_gev:.4e}_s{self.sigma0:.4e}', path = 'Pk_idm.txt')
 
         for i, Zv in enumerate(Z_grid):
             M_space = np.logspace(np.log10(self.m_min(Zv) / self.h100), 16, 200) #solar mass units
@@ -519,7 +521,7 @@ class funcs():
         f_grid *= norm
 
         # cleanup
-        os.remove('Pk_idm.txt')
+        os.remove(pk_path)
 
         return CubicSpline(Z_grid, f_grid)
 
