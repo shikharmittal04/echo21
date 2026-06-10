@@ -19,10 +19,10 @@ IDM requires two additional parameters, namely :math:`m_{\chi}` (mass of Coulomb
 
 ``ECHO21`` interfaces with a modified version of `CLASS <https://github.com/kboddy/class_public/tree/dmeff>`_ to get the (linear) matter power spectrum for IDM (at :math:`z=0`) which is then fed into ``COLOSSUS`` to obtain variance :math:`\sigma(M)`. We translate the power spectrum and variance to an arbitrary redshift linearly with a scale-independent growth factor. Accordingly, we can obtain HMF at an arbitrary redshift.
 
-A few points to note on which the latest version of IDM implementation of ``ECHO21`` differ from the one described in `Mittal et al (2026) <https://arxiv.org/abs/2605.00991>`_.
+A few points to note on which the latest version of IDM implementation of ``ECHO21`` differs from the one described in `Mittal et al (2026) <https://arxiv.org/abs/2605.00991>`_.
 
-   - Rather than fixing the primordial spectrum amplitude :math:`A_\mathrm{s}`, we fix the normalisation  :math:`\sigma_8` by the user defined value.
+   - User-defined value of :math:`\sigma_8` in case of IDM simulation is not used directly. Rather, a corresponding CDM simulation is done to get the primordial spectrum amplitude :math:`A_\mathrm{s}`. This :math:`A_\mathrm{s}` is then used for IDM simulation. Such an approach ensures that CDM and IDM had a common primordial state diverged from there.
 
-   - We adopt a top-hat filter to smoothen the matter density field for the calculation of variance :math:`\sigma(M)`. Previously, a sharp-k filter was used. (Top-hat make the simulation a bit faster and is more commonly used in the literature.)
+   - We adopt a top-hat filter to smoothen the matter density field for the calculation of variance :math:`\sigma(M)`. Previously, a sharp-k filter was used. (Top-hat makes the simulation a bit faster and is more commonly used in the literature.)
 
-   - Previously, only Tinker et al (2008) HMF was available for IDM simulations. Now, the user can choose any standard HMF. Moreover, the halo mass definition was restricted to :math:`M_{500\mathrm{c}}` (mass enclosed within a radius where the mean density is 500 times the critical matter density). Now, the user can choose any halo mass definition supported by `COLOSSUS <https://pypi.org/project/colossus/>`_.
+   - Previously, only Tinker et al (2008) HMF was available for IDM simulations. Now, the user can choose any standard HMF. Moreover, the halo mass definition was restricted to :math:`M_{500\mathrm{c}}` (mass enclosed within a radius where the mean density is 500 times the critical matter density). Now, the user can choose any halo mass definition supported by `COLOSSUS <https://bdiemer.bitbucket.io/colossus/lss_mass_function.html#mass-function-models>`_.

@@ -851,7 +851,7 @@ class funcs():
 
     #===================================================================================================
 
-    def u_t(self, xe,Tk,Tx, target='p'):
+    def u_t(self, xe,Tk,Tx):
         '''
         The characteristic thermal sound speed of the DM-baryon fluid.
         
@@ -874,13 +874,10 @@ class funcs():
             :math:`u_{\\mathrm{th}} (\\mathrm{m\\,s^{-1}})`.
         '''
         
-        if (target == 'e'):
-            ut = np.sqrt(kB*Tk/me+kB*Tx/self.mx)
-        if (target == 'p'):
-            ut = np.sqrt(kB*Tk/(self.basic_cosmo_mu(xe)*mP)+kB*Tx/self.mx)
+        ut = np.sqrt(kB*Tk/(self.basic_cosmo_mu(xe)*mP)+kB*Tx/self.mx)
         return ut
 
-    def r_t(self,xe,Tk,Tx,v_bx,target='p'):
+    def r_t(self,xe,Tk,Tx,v_bx):
         '''
         Ratio of relative velocity of DM and baryons to the characteristic thermal sound speed.
          
@@ -905,10 +902,7 @@ class funcs():
         float
             :math:`v_{\\mathrm{b}\\chi}/u_{\\mathrm{th}}`, dimensionless.
         '''
-        if (target == 'e'):
-            return v_bx/self.u_t(xe,Tk,Tx, 'e')
-        if (target == 'p'):
-            return v_bx/self.u_t(xe,Tk,Tx, 'p')
+        return v_bx/self.u_t(xe,Tk,Tx)
 
     def F(self, x):
         return scsp.erf(x/np.sqrt(2))- np.sqrt(2/np.pi)*x*np.exp(-x**2/2)
@@ -943,8 +937,8 @@ class funcs():
         '''        
         rho_b = Z**3*self.basic_cosmo_rho_crit()*self.Om_b
         rho_x = Z**3*self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)
-        rp = self.r_t(xe,Tk,Tx,v_bx,'p')
-        up = self.u_t(xe,Tk,Tx,'p')
+        rp = self.r_t(xe,Tk,Tx,v_bx)
+        up = self.u_t(xe,Tk,Tx)
         prefactor = cE**4*self.sigma0*(rho_x+rho_b)/(self.mx+self.basic_cosmo_mu(xe)*mP) * 1/up**2
         if rp>=0.001:
             D = prefactor * self.F(rp)/rp**2
@@ -1004,12 +998,14 @@ class funcs():
         #mass density of baryons only (in kg/m^3 proper)
         rho_b = self.basic_cosmo_rho_crit()*self.Om_b*Z**3 
         
-        rp = self.r_t(xe,Tk,Tx,v_bx,'p')
+        rp = self.r_t(xe,Tk,Tx,v_bx)
         
-        up = self.u_t(xe,Tk,Tx, 'p')
+        up = self.u_t(xe,Tk,Tx)
         term1 = cE**4*2*self.basic_cosmo_mu(xe)*mP*rho_x*self.sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
         term2 = 1/kB*rho_x/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)
-        return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
+        
+        retval = 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
+        return retval
 
     def Eb2x(self,Z,xe,Tk,Tx,v_bx):
         '''
@@ -1045,9 +1041,9 @@ class funcs():
         #mass density of baryons only (in kg/m^3 proper)
         rho_b = self.basic_cosmo_rho_crit()*self.Om_b*Z**3 
 
-        rp = self.r_t(xe,Tk,Tx,v_bx, 'p')
+        rp = self.r_t(xe,Tk,Tx,v_bx)
         
-        up = self.u_t(xe,Tk,Tx, 'p')
+        up = self.u_t(xe,Tk,Tx)
         term1 = cE**4*2*self.mx*rho_b*self.sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
         term2 = 1/kB*rho_b/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)
         return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
@@ -1191,7 +1187,10 @@ class funcs():
         
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
         
-        eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        if ln_v_bx > -70.0:
+            eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        else:
+            eq4 = 0.0
         
         return np.array([eq1,eq2,eq3,eq4])
 
@@ -1200,9 +1199,10 @@ class funcs():
         Differential equations for the IGM in the IDM model during the cosmic dawn phase.
         '''
         xe, frac_temp_diff, Tx, ln_v_bx = V
-
-        v_bx = np.exp(np.clip(ln_v_bx, -300, None))
         
+        v_bx = np.exp(np.clip(ln_v_bx, -30, None))
+        #print(Z, xe, frac_temp_diff, Tx, np.log(v_bx))
+
         Tgamma = self.basic_cosmo_Tcmb(Z)
         Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
         H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
@@ -1216,7 +1216,10 @@ class funcs():
         
         eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
         
-        eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        if ln_v_bx > -30.0:
+            eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
+        else:
+            eq4 = 0.0
         
         return np.array([eq1,eq2,eq3,eq4])
 
