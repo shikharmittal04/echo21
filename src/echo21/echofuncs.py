@@ -14,6 +14,7 @@ from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings, os, tempfile
 from .const import *
+from .misc import _get_As_for_sig8
 
 try:
     import classy
@@ -486,25 +487,26 @@ class funcs():
         k = np.logspace(-6,3,50) #in h/Mpc
 
         #---------------------------------------------------------------------------------
+        #First get As for the given cosmological parameters assuming CDM
+        class_set_cdm = {'h':self.h100, 'Omega_b':self.Om_b, 'Omega_cdm':self.Om_m-self.Om_b, 'Omega_dmeff':0.0, 'YHe':self.Yp, 'n_s':self.ns, 'sigma8': self.sig8, 'output':'mPk','P_k_max_1/Mpc':1, 'z_max_pk':0.1}
+
+        class_set_idm = {'h':self.h100, 'Omega_b':self.Om_b, 'Omega_cdm':0.0, 'Omega_dmeff':self.Om_m-self.Om_b, 'YHe':self.Yp, 'n_s':self.ns, 'm_dmeff': self.mx_gev, 'N_dmeff': 1, 'sigma_dmeff': 1e4*self.sigma0, 'npow_dmeff':-4, 'dmeff_target':'baryon', 'Vrel_dmeff': 30, 'output':'mPk','P_k_max_1/Mpc':k.max(), 'z_max_pk':0.1}
+
+        class_set = class_set_idm | {'A_s':_get_As_for_sig8(class_set_cdm)}
+
         #Initialize CLASS for IDM power spectrum generation.
-        cosmo_idm = classy.Class()
-
-        input_idm = {'h':self.h100, 'Omega_b':self.Om_b, 'Omega_cdm':0.0, 'Omega_dmeff':self.Om_m-self.Om_b, 'YHe':self.Yp, 'n_s':self.ns, 'sigma8': self.sig8, 'm_dmeff': self.mx_gev, 'N_dmeff': 1, 'sigma_dmeff': 1e4*self.sigma0, 'npow_dmeff':-4, 'dmeff_target':'baryon', 'Vrel_dmeff': 30}
-
-        out = {'output':'mPk','P_k_max_1/Mpc':k.max(), 'z_max_pk':0.1}
-
-        cosmo_idm.set(input_idm)
-        cosmo_idm.set(out)
-
-        cosmo_idm.compute()
+        class_obj = classy.Class()
+        class_obj.set(class_set)
+        class_obj.compute()
         
         #Now run CLASS and generate matter power spectrum. This will be fed to COLOSSUS.
-        Pk_0 = np.array([self.h100**3*cosmo_idm.pk(self.h100*kk,0.0) for kk in k]) #in (Mpc/h)**3
+        Pk_0 = np.array([self.h100**3*class_obj.pk(self.h100*kk,0.0) for kk in k]) #in (Mpc/h)**3
 
         fd, pk_path = tempfile.mkstemp(prefix='Pk_idm_', suffix='.txt')   # unique per process
         os.close(fd)
         np.savetxt(pk_path, np.vstack((np.log10(k),np.log10(Pk_0))).T)
-
+        
+        #CLASS's job is done.
         #---------------------------------------------------------------------------------
         #Now compute the collapse fraction by feeding CLASS's matter power spectrum into COLOSSUS.
         ps_idm_dict = dict(model = f'idm_m{self.mx_gev:.4e}_s{self.sigma0:.4e}', path = pk_path)

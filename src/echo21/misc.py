@@ -7,6 +7,10 @@ This module contains non-physics functions.
 '''
 import pickle
 import numpy as np
+try:
+    import classy
+except ImportError:
+    print("")
 
 #The following 2 functions will be useful if you want to save and load `pipeline` object.
 def save_pipeline(obj, filename):
@@ -195,3 +199,29 @@ def print_input(pipe):
     print('\033[00m\n')
 
     return None
+
+def _get_As_for_sig8(class_set):
+    '''
+    For the given cosmological parameters (including sigma8), compute the primordial power spectrum amplitude.
+
+    Arguments
+    ---------
+    class_set: dict
+        A dictionary of cosmological parameters including user provided sigma8
+    
+    Returns
+    -------
+    
+    float
+        A_s
+
+    '''
+    class_obj = classy.Class()
+    class_obj.set(class_set)
+    class_obj.compute()
+
+    A_s = class_obj.get_current_derived_parameters(['A_s'])['A_s']
+    class_obj.struct_cleanup()
+    class_obj.empty()
+
+    return A_s
