@@ -78,9 +78,13 @@ def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='
     myobj = funcs(params_dict, dm_model=dm_model)
     ic = myobj.initial_conditions()
 
-    sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
-    ic_cd = tuple(s[-1] for s in sol_da)
-    sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
+    try:
+        sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
+        ic_cd = tuple(s[-1] for s in sol_da)
+        sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
+    except Exception as e:
+        print(params_dict)
+        raise
 
     xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
     Tk_da = myobj._frac_diff_temp_to_temp(Z_da, sol_da[1])
