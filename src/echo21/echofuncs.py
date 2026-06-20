@@ -794,6 +794,7 @@ class funcs():
         Jc_Ji = self.lya_spec_inten(Z)
         nbary = (1+self.basic_cosmo_xHe()+xe)*self.basic_cosmo_nH(Z)
         [heat]=8*np.pi/3*hP/(kB*lam_alpha) * self._dopp(Tk)/nbary *(Jc_Ji[:,0]*Ic+Jc_Ji[:,1]*Ii)
+        #print(Z, heat)
         return heat
 
     def heating_Ex(self,Z,xe):
@@ -944,6 +945,7 @@ class funcs():
             D = prefactor * self.F(rp)/rp**2
         else:
             D = prefactor * np.sqrt(2/np.pi)*(rp/3 - rp**3/10 + rp**5/56)
+        
         return D
 
     def mu_bx(self,xe):
@@ -992,6 +994,8 @@ class funcs():
         float
             :math:`\\dot{Q}_{\\mathrm{k}} (\\mathrm{K})`.
         '''
+        temp_diff = Tk - Tx
+
         # fraction of DM which is coloumb-like (in kg/m^3 proper)
         rho_x = self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3	
 
@@ -1001,7 +1005,7 @@ class funcs():
         rp = self.r_t(xe,Tk,Tx,v_bx)
         
         up = self.u_t(xe,Tk,Tx)
-        term1 = cE**4*2*self.basic_cosmo_mu(xe)*mP*rho_x*self.sigma0*np.exp(-rp**2/2)*(Tx-Tk)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
+        term1 = cE**4*2*self.basic_cosmo_mu(xe)*mP*rho_x*self.sigma0*np.exp(-rp**2/2)*(-temp_diff)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
         term2 = 1/kB*rho_x/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)
         
         retval = 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
@@ -1035,6 +1039,8 @@ class funcs():
         float
             :math:`\\dot{Q}_{\\chi}` (K).
         '''
+        temp_diff = Tk - Tx
+
         # fraction of DM which is coloumb-like (in kg/m^3 proper)
         rho_x = self.basic_cosmo_rho_crit()*(self.Om_m-self.Om_b)*Z**3
 
@@ -1044,8 +1050,9 @@ class funcs():
         rp = self.r_t(xe,Tk,Tx,v_bx)
         
         up = self.u_t(xe,Tk,Tx)
-        term1 = cE**4*2*self.mx*rho_b*self.sigma0*np.exp(-rp**2/2)*(Tk-Tx)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
+        term1 = cE**4*2*self.mx*rho_b*self.sigma0*np.exp(-rp**2/2)*(temp_diff)/((self.mx+self.basic_cosmo_mu(xe)*mP)**2*np.sqrt(2*np.pi)*up**3)
         term2 = 1/kB*rho_b/(rho_x+rho_b)*self.mu_bx(xe)*v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)
+
         return 2/(3*self.basic_cosmo_H(Z))*(term1+term2)
     
     #End of functions related to IDM.
@@ -1089,9 +1096,18 @@ class funcs():
         return tau
     #End of functions related to reionization.
     #===================================================================================================
-    def _frac_diff_temp_to_temp(self, Z, frac_diff_temp):
+
+    def _logratio_to_temp(self, Z, y):
         '''
-        Given :math:`\\delta_T`, compute :math:`T_{\\mathrm{k}}`.
+        Given the evolved log-ratio variable :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`,
+        compute :math:`T_{\\mathrm{k}}`.
+
+        This is the inverse of the transformation used inside the IGM equation
+        functions and the one that should be used to post-process the solver
+        output. Because :math:`T_{\\mathrm{k}} = T_{\\gamma}\\,e^{y}`, the gas
+        temperature is guaranteed positive for any finite :math:`y`, which avoids
+        the loss-of-precision / negative-temperature failure that the
+        :math:`\\delta_T` parametrisation suffers when :math:`T_{\\mathrm{k}} \\ll T_{\\gamma}`.
 
         Arguments
         ---------
@@ -1099,22 +1115,22 @@ class funcs():
         Z : float
             redshift, :math:`1+z`
 
-        frac_diff_temp: float
-            :math:`\\delta_T`
+        y : float
+            :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`
         
         Returns
         -------
-            :math:`T_{\\mathrm{k}} = (1+\\delta_T)T_{\\gamma}(z)`
+            :math:`T_{\\mathrm{k}} = e^{y}\\,T_{\\gamma}(z)`
         '''
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = (1 + frac_diff_temp)*Tgamma
+        Tk = np.exp(y)*Tgamma
         return Tk
 
     def initial_conditions(self):
         '''
         Initial conditions for the IGM equations at :math:`z=1500`. For CDM, we need electron fraction and gas kinetic temperature. For IDM, we also need DM temperature and relative velocity of DM and baryons.
 
-        Also, note that for gas temperature it is a transformed variable. Instead of :math:`T_{\\mathrm{k}}` we have :math:`\\delta_T = (T_{\\mathrm{k}}-T_{\\gamma})/T_{\\gamma}`.
+        Also, note that for gas temperature it is a transformed variable. Instead of :math:`T_{\\mathrm{k}}` we evolve :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma}) = \\ln(1+\\delta_T)`. At :math:`z=1500`, :math:`T_{\\mathrm{k}}=T_{\\gamma}` so the initial value is :math:`y=0`.
         
         Arguments
         ---------
@@ -1127,99 +1143,105 @@ class funcs():
         tuple
             Initial conditions. For CDM, the tuple is (xe_init, frac_temp_diff_init). For IDM, the tuple is (xe_init, frac_temp_diff_init, Tx_init, ln_vbx_init).
         '''
-
-        xe_init = self.recomb_Saha_xe(Z_start,self.basic_cosmo_Tcmb(Z_start))
-        Tx_init = 0
+        Tgamma_init = self.basic_cosmo_Tcmb(Z_start)
+        xe_init = self.recomb_Saha_xe(Z_start,Tgamma_init)
+        yT_init = 0.0
+        Tx_init = 0.0
         ln_vbx_init = np.log(43500)
-        ic = (xe_init,0,Tx_init,ln_vbx_init) if self.dm_model == 'IDM' else (xe_init,0)
+        ic = (xe_init,yT_init,Tx_init,ln_vbx_init) if self.dm_model == 'IDM' else (xe_init,yT_init)
         return ic
 
     def _igm_eqns_cdm_da(self, Z, V):
         '''
         Differential equations for the IGM in the CDM model during the dark ages phase.
+        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
         '''
-        xe, frac_temp_diff = V
-        
-        Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
-        xe = np.clip(xe, 0.0, 1.0)  # Ensure xe stays within physical bounds
+        xe, yT = V
+        Tk = self._logratio_to_temp(Z, yT)
 
+        Tgamma = self.basic_cosmo_Tcmb(Z)
+        xe = np.clip(xe, 0.0, 1.0)  # Ensure xe stays within physical bounds
+        
         eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
-        
-        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe) - 1/Tgamma*self.heating_Ecomp(Z,xe,Tk)
-        
+
+        eq2 = 1 - eq1/(1+self.basic_cosmo_xHe()+xe) - 1/Tk*self.heating_Ecomp(Z,xe,Tk)
+
         return np.array([eq1,eq2])
 
     def _igm_eqns_cdm_cd(self, Z, V):
         '''
         Differential equations for the IGM in the CDM model during the cosmic dawn phase.
+        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
         '''
-        xe, frac_temp_diff = V
-        
+        xe, Tk = V
+
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
 
         if xe<0.99:
             eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
         else:
             eq1 = 0.0
-        
-        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe) - 1/Tgamma*self.heating_Ecomp(Z,xe,Tk) - 1/Tgamma*self.heating_Ex(Z,xe) - 1/Tgamma*self.heating_Elya(Z,xe,Tk)
+
+        THETA_k = self.heating_Ecomp(Z,xe,Tk) + self.heating_Ex(Z,xe) + self.heating_Elya(Z,xe,Tk)
+        eq2 = 2*Tk - Tk*eq1/(1+self.basic_cosmo_xHe()+xe) - THETA_k
         
         return np.array([eq1,eq2])
 
     def _igm_eqns_idm_da(self, Z, V):
         '''
         Differential equations for the IGM in the IDM model during the dark ages phase.
+        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
+        Because Tk = exp(y)*Tgamma is positive by construction, no clipping of the
+        gas temperature against the DM temperature is required.
         '''
-        xe, frac_temp_diff, Tx, ln_v_bx = V
+        xe, yT, Tx, ln_v_bx = V
+        Tk = self._logratio_to_temp(Z, yT)
 
-        v_bx = np.exp(np.clip(ln_v_bx, -300, None))
+        v_bx = np.exp(np.clip(ln_v_bx, -30, None))
         xe = np.clip(xe, 0.0, 1.0)
         
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
-        H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
 
         eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
+
+        THETA_k = self.heating_Ecomp(Z,xe,Tk) + self.Ex2b(Z,xe,Tk,Tx,v_bx)
+        THETA_x = self.Eb2x(Z,xe,Tk,Tx,v_bx)
         
-        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-1/Tgamma*H_d2b
+        eq2 = 1 - eq1/(1+self.basic_cosmo_xHe()+xe) - 1/Tk*THETA_k
+
+        eq3 = 2*Tx-THETA_x
         
-        eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
-        
-        if ln_v_bx > -70.0:
-            eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
-        else:
-            eq4 = 0.0
+        eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
         
         return np.array([eq1,eq2,eq3,eq4])
 
     def _igm_eqns_idm_cd(self, Z, V):
         '''
         Differential equations for the IGM in the IDM model during the cosmic dawn phase.
+        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
+        Because Tk = exp(y)*Tgamma is positive by construction, no clipping of the
+        gas temperature against the DM temperature is required.
         '''
-        xe, frac_temp_diff, Tx, ln_v_bx = V
+        xe, Tk, Tx, ln_v_bx = V
         
         v_bx = np.exp(np.clip(ln_v_bx, -30, None))
-        #print(Z, xe, frac_temp_diff, Tx, np.log(v_bx))
 
         Tgamma = self.basic_cosmo_Tcmb(Z)
-        Tk = self._frac_diff_temp_to_temp(Z, frac_temp_diff)
-        H_d2b = self.Ex2b(Z,xe,Tk,Tx,v_bx)
 
+        print(Z, xe, Tk, Tx, v_bx)
         if xe<0.99:
             eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
         else:
             eq1 = 0.0
+
+        THETA_k = self.heating_Ecomp(Z,xe,Tk) + self.heating_Ex(Z,xe) + self.heating_Elya(Z,xe,Tk) + self.Ex2b(Z,xe,Tk,Tx,v_bx)
+        THETA_x = self.Eb2x(Z,xe,Tk,Tx,v_bx)
+
+        eq2 = 2*Tk  - Tk*eq1/(1+self.basic_cosmo_xHe()+xe) - THETA_k
+
+        eq3 = 2*Tx-THETA_x
         
-        eq2 = (1 + frac_temp_diff)-(1 + frac_temp_diff)*eq1/(1+self.basic_cosmo_xHe()+xe)-1/Tgamma*self.heating_Ecomp(Z,xe,Tk)-1/Tgamma*H_d2b-1/Tgamma*self.heating_Elya(Z,xe,Tk)-1/Tgamma*self.heating_Ex(Z,xe)
-        
-        eq3 = 2*Tx-self.Eb2x(Z,xe,Tk,Tx,v_bx)
-        
-        if ln_v_bx > -30.0:
-            eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
-        else:
-            eq4 = 0.0
+        eq4 = 1 + 1/v_bx*self.Drag(Z,xe,Tk,Tx,v_bx)/self.basic_cosmo_H(Z)
         
         return np.array([eq1,eq2,eq3,eq4])
 
@@ -1229,7 +1251,7 @@ class funcs():
         This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved.
         Note the following two points:
         
-            1. For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`\\delta_T = (T_{\\mathrm{k}}-T_{\\gamma})/T_{\\gamma}`.
+            1. For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma}) = \\ln(1+\\delta_T)`. Recover the temperature with :meth:`_logratio_to_temp`, i.e. :math:`T_{\\mathrm{k}} = e^{y}\\,T_{\\gamma}`.
         
             2. In case of IDM, the last value of the solution array is :math:`\\ln v_{\\mathrm{b}\\chi}` and not :math:`v_{\\mathrm{b}\\chi}` itself.
 
@@ -1247,7 +1269,7 @@ class funcs():
         Returns
         -------
         array
-            :math:`x_{\\mathrm{e}}`, :math:`\\delta_T`, :math:`T_{\\chi}`, :math:`\\ln v_{\\mathrm{b}\\chi}`
+            :math:`x_{\\mathrm{e}}`, :math:`y=\\ln(T_{\\mathrm{k}}/T_{\\gamma})`, :math:`T_{\\chi}`, :math:`\\ln v_{\\mathrm{b}\\chi}`
         '''
         Z_start = Z_solver[0]
         Z_end   = Z_solver[-1]
@@ -1261,6 +1283,16 @@ class funcs():
             rtol=1e-4, atol=1e-7
         )
 
+        if not Sol.success:
+            z_stall = 1/Sol.t[-1] if Sol.t.size else Z_start
+            raise RuntimeError(
+                f"igm_solver: solve_ivp ({eqns_func.__name__}) failed at 1+z={z_stall:.4f}, "
+                f"reaching {Sol.y.shape[1]}/{len(Z_solver)} output points. "
+                f"Solver message: {Sol.message!r}. "
+                f"This usually means the thermal evolution became too stiff "
+                f"(e.g. strong DM-baryon coupling driving Tk towards Tx)."
+            )
+        
         results = [y for y in Sol.y]
         
         return results

@@ -33,7 +33,7 @@ def cosmic_dawn_beyond(params_dict, *initial_conditions, Z_eval=None, dm_model='
     sol_cd = myobj_cd.igm_solver(Z_cd, *initial_conditions, eqns_func=myobj_cd.igm_eqns_cd)
     
     xe_cd = sol_cd[0]
-    Tk_cd = myobj_cd._frac_diff_temp_to_temp(Z_cd, sol_cd[1])
+    Tk_cd = sol_cd[1]
     
     Q_cd = myobj_cd.QHii
 
@@ -75,21 +75,20 @@ def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='
     -------
     21-cm signal, global-averaged neutral hydrogen fraction, and optical depth.
     '''
+    #we solve this case in two parts. First DA then CD and later.
     myobj = funcs(params_dict, dm_model=dm_model)
     ic = myobj.initial_conditions()
 
-    try:
-        sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
-        ic_cd = tuple(s[-1] for s in sol_da)
-        sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
-    except Exception as e:
-        print(params_dict)
-        raise
+    sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
+    #in dark ages we solver for the transformed gas temperature. So we need to convert to physical temperature
+    sol_da[1] = myobj._logratio_to_temp(Z_da, sol_da[1])
+
+    #initial conditions for cosmic dawn solver
+    ic_cd = tuple(s[-1] for s in sol_da)
+    sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
 
     xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
-    Tk_da = myobj._frac_diff_temp_to_temp(Z_da, sol_da[1])
-    Tk_cd = myobj._frac_diff_temp_to_temp(Z_cd, sol_cd[1])
-    Tk = np.concatenate((Tk_da[:-1], Tk_cd))
+    Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
     
     Q_Hii = myobj.QHii
     Q_Hii = np.concatenate((np.zeros(len(Z_da)-1), Q_Hii))

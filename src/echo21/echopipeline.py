@@ -176,6 +176,11 @@ class pipeline():
             ic_da = obj_dark_ages.initial_conditions()
 
             sol_da = obj_dark_ages.igm_solver(Z_da, *ic_da, eqns_func=obj_dark_ages.igm_eqns_da)
+
+            #in dark ages we solver for the transformed gas temperature. So we need to convert to physical temperature
+            sol_da[1] = obj_dark_ages._logratio_to_temp(Z_da, sol_da[1])
+
+            #initial conditions for cosmic dawn solver
             self.initial_conditions = tuple(x[-1] for x in sol_da)
 
             self.run_type='astro'
@@ -243,19 +248,21 @@ class pipeline():
                 print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
                 
+                #we solve full timeline in two parts. First DA then CD and later.
                 myobj = funcs(self.fixed_params, dm_model=self.dm_model)
                 ic = myobj.initial_conditions()
 
                 print('Obtaining the thermal and ionisation history ...')
                 sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
+                #in dark ages we solver for the transformed gas temperature. So we need to convert to physical temperature
+                sol_da[1] = myobj._logratio_to_temp(Z_da, sol_da[1])
+                
+                #initial conditions for cosmic dawn solver
                 ic_cd = tuple(s[-1] for s in sol_da)
                 sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
 
                 xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
-
-                Tk_da = myobj._frac_diff_temp_to_temp(Z_da, sol_da[1])
-                Tk_cd = myobj._frac_diff_temp_to_temp(Z_cd, sol_cd[1])
-                Tk = np.concatenate((Tk_da[:-1], Tk_cd))
+                Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
 
                 Q_Hii = myobj.QHii
                 Q_Hii = np.concatenate((np.zeros(len(Z_da)-1), Q_Hii))
@@ -263,7 +270,6 @@ class pipeline():
                 if self.dm_model == 'IDM':
                     Tx = np.concatenate([sol_da[2][:-1], sol_cd[2]])
                     ln_v_bx = np.concatenate([sol_da[3][:-1], sol_cd[3]])
-
 
                 if self.Z_eval is not None:
                     xe = CubicSpline(flipped_Z_default, np.flip(xe))(self.Z_eval)
@@ -349,6 +355,8 @@ class pipeline():
         else:
             partial_results = []
             partial_params = []
+            n_failed = 0
+            failed_params = []
             if self.cpu_ind==0:
                 #Master CPU
                 print_banner()
@@ -371,7 +379,13 @@ class pipeline():
                 for idx in range(self.cpu_ind-1, self.N_models, self.n_cpu-1):
                     all_params_dict, varying_params_only = self.get_index(self, idx)
 
-                    result = self.simulator(all_params_dict, *self.initial_conditions, Z_eval = self.Z_eval, dm_model=self.dm_model)
+                    try:
+                        result = self.simulator(all_params_dict, *self.initial_conditions, Z_eval = self.Z_eval, dm_model=self.dm_model)
+                    except Exception:
+                        n_failed += 1
+                        failed_params.append(varying_params_only)
+                        self.comm.send(1, dest=0, tag=77)
+                        continue
                     
                     partial_params.append(varying_params_only)
                     partial_results.append(result)
@@ -382,12 +396,22 @@ class pipeline():
         self.comm.Barrier()
         gathered_results = self.comm.gather(partial_results, root=0)
         gathered_params = self.comm.gather(partial_params, root=0)
+        gathered_failures = self.comm.gather(n_failed, root=0)
+        gathered_failed_params = self.comm.gather(failed_params, root=0)
 
         if self.cpu_ind == 0:
-
             # Flatten results
             all_params  = [p for chunk in gathered_params for p in chunk]
             all_results = [r for chunk in gathered_results for r in chunk]
+
+            # Count and collect failed parameter sets
+            total_failed = sum(gathered_failures)
+            all_failed_params = [p for chunk in gathered_failed_params for p in chunk]
+            n_succeeded = len(all_results)
+
+            if total_failed > 0:
+                print(f'\n\033[33mWarning: {total_failed}/{self.N_models} models failed (solver did not converge). '
+                      f'{n_succeeded} models saved.\033[00m')
 
             param_df = pd.DataFrame(all_params)
             #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
@@ -412,6 +436,10 @@ class pipeline():
                 store.put("xHI", pd.DataFrame(xHI))
                 store.put("tau", pd.Series(tau))
 
+                # failed parameter sets (if any)
+                if total_failed > 0:
+                    store.put("failed_params", pd.DataFrame(all_failed_params))
+
             print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
             
             et = time.perf_counter()
@@ -423,7 +451,7 @@ class pipeline():
             #Writing to a summary file
 
             myfile = write_summary(self, elapsed_time=elapsed_time)
-            myfile.write('\n{} models generated'.format(self.N_models))
+            myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
             myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
             myfile.write('\n')
             myfile.close()
