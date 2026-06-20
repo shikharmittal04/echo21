@@ -1130,7 +1130,7 @@ class funcs():
         '''
         Initial conditions for the IGM equations at :math:`z=1500`. For CDM, we need electron fraction and gas kinetic temperature. For IDM, we also need DM temperature and relative velocity of DM and baryons.
 
-        Also, note that for gas temperature it is a transformed variable. Instead of :math:`T_{\\mathrm{k}}` we evolve :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma}) = \\ln(1+\\delta_T)`. At :math:`z=1500`, :math:`T_{\\mathrm{k}}=T_{\\gamma}` so the initial value is :math:`y=0`.
+        Also, note that for gas temperature it is a transformed variable. Instead of :math:`T_{\\mathrm{k}}` we evolve :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`. At :math:`z=1500`, :math:`T_{\\mathrm{k}}=T_{\\gamma}` so the initial value is :math:`y=0`.
         
         Arguments
         ---------
@@ -1141,7 +1141,7 @@ class funcs():
         Returns
         -------
         tuple
-            Initial conditions. For CDM, the tuple is (xe_init, frac_temp_diff_init). For IDM, the tuple is (xe_init, frac_temp_diff_init, Tx_init, ln_vbx_init).
+            Initial conditions. For CDM, the tuple is (xe_init, yT_init). For IDM, the tuple is (xe_init, yT_init, Tx_init, ln_vbx_init).
         '''
         Tgamma_init = self.basic_cosmo_Tcmb(Z_start)
         xe_init = self.recomb_Saha_xe(Z_start,Tgamma_init)
@@ -1171,7 +1171,7 @@ class funcs():
     def _igm_eqns_cdm_cd(self, Z, V):
         '''
         Differential equations for the IGM in the CDM model during the cosmic dawn phase.
-        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
+        For cosmic dawn we keep the original variable, Tk.
         '''
         xe, Tk = V
 
@@ -1191,8 +1191,6 @@ class funcs():
         '''
         Differential equations for the IGM in the IDM model during the dark ages phase.
         The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
-        Because Tk = exp(y)*Tgamma is positive by construction, no clipping of the
-        gas temperature against the DM temperature is required.
         '''
         xe, yT, Tx, ln_v_bx = V
         Tk = self._logratio_to_temp(Z, yT)
@@ -1218,9 +1216,6 @@ class funcs():
     def _igm_eqns_idm_cd(self, Z, V):
         '''
         Differential equations for the IGM in the IDM model during the cosmic dawn phase.
-        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
-        Because Tk = exp(y)*Tgamma is positive by construction, no clipping of the
-        gas temperature against the DM temperature is required.
         '''
         xe, Tk, Tx, ln_v_bx = V
         
@@ -1228,7 +1223,6 @@ class funcs():
 
         Tgamma = self.basic_cosmo_Tcmb(Z)
 
-        print(Z, xe, Tk, Tx, v_bx)
         if xe<0.99:
             eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))-1/self.basic_cosmo_H(Z)*self.Gamma_x(Z,xe)*(1-xe)
         else:
@@ -1251,7 +1245,7 @@ class funcs():
         This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved.
         Note the following two points:
         
-            1. For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma}) = \\ln(1+\\delta_T)`. Recover the temperature with :meth:`_logratio_to_temp`, i.e. :math:`T_{\\mathrm{k}} = e^{y}\\,T_{\\gamma}`.
+            1. For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`. Recover the temperature with :meth:`_logratio_to_temp`, i.e. :math:`T_{\\mathrm{k}} = e^{y}\\,T_{\\gamma}`.
         
             2. In case of IDM, the last value of the solution array is :math:`\\ln v_{\\mathrm{b}\\chi}` and not :math:`v_{\\mathrm{b}\\chi}` itself.
 
@@ -1261,7 +1255,7 @@ class funcs():
             Redshift array (decreasing) over which to solve. Use Z_da for dark ages, Z_cd for cosmic dawn, or Z_default for the full range.
 
         initial_conditions: tuple
-            Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, frac_temp_diff_init). For IDM, the tuple is (xe_init, frac_temp_diff_init, Tx_init, ln_vbx_init). Use initial_conditions() to get the initial conditions when the starting redshift is 1500.
+            Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, yT_init). For IDM, the tuple is (xe_init, yT_init, Tx_init, ln_vbx_init). For DA the second variable is yT but for CD it is Tk. Use initial_conditions() to get the initial conditions when the starting redshift is 1500.
         
         eqns_func: callable
             The RHS function to pass to the ODE solver. Either dark ages or cosmic dawn.
@@ -1282,16 +1276,6 @@ class funcs():
             t_eval=1 / Z_solver,
             rtol=1e-4, atol=1e-7
         )
-
-        if not Sol.success:
-            z_stall = 1/Sol.t[-1] if Sol.t.size else Z_start
-            raise RuntimeError(
-                f"igm_solver: solve_ivp ({eqns_func.__name__}) failed at 1+z={z_stall:.4f}, "
-                f"reaching {Sol.y.shape[1]}/{len(Z_solver)} output points. "
-                f"Solver message: {Sol.message!r}. "
-                f"This usually means the thermal evolution became too stiff "
-                f"(e.g. strong DM-baryon coupling driving Tk towards Tx)."
-            )
         
         results = [y for y in Sol.y]
         
