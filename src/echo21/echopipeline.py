@@ -393,72 +393,71 @@ class pipeline():
                     self.comm.send(1, dest=0, tag=77)
 
         
-        self.comm.Barrier()
-        gathered_results = self.comm.gather(partial_results, root=0)
-        gathered_params = self.comm.gather(partial_params, root=0)
-        gathered_failures = self.comm.gather(n_failed, root=0)
-        gathered_failed_params = self.comm.gather(failed_params, root=0)
+            self.comm.Barrier()
+            gathered_results = self.comm.gather(partial_results, root=0)
+            gathered_params = self.comm.gather(partial_params, root=0)
+            gathered_failures = self.comm.gather(n_failed, root=0)
+            gathered_failed_params = self.comm.gather(failed_params, root=0)
 
-        if self.cpu_ind == 0:
-            # Flatten results
-            all_params  = [p for chunk in gathered_params for p in chunk]
-            all_results = [r for chunk in gathered_results for r in chunk]
+            if self.cpu_ind == 0:
+                # Flatten results
+                all_params  = [p for chunk in gathered_params for p in chunk]
+                all_results = [r for chunk in gathered_results for r in chunk]
 
-            # Count and collect failed parameter sets
-            total_failed = sum(gathered_failures)
-            all_failed_params = [p for chunk in gathered_failed_params for p in chunk]
-            n_succeeded = len(all_results)
+                # Count and collect failed parameter sets
+                total_failed = sum(gathered_failures)
+                all_failed_params = [p for chunk in gathered_failed_params for p in chunk]
+                n_succeeded = len(all_results)
 
-            if total_failed > 0:
-                print(f'\n\033[33mWarning: {total_failed}/{self.N_models} models failed (solver did not converge). '
-                      f'{n_succeeded} models saved.\033[00m')
-
-            param_df = pd.DataFrame(all_params)
-            #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
-            T21 = np.vstack([r[0] for r in all_results])
-            xHI = np.vstack([r[1] for r in all_results])
-            tau = np.array([r[2] for r in all_results])
-
-            save_path = self.path + 'echo_output.h5'
-            with pd.HDFStore(save_path, mode="w") as store:
-
-                # first layer
-                store.put("params", param_df)
-
-                # second layer
-                if self.Z_eval is not None:
-                    store.put("Z", pd.Series(self.Z_eval))
-                else:
-                    store.put("Z", pd.Series(self.Z_solver))
-
-                # subsequent layers
-                store.put("T21", pd.DataFrame(T21))
-                store.put("xHI", pd.DataFrame(xHI))
-                store.put("tau", pd.Series(tau))
-
-                # failed parameter sets (if any)
                 if total_failed > 0:
-                    store.put("failed_params", pd.DataFrame(all_failed_params))
+                    print(f'\n\033[33mWarning: {total_failed}/{self.N_models} models failed (solver did not converge). ' f'{n_succeeded} models saved.\033[00m')
 
-            print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
-            
-            et = time.perf_counter()
-            # get the execution time
-            elapsed_time = et - st
-            print('\nProcessing time: %.2f seconds' %elapsed_time)
+                param_df = pd.DataFrame(all_params)
+                #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
+                T21 = np.vstack([r[0] for r in all_results])
+                xHI = np.vstack([r[1] for r in all_results])
+                tau = np.array([r[2] for r in all_results])
 
-            #========================================================
-            #Writing to a summary file
+                save_path = self.path + 'echo_output.h5'
+                with pd.HDFStore(save_path, mode="w") as store:
 
-            myfile = write_summary(self, elapsed_time=elapsed_time)
-            myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
-            myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
-            myfile.write('\n')
-            myfile.close()
-            #========================================================
+                    # first layer
+                    store.put("params", param_df)
 
-            print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
-        return None
+                    # second layer
+                    if self.Z_eval is not None:
+                        store.put("Z", pd.Series(self.Z_eval))
+                    else:
+                        store.put("Z", pd.Series(self.Z_solver))
+
+                    # subsequent layers
+                    store.put("T21", pd.DataFrame(T21))
+                    store.put("xHI", pd.DataFrame(xHI))
+                    store.put("tau", pd.Series(tau))
+
+                    # failed parameter sets (if any)
+                    if total_failed > 0:
+                        store.put("failed_params", pd.DataFrame(all_failed_params))
+
+                print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
+                
+                et = time.perf_counter()
+                # get the execution time
+                elapsed_time = et - st
+                print('\nProcessing time: %.2f seconds' %elapsed_time)
+
+                #========================================================
+                #Writing to a summary file
+
+                myfile = write_summary(self, elapsed_time=elapsed_time)
+                myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
+                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
+                myfile.write('\n')
+                myfile.close()
+                #========================================================
+
+                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
+            return None
     
     #End of function run_simulation               
 #End of class pipeline
