@@ -393,70 +393,76 @@ class pipeline():
                     self.comm.send(1, dest=0, tag=77)
 
         
-            self.comm.Barrier()
-            gathered_results = self.comm.gather(partial_results, root=0)
-            gathered_params = self.comm.gather(partial_params, root=0)
-            gathered_failures = self.comm.gather(n_failed, root=0)
-            gathered_failed_params = self.comm.gather(failed_params, root=0)
+            # A single collective is used here on purpose. Issuing several lowercase
+            # collectives in a row over a pkl5 communicator -- one of them gathering
+            # ragged/empty 'failed_params' lists -- can wedge. Bundling everything into
+            # one dict per rank keeps the payload type uniform across ranks (always a
+            # dict) and gives a single, robust synchronisation point.
+            payload = {
+                'results': partial_results,
+                'params': partial_params,
+                'failed_params': failed_params,
+                'n_failed': n_failed,
+            }
+            gathered = self.comm.gather(payload, root=0)
 
             if self.cpu_ind == 0:
-                # Flatten results
-                all_params  = [p for chunk in gathered_params for p in chunk]
-                all_results = [r for chunk in gathered_results for r in chunk]
-
-                # Count and collect failed parameter sets
-                total_failed = sum(gathered_failures)
-                all_failed_params = [p for chunk in gathered_failed_params for p in chunk]
+                # Flatten across ranks (rank order preserved by gather)
+                all_results       = [r for chunk in gathered for r in chunk['results']]
+                all_params        = [p for chunk in gathered for p in chunk['params']]
+                all_failed_params = [fp for chunk in gathered for fp in chunk['failed_params']]
+                total_failed      = sum(chunk['n_failed'] for chunk in gathered)
                 n_succeeded = len(all_results)
 
-                if total_failed > 0:
-                    print(f'\n\033[33mWarning: {total_failed}/{self.N_models} models failed (solver did not converge). ' f'{n_succeeded} models saved.\033[00m')
+                if n_succeeded == 0:
+                    print('\033[31mAll models failed; nothing to save.\033[00m')
+                else:
+                    param_df = pd.DataFrame(all_params)
+                    #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
+                    T21 = np.vstack([r[0] for r in all_results])
+                    xHI = np.vstack([r[1] for r in all_results])
+                    tau = np.array([r[2] for r in all_results])
 
-                param_df = pd.DataFrame(all_params)
-                #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
-                T21 = np.vstack([r[0] for r in all_results])
-                xHI = np.vstack([r[1] for r in all_results])
-                tau = np.array([r[2] for r in all_results])
+                    save_path = self.path + 'echo_output.h5'
+                    with pd.HDFStore(save_path, mode="w") as store:
 
-                save_path = self.path + 'echo_output.h5'
-                with pd.HDFStore(save_path, mode="w") as store:
+                        # first layer
+                        store.put("params", param_df)
 
-                    # first layer
-                    store.put("params", param_df)
+                        # second layer
+                        if self.Z_eval is not None:
+                            store.put("Z", pd.Series(self.Z_eval))
+                        else:
+                            store.put("Z", pd.Series(self.Z_solver))
 
-                    # second layer
-                    if self.Z_eval is not None:
-                        store.put("Z", pd.Series(self.Z_eval))
-                    else:
-                        store.put("Z", pd.Series(self.Z_solver))
+                        # subsequent layers
+                        store.put("T21", pd.DataFrame(T21))
+                        store.put("xHI", pd.DataFrame(xHI))
+                        store.put("tau", pd.Series(tau))
 
-                    # subsequent layers
-                    store.put("T21", pd.DataFrame(T21))
-                    store.put("xHI", pd.DataFrame(xHI))
-                    store.put("tau", pd.Series(tau))
+                        # failed parameter sets (if any)
+                        if total_failed > 0:
+                            print(f'\n\033[33mWarning: {total_failed}/{self.N_models} models failed (solver did not converge). ' f'{n_succeeded} models saved.\033[00m')
+                            store.put("failed_params", pd.DataFrame(all_failed_params))
 
-                    # failed parameter sets (if any)
-                    if total_failed > 0:
-                        store.put("failed_params", pd.DataFrame(all_failed_params))
+                    print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
+                    
+                    et = time.perf_counter()
+                    # get the execution time
+                    elapsed_time = et - st
+                    print('\nProcessing time: %.2f seconds' %elapsed_time)
 
-                print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
-                
-                et = time.perf_counter()
-                # get the execution time
-                elapsed_time = et - st
-                print('\nProcessing time: %.2f seconds' %elapsed_time)
+                    #========================================================
+                    #Writing to a summary file
 
-                #========================================================
-                #Writing to a summary file
+                    myfile = write_summary(self, elapsed_time=elapsed_time)
+                    myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
+                    myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
+                    myfile.write('\n')
+                    myfile.close()
+                    #========================================================
 
-                myfile = write_summary(self, elapsed_time=elapsed_time)
-                myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
-                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
-                myfile.write('\n')
-                myfile.close()
-                #========================================================
-
-                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
+                    print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
             return None
     
     #End of function run_simulation               
