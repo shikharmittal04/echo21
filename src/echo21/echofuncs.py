@@ -72,7 +72,7 @@ class funcs():
         
         ############################################################################
         #Setting up the star formation rate density related parameters and functions
-        self.sfrd_type = params['type']
+        self.sfrd_type = params.get('type','phy')
 
         if self.sfrd_type == 'phy':
             params = {**phy_sfrd_default_model, **params}
@@ -1267,6 +1267,9 @@ class funcs():
         '''
         Z_start = Z_solver[0]
         Z_end   = Z_solver[-1]
+        
+        a_span = abs(1/Z_end - 1/Z_start)
+        max_step = a_span / 20
 
         Sol = scint.solve_ivp(
             lambda a, Var: -eqns_func(1/a, Var) / a,
@@ -1274,7 +1277,8 @@ class funcs():
             list(initial_conditions),
             method='Radau',
             t_eval=1 / Z_solver,
-            rtol=1e-4, atol=1e-7
+            rtol=1e-4, atol=1e-7,
+            max_step = max_step
         )
         
         results = [y for y in Sol.y]
