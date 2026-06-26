@@ -13,8 +13,9 @@ import os, sys, time
 from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from tqdm import tqdm
+import signal
 
-from .const import Zstar, Z_start, Z_end, Z_default, Z_da, Z_cd, flipped_Z_default
+from .const import *
 from .echofuncs import funcs
 from .single_set_solver import *
 from .misc import *
@@ -376,9 +377,11 @@ class pipeline():
                 pbar.close()
             else:
                 #Worker CPU
+                signal.signal(signal.SIGALRM, alarm_handler)
                 for idx in range(self.cpu_ind-1, self.N_models, self.n_cpu-1):
                     all_params_dict, varying_params_only = self.get_index(self, idx)
 
+                    signal.setitimer(signal.ITIMER_REAL, PER_MODEL_TIMEOUT)   # arm
                     try:
                         result = self.simulator(all_params_dict, *self.initial_conditions, Z_eval = self.Z_eval, dm_model=self.dm_model)
                     except Exception:
@@ -386,7 +389,9 @@ class pipeline():
                         failed_params.append(varying_params_only)
                         self.comm.send(1, dest=0, tag=77)
                         continue
-                    
+                    finally:
+                        signal.setitimer(signal.ITIMER_REAL, 0)               # always disarm
+
                     partial_params.append(varying_params_only)
                     partial_results.append(result)
                     

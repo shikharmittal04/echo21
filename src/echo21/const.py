@@ -86,3 +86,6 @@ emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.81
 
 sig_ten45m2 = 1e-45 #m^2
 GeV2kg = 1.77e-27 # 1 GeV is this much kg
+
+#------------------------------------------------------------------------------
+PER_MODEL_TIMEOUT = 120
