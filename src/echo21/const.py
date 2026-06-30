@@ -18,11 +18,12 @@ fnu = 0.68 #neutrino contribution to energy density in relativistic species; 3 m
 #-------------------------------------------------------------
 
 #Conversions
- 
+
+d10 = 10*3.0857e16 #10 pc distance in units of m
 Mpc2km = 3.0857e19
 Msolar = 1.989e30 #Mass of sun in kg
 Msolar_by_Mpc3_to_kg_by_m3 = Msolar*(1000*Mpc2km)**-3
-year = 365*86400
+year = 365*86400 #1 year to secs
 Msolar_by_Mpc3_year_to_kg_by_m3_sec = Msolar*(1000*Mpc2km)**-3*year**-1
 Msolar_by_year_to_kg_by_sec = Msolar*year**-1
 
@@ -38,6 +39,13 @@ tilda_E1, tilda_E0, E1, E0 = 30.0,0.2,8.0,0.5 #Energies in keV
 
 #Local value of X-ray luminosity to SFR (Lehmer et al 2024):
 CX_fid = 2.45e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^2.
+
+
+a_halomass = 1.127
+b_redshift = 2.5
+UVlum_by_SFR = 8.695e20  #W/Hz/(Msun/yr)
+Mdot0 = 3 #Solar mass per year
+
 #--------------------------------------------------------------------------------------------------
 
 Zstar = 60 #redshift of the beginning of star formation
@@ -88,4 +96,3 @@ sig_ten45m2 = 1e-45 #m^2
 GeV2kg = 1.77e-27 # 1 GeV is this much kg
 
 #------------------------------------------------------------------------------
-PER_MODEL_TIMEOUT = 120

@@ -13,14 +13,6 @@ except ImportError:
     print("")
 
 
-
-class ModelTimeout(Exception):
-    pass
-
-def alarm_handler(signum, frame):
-    raise ModelTimeout()
-
-
 #The following 2 functions will be useful if you want to save and load `pipeline` object.
 def save_pipeline(obj, filename):
     '''    

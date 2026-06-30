@@ -1267,9 +1267,6 @@ class funcs():
         '''
         Z_start = Z_solver[0]
         Z_end   = Z_solver[-1]
-        
-        a_span = abs(1/Z_end - 1/Z_start)
-        max_step = a_span / 20
 
         Sol = scint.solve_ivp(
             lambda a, Var: -eqns_func(1/a, Var) / a,
@@ -1277,19 +1274,8 @@ class funcs():
             list(initial_conditions),
             method='Radau',
             t_eval=1 / Z_solver,
-            rtol=1e-4, atol=1e-7,
-            max_step = max_step
+            rtol=1e-4, atol=1e-7
         )
-        
-        if not Sol.success:
-            z_stall = 1/Sol.t[-1] if Sol.t.size else Z_start
-            raise RuntimeError(
-                f"igm_solver: solve_ivp ({eqns_func.__name__}) failed at 1+z={z_stall:.4f}, "
-                f"reaching {Sol.y.shape[1]}/{len(Z_solver)} output points. "
-                f"Solver message: {Sol.message!r}. "
-                f"This usually means the thermal evolution became too stiff "
-                f"(e.g. strong DM-baryon coupling driving Tk towards Tx)."
-            )
         
         results = [y for y in Sol.y]
         

@@ -13,7 +13,6 @@ import os, sys, time
 from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from tqdm import tqdm
-import signal
 
 from .const import *
 from .echofuncs import funcs
@@ -107,7 +106,7 @@ class pipeline():
         Array of :math:`1+z` where you want to compute the quantities.
     
     grid_on: bool
-        Whether to do generate a grid of parameter combinations. Default is True, i.e., then all possible combinations of the parameters will be generated. If False, parameters are varied one at a time. In this case all varied parameters should have the same number of values.
+        Whether to generate a grid of parameter combinations. Default is True, i.e., then all possible combinations of the parameters will be generated. If False, parameters are varied one at a time. In this case all varied parameters should have the same number of values.
     
     Methods
     ~~~~~~~
@@ -377,11 +376,9 @@ class pipeline():
                 pbar.close()
             else:
                 #Worker CPU
-                signal.signal(signal.SIGALRM, alarm_handler)
                 for idx in range(self.cpu_ind-1, self.N_models, self.n_cpu-1):
                     all_params_dict, varying_params_only = self.get_index(self, idx)
 
-                    signal.setitimer(signal.ITIMER_REAL, PER_MODEL_TIMEOUT)   # arm
                     try:
                         result = self.simulator(all_params_dict, *self.initial_conditions, Z_eval = self.Z_eval, dm_model=self.dm_model)
                     except Exception:
@@ -389,8 +386,6 @@ class pipeline():
                         failed_params.append(varying_params_only)
                         self.comm.send(1, dest=0, tag=77)
                         continue
-                    finally:
-                        signal.setitimer(signal.ITIMER_REAL, 0)               # always disarm
 
                     partial_params.append(varying_params_only)
                     partial_results.append(result)
