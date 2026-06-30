@@ -7,18 +7,18 @@ This module contains the class pipeline.
 """
 import pandas as pd
 import numpy as np
+import h5py
 from mpi4py import MPI
 from mpi4py.util import pkl5
 import os, sys, time
-from scipy.interpolate import CubicSpline
 from time import localtime, strftime
 from tqdm import tqdm
 
 from .const import *
 from .echofuncs import funcs
 from .single_set_solver import *
-from .misc import *
-
+from .utils import *
+from .uvlf import uvlf
 #--------------------------------------------------------------------------------------------
 
 class pipeline():
@@ -101,17 +101,14 @@ class pipeline():
 
         a : float, optional
             Power law index for the SFRD in the empirical model. Default value ``0.257``. (This is only relevant for the empirical SFRD model.)
-    
-    Z_eval: float
-        Array of :math:`1+z` where you want to compute the quantities.
-    
+        
     grid_on: bool
         Whether to generate a grid of parameter combinations. Default is True, i.e., then all possible combinations of the parameters will be generated. If False, parameters are varied one at a time. In this case all varied parameters should have the same number of values.
     
     Methods
     ~~~~~~~
     '''
-    def __init__(self,cosmo=None,astro= None, sfrd=None,Z_eval=None,grid_on=False,path='echo21_outputs/'):
+    def __init__(self,cosmo=None,astro= None, sfrd=None, grid_on=False, path='echo21_outputs/'):
 
         if cosmo is None:
             cosmo = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245}
@@ -125,8 +122,6 @@ class pipeline():
         self.comm = pkl5.Intracomm(MPI.COMM_WORLD)
         self.cpu_ind = self.comm.Get_rank()
         self.n_cpu = self.comm.Get_size()
-        
-        self.Z_eval = Z_eval
 
         self.dm_model = 'IDM' if {'mx_gev', 'sigma45'} & cosmo.keys() else 'CDM'
 
@@ -168,8 +163,6 @@ class pipeline():
         if not cosmo_varying and not astro_varying:
             self.run_type='single'
             self.message = 'both cosmological and astrophysical parameters are fixed.\n'
-            self.Z_solver = Z_default
-            Z_init = Z_start
 
         elif not cosmo_varying and astro_varying:
             obj_dark_ages = funcs(self.fixed_params, dm_model=self.dm_model)
@@ -185,31 +178,14 @@ class pipeline():
 
             self.run_type='astro'
             self.message = 'cosmological parameters are fixed. Astrophysical parameters are varied.'
-            self.Z_solver = Z_cd
             
             self.simulator = cosmic_dawn_beyond
-            Z_init = Zstar
         
         else:
             self.run_type='else'
-            self.message = 'cosmological parameters are varied.\n'
-            self.Z_solver = Z_default           
+            self.message = 'cosmological parameters are varied.\n'       
             self.initial_conditions = (None , None, None, None)
             self.simulator = dark_ages_to_today
-            Z_init = Z_start
-        #---------------------------------------------------------------------------------
-
-        if self.Z_eval is not None:
-            if (self.Z_eval[0]>Z_init or self.Z_eval[-1]<Z_end):
-                print('\033[31mYour requested redshift values should satisfy ',Z_init,'>1+z>',Z_end)
-                print('Terminating ...\033[00m')
-                sys.exit()
-            
-            if type(self.Z_eval)==np.ndarray or type(self.Z_eval)==list:
-                self.Z_eval=np.array(self.Z_eval)
-                if self.Z_eval[1]>self.Z_eval[0]:
-                    # Arranging redshifts from ascending to descending
-                    self.Z_eval = self.Z_eval[::-1]
         #---------------------------------------------------------------------------------
 
         if self.run_type!='single' and self.n_cpu==1:
@@ -271,28 +247,16 @@ class pipeline():
                     Tx = np.concatenate([sol_da[2][:-1], sol_cd[2]])
                     ln_v_bx = np.concatenate([sol_da[3][:-1], sol_cd[3]])
 
-                if self.Z_eval is not None:
-                    xe = CubicSpline(flipped_Z_default, np.flip(xe))(self.Z_eval)
-                    Q_Hii = np.interp(self.Z_eval, flipped_Z_default, np.flip(Q_Hii))
-                    Tk = CubicSpline(flipped_Z_default, np.flip(Tk))(self.Z_eval)
-                    if self.dm_model == 'IDM':
-                        Tx = CubicSpline(flipped_Z_default, np.flip(Tx))(self.Z_eval)
-                        ln_v_bx = CubicSpline(flipped_Z_default, np.flip(ln_v_bx))(self.Z_eval)
+                print('Obtaining spin temperature ...')
+                Ts = myobj.hyfi_spin_temp(Z=Z_default,xe=xe,Tk=Tk)
 
-                    print('Obtaining spin temperature ...')
-                    Ts = myobj.hyfi_spin_temp(Z=self.Z_eval,xe=xe,Tk=Tk)
-                    
-                    print('Computing the 21-cm signal ...')
-                    T21 = myobj.hyfi_twentyone_cm(Z=self.Z_eval,xe=xe,Q=Q_Hii,Ts=Ts)
-                    x = self.Z_eval
-                else:
-                    print('Obtaining spin temperature ...')
-                    Ts = myobj.hyfi_spin_temp(Z=Z_default,xe=xe,Tk=Tk)
+                print('Computing the 21-cm signal ...')
+                T21 = myobj.hyfi_twentyone_cm(Z=Z_default,xe=xe,Q=Q_Hii,Ts=Ts)
+                
+                #Computing UVLF
+                UVLF = np.hstack((np.zeros((nMAB_default, 2000)), uvlf(myobj).lum_func(MAB_default, Z_cd))) #UV LF
 
-                    print('Computing the 21-cm signal ...')
-                    T21 = myobj.hyfi_twentyone_cm(Z=Z_default,xe=xe,Q=Q_Hii,Ts=Ts)
-
-                    x = Z_default
+                x = Z_default
                 
                 print('Done.')
 
@@ -302,7 +266,9 @@ class pipeline():
                 Ts_save_name = self.path+'Ts'
                 Tcmb_save_name = self.path+'Tcmb'
                 T21_save_name = self.path+'T21'
+                uvlf_save_name = self.path+'UVLF'
                 z_save_name = self.path+'one_plus_z'
+                MAB_name = self.path+'MAB'
 
                 np.save(xe_save_name,xe)
                 np.save(Q_save_name,Q_Hii)
@@ -310,7 +276,9 @@ class pipeline():
                 np.save(Ts_save_name,Ts)
                 np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(x))
                 np.save(T21_save_name,T21)
+                np.save(uvlf_save_name,UVLF)
                 np.save(z_save_name,x)
+                np.save(MAB_name,MAB_default)
 
                 if self.dm_model == 'IDM':
                     Tx_save_name = self.path+'Tx'
@@ -380,7 +348,7 @@ class pipeline():
                     all_params_dict, varying_params_only = self.get_index(self, idx)
 
                     try:
-                        result = self.simulator(all_params_dict, *self.initial_conditions, Z_eval = self.Z_eval, dm_model=self.dm_model)
+                        result = self.simulator(all_params_dict, *self.initial_conditions, dm_model=self.dm_model)
                     except Exception:
                         n_failed += 1
                         failed_params.append(varying_params_only)
@@ -422,6 +390,7 @@ class pipeline():
                     T21 = np.vstack([r[0] for r in all_results])
                     xHI = np.vstack([r[1] for r in all_results])
                     tau = np.array([r[2] for r in all_results])
+                    UVLF = np.array([r[3] for r in all_results])
 
                     save_path = self.path + 'echo_output.h5'
                     with pd.HDFStore(save_path, mode="w") as store:
@@ -430,15 +399,16 @@ class pipeline():
                         store.put("params", param_df)
 
                         # second layer
-                        if self.Z_eval is not None:
-                            store.put("Z", pd.Series(self.Z_eval))
-                        else:
-                            store.put("Z", pd.Series(self.Z_solver))
+                        store.put("Z", pd.Series(Z_default))
+                        store.put("MAB", pd.Series(MAB_default))
 
                         # subsequent layers
                         store.put("T21", pd.DataFrame(T21))
                         store.put("xHI", pd.DataFrame(xHI))
                         store.put("tau", pd.Series(tau))
+
+                    with h5py.File(save_path, "a") as f:
+                        f.create_dataset("UVLF", data=UVLF)
 
                         # failed parameter sets (if any)
                         if total_failed > 0:

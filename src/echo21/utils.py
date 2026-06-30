@@ -5,13 +5,17 @@ This module contains non-physics functions.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 '''
-import pickle
 import numpy as np
+import pickle
+from scipy.interpolate import CubicSpline
+import pandas as pd
+import h5py
+import sys
 try:
     import classy
 except ImportError:
     print("")
-
+from .const import *
 
 #The following 2 functions will be useful if you want to save and load `pipeline` object.
 def save_pipeline(obj, filename):
@@ -226,3 +230,58 @@ def _get_As_for_sig8(class_set):
     class_obj.empty()
 
     return A_s
+
+
+def load_results(pipe, Z_eval = None):
+    '''
+    Read the output and return a dictionary of parameters, redshifts, global signal, etc. If you do not provide any redshift, the quantities are returned at their default redshift.
+
+    Arguments
+    ---------
+    
+    pipe: class
+        :class:`pipeline` class object from :mod:`echopipeline` module
+    
+    Z_eval: array, optional
+        array of :math:`1+z` values; can be in decreasing as well as increasing order. Default = ``None``
+    
+    Return
+    ------
+    
+    dict
+        six sets - params (pandas dataframe), one_plus_z (numpy array), T21 (numpy array), xHI (numpy array), tau (numpy array), UVLF (numpy array)
+    '''
+    if pipe.cpu_ind == 0:
+        h5file = pipe.path + 'echo_output.h5'
+        with pd.HDFStore(h5file) as store:
+            params     = store["params"]
+            one_plus_z = store["Z"].values
+            MAB        = store["MAB"].values
+            T21        = store["T21"].values
+            xHI        = store["xHI"].values
+            tau        = store["tau"].values
+        with h5py.File(h5file, "r") as f:
+            UVLF = f["UVLF"][:]   # shape (N_params, nMAB, nZ)
+
+        if one_plus_z[0] == Z_start:
+            Z_lim, flipped_Z = Z_start, flipped_Z_default
+        elif one_plus_z[0] == Zstar:
+            Z_lim, flipped_Z = Zstar, flipped_Z_cd
+
+        if Z_eval is not None:
+            if Z_eval[0] > Z_lim or Z_eval[-1] < Z_end:
+                print(f'\033[31mYour requested redshift values should satisfy {Z_lim} > 1+z > {Z_end}')
+                print('Terminating ...\033[00m')
+                sys.exit()
+
+            Z_eval = np.asarray(Z_eval)
+            if Z_eval[1] > Z_eval[0]:
+                Z_eval = Z_eval[::-1]
+
+            # Z must be on axis 0 for CubicSpline; transpose so Z leads, flip, interpolate, restore.
+            xHI  = CubicSpline(flipped_Z, np.flip(xHI.T,                   axis=0))(Z_eval).T
+            T21  = CubicSpline(flipped_Z, np.flip(T21.T,                   axis=0))(Z_eval).T
+            UVLF = CubicSpline(flipped_Z, np.flip(UVLF.transpose(2, 0, 1), axis=0))(Z_eval).transpose(1, 2, 0)
+            one_plus_z = Z_eval
+
+        return {'params': params, 'one_plus_z': one_plus_z, 'MAB': MAB, 'T21': T21, 'xHI': xHI, 'tau': tau, 'UVLF': UVLF}

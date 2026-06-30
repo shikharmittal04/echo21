@@ -3,11 +3,11 @@ This module contains the functions required for running IGM solver for one set o
 """
 
 import numpy as np
-from scipy.interpolate import CubicSpline
 from .echofuncs import funcs
-from .const import  Zstar, Z_cd, flipped_Z_cd, Z_default, flipped_Z_default, Z_da
+from .uvlf import uvlf
+from .const import  *
 
-def cosmic_dawn_beyond(params_dict, *initial_conditions, Z_eval=None, dm_model='CDM'):
+def cosmic_dawn_beyond(params_dict, *initial_conditions, dm_model='CDM'):
     '''
     Runs IGM solver starting from cosmic dawn until today, i.e., for :math:`z_{\\star} > z`.
 
@@ -18,10 +18,7 @@ def cosmic_dawn_beyond(params_dict, *initial_conditions, Z_eval=None, dm_model='
     
     initial_conditions: tuple
         Initial conditions for the IGM solver.
-    
-    Z_eval: float
-        Array of :math:`1+z` where you want to compute the quantities. Default is ``Z_cd``.
-    
+        
     dm_model: str
         Model of dark matter. Default is 'CDM'.
 
@@ -37,23 +34,20 @@ def cosmic_dawn_beyond(params_dict, *initial_conditions, Z_eval=None, dm_model='
     
     Q_cd = myobj_cd.QHii
 
-    if Z_eval is not None:
-        xe_cd = CubicSpline(flipped_Z_cd, np.flip(xe_cd))(Z_eval)
-        Q_cd = np.interp(Z_eval, flipped_Z_cd, np.flip(Q_cd))
-        Tk_cd = CubicSpline(flipped_Z_cd, np.flip(Tk_cd))(Z_eval)
-        Ts = myobj_cd.hyfi_spin_temp(Z=Z_eval,xe=xe_cd,Tk=Tk_cd)
-        T21 = myobj_cd.hyfi_twentyone_cm(Z=Z_eval,xe=xe_cd,Q=Q_cd,Ts=Ts) 
-    else:
-        Ts = myobj_cd.hyfi_spin_temp(Z=Z_cd,xe=xe_cd,Tk=Tk_cd)
-        T21 = myobj_cd.hyfi_twentyone_cm(Z=Z_cd,xe=xe_cd,Q=Q_cd,Ts=Ts)
+    Ts = myobj_cd.hyfi_spin_temp(Z=Z_cd,xe=xe_cd,Tk=Tk_cd) #Spin temperature
 
-    xHI_cd = (1 - Q_cd) * (1 - xe_cd)   # Neutral hydrogen fraction
+    T21 = myobj_cd.hyfi_twentyone_cm(Z=Z_cd,xe=xe_cd,Q=Q_cd,Ts=Ts) #21-cm signal
+
+    xHI_cd = (1 - Q_cd) * (1 - xe_cd)   # Globally-averaged neutral hydrogen fraction
     
-    tau_cd = myobj_cd.reion_tau(Zstar)
-    return T21, xHI_cd, tau_cd
+    tau_cd = myobj_cd.reion_tau(Zstar) #CMB Optical depth
+
+    UVLF = uvlf(myobj_cd).lum_func(MAB_default, Z_cd) #UV LF
+
+    return T21, xHI_cd, tau_cd, UVLF
 #================================================================================
 
-def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='CDM'):
+def dark_ages_to_today(params_dict, *initial_conditions, dm_model='CDM'):
     '''
     Runs IGM solver starting from :math:`z=1500` to today. Note that arguments ``xe_init`` and ``Tk_init`` are provided only to match the signiture for :py:func:`cosmic_dawn_beyond`. The initial condition is calculated from Saha's equation at :math:`z=1500`. 
 
@@ -65,9 +59,6 @@ def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='
     initial_conditions: tuple
         Initial conditions for the IGM solver. This is not used in this function, but is provided only to match the signiture for :py:func:`cosmic_dawn_beyond`. The initial condition is calculated from Saha's equation at :math:`z=1500`.
 
-    Z_eval: float
-        Array of :math:`1+z` where you want to compute the quantities. Default is ``Z_default``.
-    
     dm_model: str
         Model of dark matter. Default is 'CDM'.
 
@@ -94,18 +85,14 @@ def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='
     Q_Hii = myobj.QHii
     Q_Hii = np.concatenate((np.zeros(len(Z_da)-1), Q_Hii))
 
-    if Z_eval is not None:
-        xe = CubicSpline(flipped_Z_default, np.flip(xe))(Z_eval)
-        Q_Hii = np.interp(Z_eval, flipped_Z_default, np.flip(Q_Hii))
-        Tk = CubicSpline(flipped_Z_default, np.flip(Tk))(Z_eval)
-
-        Ts = myobj.hyfi_spin_temp(Z=Z_eval,xe=xe,Tk=Tk)
-        T21 = myobj.hyfi_twentyone_cm(Z=Z_eval,xe=xe,Q=Q_Hii,Ts=Ts)
-    else:
-        Ts = myobj.hyfi_spin_temp(Z=Z_default,xe=xe,Tk=Tk)
-        T21 = myobj.hyfi_twentyone_cm(Z=Z_default,xe=xe,Q=Q_Hii,Ts=Ts)
+    Ts = myobj.hyfi_spin_temp(Z=Z_default,xe=xe,Tk=Tk) #Spin temperature
     
-    xHI = (1 - Q_Hii) * (1 - xe)
-    tau = myobj.reion_tau(Zstar)
+    T21 = myobj.hyfi_twentyone_cm(Z=Z_default,xe=xe,Q=Q_Hii,Ts=Ts)  #21-cm signal
+    
+    xHI = (1 - Q_Hii) * (1 - xe) #Globally-averaged neutral hydrogen fraction
+    
+    tau = myobj.reion_tau(Zstar) #CMB optical depth
 
-    return T21, xHI, tau
+    UVLF = uvlf(myobj).lum_func(MAB_default, Z_cd) #UV LF
+
+    return T21, xHI, tau, UVLF

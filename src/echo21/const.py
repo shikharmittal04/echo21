@@ -85,6 +85,8 @@ semi_emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8':
 
 emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245, 'fLy': 1.0, 'sLy': 2.64, 'fX': 1.0, 'wX': 1.5, 'fesc': 0.01, 'type':'emp','a':0.257,'b':4}
 
+nMAB_default = 51
+MAB_default = np.linspace(-30,-15,nMAB_default)
 #------------------------------------------------------------------------------
 #Interacting dark matter related
 

@@ -14,7 +14,7 @@ from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings, os, tempfile
 from .const import *
-from .misc import _get_As_for_sig8
+from .utils import _get_As_for_sig8
 
 try:
     import classy
@@ -93,7 +93,7 @@ class funcs():
             self.hmf = params['hmf']
             self.mdef = params['mdef']
             self.Tmin_vir = params['Tmin_vir']
-            self.t_star = params['t_star']
+            self.tstar = params['tstar']
             
             if self.hmf == 'press74':
                 self._f_coll = self._f_coll_cdm_press74
@@ -560,7 +560,7 @@ class funcs():
     
     def _sfrd_semi_emp(self,Z):
         Z = np.atleast_1d(Z)
-        mysfrd = fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.basic_cosmo_H(Z)*self.f_coll(Z)/self.t_star
+        mysfrd = fstar*self.Om_b*self.basic_cosmo_rho_crit()*self.basic_cosmo_H(Z)*self.f_coll(Z)/self.tstar
         return mysfrd if mysfrd.size > 1 else mysfrd[0]
 
     def _sfrd_emp(self,Z):

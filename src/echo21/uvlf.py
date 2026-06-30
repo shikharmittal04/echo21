@@ -31,7 +31,7 @@ class uvlf():
         float
             :math:`\\left(\\frac{\\mathrm{d}L}{\\mathrm{d}M}\\right)_{z}` in units of :math:`\\mathrm{W Hz^{-1}M_{\\odot}^{-1}}`
         '''
-        return fstar * (self.funcs.Om_b/self.funcs.Om_m) * self.funcs.basic_cosmo_H(Z)*UVlum_by_SFR/self.funcs.t_star
+        return year * fstar * (self.funcs.Om_b/self.funcs.Om_m) * self.funcs.basic_cosmo_H(Z)*UVlum_by_SFR/self.funcs.tstar
 
     def luminosity(self, M,Z):
         '''
@@ -126,22 +126,41 @@ class uvlf():
 
         Arguments
         ---------
-        
-        MAB : float
+
+        MAB : float or array_like
             Absolute AB magnitude.
-        
-        Z : float
+
+        Z : float or array_like
             1 + redshift, dimensionless.
-        
+
         Return
         ------
 
-        float
+        float or ndarray
             Luminosity function in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving mega parsec.
+            Shape is ``(len(MAB), len(Z))`` when both inputs are arrays; 1-D when one is scalar; scalar when both are scalar.
         '''
-        M_halo = self.absmag_to_halomass(MAB,Z) #in units of solar mass
-        dLUV_dMAB = -0.4 * np.log(10) * self.luminosity(M_halo, Z) #in units of W/Hz
-        return self.funcs.dndM(M_halo,Z) * dLUV_dMAB / self.dLUV_dM(Z)
+        MAB = np.asarray(MAB)
+        Z = np.asarray(Z)
+        scalar_MAB = MAB.ndim == 0
+        scalar_Z = Z.ndim == 0
+        MAB = np.atleast_1d(MAB)
+        Z = np.atleast_1d(Z)
+
+        result = np.empty((len(MAB), len(Z)))
+
+        for j, Zj in enumerate(Z):
+            M_halo = self.absmag_to_halomass(MAB, Zj)                          # shape (nMAB,)
+            dLUV_dMAB = 0.4 * np.log(10) * self.luminosity(M_halo, Zj)       # shape (nMAB,)
+            result[:, j] = self.funcs.dndM(M_halo, Zj) * dLUV_dMAB / self.dLUV_dM(Zj)
+
+        if scalar_MAB and scalar_Z:
+            return result[0, 0]
+        elif scalar_MAB:
+            return result[0, :]
+        elif scalar_Z:
+            return result[:, 0]
+        return result
     
     def dNdz(self, mAB, Z, area = 1.0):
         '''
