@@ -1102,13 +1102,6 @@ class funcs():
         Given the evolved log-ratio variable :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`,
         compute :math:`T_{\\mathrm{k}}`.
 
-        This is the inverse of the transformation used inside the IGM equation
-        functions and the one that should be used to post-process the solver
-        output. Because :math:`T_{\\mathrm{k}} = T_{\\gamma}\\,e^{y}`, the gas
-        temperature is guaranteed positive for any finite :math:`y`, which avoids
-        the loss-of-precision / negative-temperature failure that the
-        :math:`\\delta_T` parametrisation suffers when :math:`T_{\\mathrm{k}} \\ll T_{\\gamma}`.
-
         Arguments
         ---------
         
@@ -1132,6 +1125,8 @@ class funcs():
 
         Also, note that for gas temperature it is a transformed variable. Instead of :math:`T_{\\mathrm{k}}` we evolve :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`. At :math:`z=1500`, :math:`T_{\\mathrm{k}}=T_{\\gamma}` so the initial value is :math:`y=0`.
         
+        For IDM case instead of velocity we have :math:`\\ln(v_{\\mathrm{b}\\chi})`.
+
         Arguments
         ---------
         
@@ -1255,7 +1250,7 @@ class funcs():
             Redshift array (decreasing) over which to solve. Use Z_da for dark ages, Z_cd for cosmic dawn, or Z_default for the full range.
 
         initial_conditions: tuple
-            Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, yT_init). For IDM, the tuple is (xe_init, yT_init, Tx_init, ln_vbx_init). For DA the second variable is yT but for CD it is Tk. Use initial_conditions() to get the initial conditions when the starting redshift is 1500.
+            Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, yT_init). For IDM, the tuple is (xe_init, yT_init, Tx_init, ln_vbx_init). For DA the second variable is yT but for CD-EoR it is Tk. Use :func:`initial_conditions()` to get the initial conditions when the starting redshift is :math:`z=1500`.
         
         eqns_func: callable
             The RHS function to pass to the ODE solver. Either dark ages or cosmic dawn.
@@ -1263,7 +1258,7 @@ class funcs():
         Returns
         -------
         array
-            :math:`x_{\\mathrm{e}}`, :math:`y=\\ln(T_{\\mathrm{k}}/T_{\\gamma})`, :math:`T_{\\chi}`, :math:`\\ln v_{\\mathrm{b}\\chi}`
+            :math:`x_{\\mathrm{e}}`, :math:`y=\\ln(T_{\\mathrm{k}}/T_{\\gamma})` or :math:`T_{\\mathrm{k}}`, :math:`T_{\\chi}`, :math:`\\ln v_{\\mathrm{b}\\chi}`
         '''
         Z_start = Z_solver[0]
         Z_end   = Z_solver[-1]

@@ -87,6 +87,7 @@ def dark_ages_to_today(params_dict, *initial_conditions, Z_eval=None, dm_model='
     ic_cd = tuple(s[-1] for s in sol_da)
     sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
 
+    #join the DA and CD part. Note that last entry of DA is same as first entry of CD. So we skip the last element of DA solution.
     xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
     Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
     
