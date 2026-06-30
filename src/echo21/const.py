@@ -40,11 +40,7 @@ tilda_E1, tilda_E0, E1, E0 = 30.0,0.2,8.0,0.5 #Energies in keV
 #Local value of X-ray luminosity to SFR (Lehmer et al 2024):
 CX_fid = 2.45e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^2.
 
-
-a_halomass = 1.127
-b_redshift = 2.5
 UVlum_by_SFR = 8.695e20  #W/Hz/(Msun/yr)
-Mdot0 = 3 #Solar mass per year
 
 #--------------------------------------------------------------------------------------------------
 
