@@ -5,6 +5,7 @@ This module contains non-physics functions.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 '''
+import os
 import numpy as np
 import pickle
 from scipy.interpolate import CubicSpline
@@ -71,7 +72,7 @@ def print_banner():
     print(banner)
     return None
 
-def ensure_array_dict(d, ignore_keys=None):
+def _ensure_array_dict(d, ignore_keys=None):
     '''
     Ensure that all the parameters are expressed as arrays except string-valued SFRD parameters.
 
@@ -99,7 +100,7 @@ def ensure_array_dict(d, ignore_keys=None):
             out[k] = np.atleast_1d(v)
     return out
 
-def split_params(d):
+def _split_params(d):
     '''
     Split the given a dictionary into multi-valued and single-valued parameters dictionaries.
 
@@ -132,7 +133,7 @@ def split_params(d):
 
     return varying, fixed
 
-def grid_on_index(pipe, idx):
+def _grid_on_index(pipe, idx):
     inds = np.unravel_index(idx, pipe.shape)
 
     all_params = pipe.fixed_params.copy()
@@ -144,7 +145,7 @@ def grid_on_index(pipe, idx):
 
     return all_params, varying_params_only
 
-def grid_off_index(pipe, idx):
+def _grid_off_index(pipe, idx):
 
     all_params = pipe.fixed_params.copy()
     varying_params_only = {}
@@ -159,7 +160,7 @@ def write_summary(pipe, elapsed_time):
     '''
     Given the elapsed time of the code execution write the main summary of the run.
     '''
-    sumfile = pipe.path+"summary_"+pipe.timestamp+".txt"
+    sumfile = os.path.join(pipe.path, "summary_" + pipe.timestamp + ".txt")
     myfile = open(sumfile, "w")
     myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
 ██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
@@ -232,6 +233,68 @@ def _get_As_for_sig8(class_set):
     return A_s
 
 
+def save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded=None):
+    '''
+    Save the results of the simulation to an HDF5 file.
+
+    Arguments
+    ---------
+    param_df: pandas.DataFrame
+        DataFrame containing the parameters for each model.
+    
+    xe, Q_Hii, Tk, Ts, T21, xHI, tau: numpy.ndarray
+        Arrays containing the evolution histories for each model.
+    
+    UVLF: numpy.ndarray
+        Array containing the UV luminosity function for each model.
+    
+    total_failed: int, optional
+        Total number of models that failed to converge. Default is 0.
+    
+    gathered_failed_params: pandas.DataFrame, optional
+        DataFrame containing the parameters of the failed models. Default is None.
+    
+    n_succeeded: int, optional
+        Number of models that succeeded. Default is None.
+    '''
+    save_path = os.path.join(pipe.path, 'echo_output.h5')
+
+    with h5py.File(save_path, "w") as f:
+
+        # Parameter table (skip when there are no varying parameters to record)
+        if not pipe.param_df.empty:
+            f.create_dataset(
+                "params",
+                data=pipe.param_df.to_records(index=False)
+            )
+
+        # Redshift and magnitude grids
+        f.create_dataset("one_plus_z", data=Z_default)
+        f.create_dataset("one_plus_z_cd", data=Z_cd)
+        f.create_dataset("MAB", data=MAB_default)
+
+        # Evolution histories
+        f.create_dataset("xe", data=pipe.xe)
+        f.create_dataset("Q_Hii", data=pipe.Q_Hii)
+        f.create_dataset("Tk", data=pipe.Tk)
+        f.create_dataset("Ts", data=pipe.Ts)
+        f.create_dataset("T21", data=pipe.T21)
+        f.create_dataset("xHI", data=pipe.xHI)
+        f.create_dataset("tau", data=pipe.tau)
+        f.create_dataset("UVLF", data=pipe.UVLF)
+
+        # Failed parameter sets (if any)
+        if total_failed > 0:
+            print(
+                f"\n\033[33mWarning: {total_failed}/{pipe.N_models} models failed "
+                f"(solver did not converge). {n_succeeded} models saved.\033[00m"
+            )
+            f.create_dataset(
+                "failed_params",
+                data=gathered_failed_params.to_records(index=False)
+            )
+    return None
+
 def load_results(pipe, Z_eval = None):
     '''
     Read the output and return a dictionary of parameters, redshifts, global signal, etc. If you do not provide any redshift, the quantities are returned at their default redshift.
@@ -252,23 +315,32 @@ def load_results(pipe, Z_eval = None):
         six sets - params (pandas dataframe), one_plus_z (numpy array), T21 (numpy array), xHI (numpy array), tau (numpy array), UVLF (numpy array)
     '''
     if pipe.cpu_ind == 0:
-        h5file = pipe.path + 'echo_output.h5'
-        with pd.HDFStore(h5file) as store:
-            params     = store["params"]
-            one_plus_z = store["Z"].values
-            MAB        = store["MAB"].values
-            T21        = store["T21"].values
-            xHI        = store["xHI"].values
-            tau        = store["tau"].values
+        h5file = os.path.join(pipe.path, 'echo_output.h5')
         with h5py.File(h5file, "r") as f:
-            UVLF = f["UVLF"][:]   # shape (N_params, nMAB, nZ)
+            try:
+                params     = pd.DataFrame(f["params"][:])
+            except KeyError:
+                params = pd.DataFrame()
+            one_plus_z = f["one_plus_z"][:]
+            one_plus_z_cd = f["one_plus_z_cd"][:]
+            MAB        = f["MAB"][:]
+            xe         = f["xe"][:]
+            Q_Hii      = f["Q_Hii"][:]
+            Tk         = f["Tk"][:]
+            Ts         = f["Ts"][:]
+            T21        = f["T21"][:]
+            xHI        = f["xHI"][:]
+            tau        = f["tau"][:]
+            UVLF       = f["UVLF"][:]   # shape (N_params, nMAB, nZ)
 
         if one_plus_z[0] == Z_start:
             Z_lim, flipped_Z = Z_start, flipped_Z_default
         elif one_plus_z[0] == Zstar:
             Z_lim, flipped_Z = Zstar, flipped_Z_cd
+        else:
+            flipped_Z = None
 
-        if Z_eval is not None:
+        if flipped_Z is not None and Z_eval is not None:
             if Z_eval[0] > Z_lim or Z_eval[-1] < Z_end:
                 print(f'\033[31mYour requested redshift values should satisfy {Z_lim} > 1+z > {Z_end}')
                 print('Terminating ...\033[00m')
@@ -279,9 +351,25 @@ def load_results(pipe, Z_eval = None):
                 Z_eval = Z_eval[::-1]
 
             # Z must be on axis 0 for CubicSpline; transpose so Z leads, flip, interpolate, restore.
-            xHI  = CubicSpline(flipped_Z, np.flip(xHI.T,                   axis=0))(Z_eval).T
-            T21  = CubicSpline(flipped_Z, np.flip(T21.T,                   axis=0))(Z_eval).T
-            UVLF = CubicSpline(flipped_Z, np.flip(UVLF.transpose(2, 0, 1), axis=0))(Z_eval).transpose(1, 2, 0)
+            xe    = CubicSpline(flipped_Z, np.flip(xe.T,                    axis=0))(Z_eval).T
+            Q_Hii = CubicSpline(flipped_Z_cd, np.flip(Q_Hii.T,              axis=0))(Z_eval).T
+            Tk    = CubicSpline(flipped_Z, np.flip(Tk.T,                    axis=0))(Z_eval).T
+            Ts    = CubicSpline(flipped_Z, np.flip(Ts.T,                    axis=0))(Z_eval).T
+            xHI   = CubicSpline(flipped_Z, np.flip(xHI.T,                   axis=0))(Z_eval).T
+            T21   = CubicSpline(flipped_Z, np.flip(T21.T,                   axis=0))(Z_eval).T
+            UVLF  = CubicSpline(flipped_Z_cd, np.flip(UVLF.transpose(2, 0, 1), axis=0))(Z_eval).transpose(1, 2, 0)
             one_plus_z = Z_eval
 
-        return {'params': params, 'one_plus_z': one_plus_z, 'MAB': MAB, 'T21': T21, 'xHI': xHI, 'tau': tau, 'UVLF': UVLF}
+        return {'params': params, 'one_plus_z': one_plus_z, 'MAB': MAB,
+                'xe': xe, 'Q_Hii': Q_Hii, 'Tk': Tk, 'Ts': Ts,
+                'T21': T21, 'xHI': xHI, 'tau': tau, 'UVLF': UVLF}
+
+
+
+__all__ = ['_ensure_array_dict',
+           '_split_params',
+           '_grid_on_index',
+           '_grid_off_index',
+           'save_pipeline','load_pipeline','save_results','load_results',
+           'print_banner','print_input','write_summary',
+           ]

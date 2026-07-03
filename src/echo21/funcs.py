@@ -1093,7 +1093,7 @@ class funcs():
         Z_int = np.linspace(1,Z,60)
         tau = scint.trapezoid(dtaudz(Z_int),Z_int,axis=0)
 
-        return tau
+        return np.atleast_1d(tau)
     #End of functions related to reionization.
     #===================================================================================================
 
@@ -1278,14 +1278,14 @@ class funcs():
     
     def reion_eqn(self,Z,QHii):
         '''
-        The RHS of the differential equation governing the evolution of Q. Equation is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2017).
+        The RHS of the differential equation governing the evolution of QHii. Equation is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2017).
 
         Arguments
         ---------
         Z : float
             1+z.
 
-        Q : float
+        QHii : float
             The volume filling factor of the ionized regions.
             
         Returns
@@ -1312,7 +1312,7 @@ class funcs():
         -------
 
         float array
-            Q for the cosmic dawn redshifts, ``Z_cd``. The redshifts can be access from the module ``const``. 
+            QHii for the cosmic dawn redshifts, ``Z_cd``. The redshifts can be access from the module ``const``. 
         '''
         Sol = scint.solve_ivp(lambda a, Var: -self.reion_eqn(1/a,Var)/a, [1/Zstar, 1/Z_end],[0],method='Radau',t_eval=1/Z_cd)
         QHii = Sol.y[0]
@@ -1457,7 +1457,7 @@ class funcs():
         Ts = ( 1  + xa + xk*Tk/(Tk+T_se))/(1/self.basic_cosmo_Tcmb(Z) +  xk/Tk + xa/(Tk+T_se) )
         return Ts
 
-    def hyfi_twentyone_cm(self,Z,xe, Q,Ts):
+    def hyfi_twentyone_cm(self, Z, xHI, Ts):
         '''
         The global (sky-averaged) 21-cm signal.
         
@@ -1467,11 +1467,8 @@ class funcs():
         Z : float
             1 + z, dimensionless.
         
-        xe : float
-            Electron fraction.
-
-        Q : float
-            Volume-filling factor.
+        xHI : float
+            Two-zone-model-averaged neutral hydrogen fraction.
         
         Ts : float
             Spin temperature.
@@ -1482,8 +1479,7 @@ class funcs():
         float
             :math:`T_{21}`, mK.
         '''
-        #Get the two-zone model averaged ionisation fraction.
-        xHI = (1-xe)*(1-Q)
+
         return 27*xHI*((1-self.Yp)/0.76)*(self.Om_b*self.h100**2/0.023)*np.sqrt(0.15*Z/(10*self.Om_m*self.h100**2))*(1-self.basic_cosmo_Tcmb(Z)/Ts)
 
 #End of class echofuncs.

@@ -7,7 +7,6 @@ This module contains the class pipeline.
 """
 import pandas as pd
 import numpy as np
-import h5py
 from mpi4py import MPI
 from mpi4py.util import pkl5
 import os, sys, time
@@ -15,10 +14,9 @@ from time import localtime, strftime
 from tqdm import tqdm
 
 from .const import *
-from .echofuncs import funcs
+from .funcs import funcs
 from .single_set_solver import *
 from .utils import *
-from .uvlf import uvlf
 #--------------------------------------------------------------------------------------------
 
 class pipeline():
@@ -125,14 +123,14 @@ class pipeline():
 
         self.dm_model = 'IDM' if {'mx_gev', 'sigma45'} & cosmo.keys() else 'CDM'
 
-        self.cosmo = ensure_array_dict(cosmo)
-        self.astro = ensure_array_dict(astro)
+        self.cosmo = _ensure_array_dict(cosmo)
+        self.astro = _ensure_array_dict(astro)
         # sfrd contains strings → ignore them
-        self.sfrd = ensure_array_dict(sfrd, ignore_keys=['type','hmf','mdef'])
+        self.sfrd = _ensure_array_dict(sfrd, ignore_keys=['type','hmf','mdef'])
 
-        cosmo_var, cosmo_fixed = split_params(self.cosmo)
-        astro_var, astro_fixed = split_params(self.astro)
-        sfrd_var, sfrd_fixed   = split_params(self.sfrd)
+        cosmo_var, cosmo_fixed = _split_params(self.cosmo)
+        astro_var, astro_fixed = _split_params(self.astro)
+        sfrd_var, sfrd_fixed   = _split_params(self.sfrd)
 
         self.var_params = {**cosmo_var, **astro_var, **sfrd_var}
         self.fixed_params = {**cosmo_fixed, **astro_fixed, **sfrd_fixed}
@@ -146,7 +144,7 @@ class pipeline():
         if grid_on:
             self.shape = tuple(len(a) for a in self.param_arrays)
             self.N_models = np.prod(self.shape)
-            self.get_index = grid_on_index
+            self.get_index = _grid_on_index
         else:
             #Before proceeding check if all the arrays of varying parameters have the same length. If not, then terminate and ask user to correct the input.
             if len(set(map(len, self.param_arrays))) > 1:
@@ -154,7 +152,7 @@ class pipeline():
                 sys.exit()
             self.N_models = len(self.param_arrays[0]) if self.param_arrays else 1
 
-            self.get_index = grid_off_index
+            self.get_index = _grid_off_index
 
         cosmo_varying = any(np.size(v) > 1 for v in (cosmo_var).values())
         astro_varying = any(np.size(v) > 1 for v in {**astro_var, **sfrd_var}.values())
@@ -163,6 +161,8 @@ class pipeline():
         if not cosmo_varying and not astro_varying:
             self.run_type='single'
             self.message = 'both cosmological and astrophysical parameters are fixed.\n'
+            self.initial_conditions = (None , None, None, None)
+            self.simulator = dark_ages_to_today
 
         elif not cosmo_varying and astro_varying:
             obj_dark_ages = funcs(self.fixed_params, dm_model=self.dm_model)
@@ -217,74 +217,19 @@ class pipeline():
         if self.run_type=='single':
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
-                
-                st = time.perf_counter()
-                
+
                 print_banner()
                 print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
-                
-                #we solve full timeline in two parts. First DA then CD and later.
-                myobj = funcs(self.fixed_params, dm_model=self.dm_model)
-                ic = myobj.initial_conditions()
+                print('Generating',self.N_models,'model ...')
 
-                print('Obtaining the thermal and ionisation history ...')
-                sol_da = myobj.igm_solver(Z_da, *ic, eqns_func=myobj.igm_eqns_da)
-                #in dark ages we solver for the transformed gas temperature. So we need to convert to physical temperature
-                sol_da[1] = myobj._logratio_to_temp(Z_da, sol_da[1])
-                
-                #initial conditions for cosmic dawn solver
-                ic_cd = tuple(s[-1] for s in sol_da)
-                sol_cd = myobj.igm_solver(Z_cd, *ic_cd, eqns_func=myobj.igm_eqns_cd)
+                st = time.perf_counter()
+                result = self.simulator(self.fixed_params, *self.initial_conditions, dm_model=self.dm_model)
 
-                xe = np.concatenate([sol_da[0][:-1], sol_cd[0]])
-                Tk = np.concatenate([sol_da[1][:-1], sol_cd[1]])
-
-                Q_Hii = myobj.QHii
-                Q_Hii = np.concatenate((np.zeros(len(Z_da)-1), Q_Hii))
-                
-                if self.dm_model == 'IDM':
-                    Tx = np.concatenate([sol_da[2][:-1], sol_cd[2]])
-                    ln_v_bx = np.concatenate([sol_da[3][:-1], sol_cd[3]])
-
-                print('Obtaining spin temperature ...')
-                Ts = myobj.hyfi_spin_temp(Z=Z_default,xe=xe,Tk=Tk)
-
-                print('Computing the 21-cm signal ...')
-                T21 = myobj.hyfi_twentyone_cm(Z=Z_default,xe=xe,Q=Q_Hii,Ts=Ts)
-                
-                #Computing UVLF
-                UVLF = np.hstack((np.zeros((nMAB_default, 2000)), uvlf(myobj).lum_func(MAB_default, Z_cd))) #UV LF
-
-                x = Z_default
-                
-                print('Done.')
-
-                xe_save_name = self.path+'xe'
-                Q_save_name = self.path+'Q'
-                Tk_save_name = self.path+'Tk'
-                Ts_save_name = self.path+'Ts'
-                Tcmb_save_name = self.path+'Tcmb'
-                T21_save_name = self.path+'T21'
-                uvlf_save_name = self.path+'UVLF'
-                z_save_name = self.path+'one_plus_z'
-                MAB_name = self.path+'MAB'
-
-                np.save(xe_save_name,xe)
-                np.save(Q_save_name,Q_Hii)
-                np.save(Tk_save_name,Tk)
-                np.save(Ts_save_name,Ts)
-                np.save(Tcmb_save_name,myobj.basic_cosmo_Tcmb(x))
-                np.save(T21_save_name,T21)
-                np.save(uvlf_save_name,UVLF)
-                np.save(z_save_name,x)
-                np.save(MAB_name,MAB_default)
-
-                if self.dm_model == 'IDM':
-                    Tx_save_name = self.path+'Tx'
-                    v_bx_save_name = self.path+'v_bx'
-                    np.save(Tx_save_name,Tx)
-                    np.save(v_bx_save_name,np.exp(ln_v_bx))
+                #create empty pandas dataframe for consistency with the other cases. 
+                self.param_df = pd.DataFrame([])
+                self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF = result
+                save_results(self)
 
                 print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
                 
@@ -297,23 +242,6 @@ class pipeline():
                 #Writing to a summary file
                 myfile = write_summary(self, elapsed_time=elapsed_time)
 
-                try:
-                    max_T21 = np.min(T21)
-                    max_ind = np.where(T21==max_T21)
-                    [max_z] = x[max_ind]
-                    myfile.write('\n\nStrongest 21-cm signal is {:.2f} mK, observed at z = {:.2f}'.format(max_T21,max_z-1))
-                except:
-                    pass
-
-                tau_e = None
-                try:
-                    tau_e = myobj.reion_tau(50)     #To calculate tau even if reionisation is not complete
-                    myfile.write("\nTotal Thomson-scattering optical depth = {:.4f}".format(tau_e))
-                except:
-                    pass
-
-                myfile.write('\n')
-                myfile.close()
                 #========================================================
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
@@ -376,44 +304,27 @@ class pipeline():
 
             if self.cpu_ind == 0:
                 # Flatten across ranks (rank order preserved by gather)
-                all_results       = [r for chunk in gathered for r in chunk['results']]
-                all_params        = [p for chunk in gathered for p in chunk['params']]
-                all_failed_params = [fp for chunk in gathered for fp in chunk['failed_params']]
+                gathered_results       = [r for chunk in gathered for r in chunk['results']]
+                gathered_params        = [p for chunk in gathered for p in chunk['params']]
+                gathered_failed_params = [fp for chunk in gathered for fp in chunk['failed_params']]
                 total_failed      = sum(chunk['n_failed'] for chunk in gathered)
-                n_succeeded = len(all_results)
+                n_succeeded = len(gathered_results)
 
                 if n_succeeded == 0:
                     print('\033[31mAll models failed; nothing to save.\033[00m')
                 else:
-                    param_df = pd.DataFrame(all_params)
+                    self.param_df = pd.DataFrame(gathered_params)
                     #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
-                    T21 = np.vstack([r[0] for r in all_results])
-                    xHI = np.vstack([r[1] for r in all_results])
-                    tau = np.array([r[2] for r in all_results])
-                    UVLF = np.array([r[3] for r in all_results])
+                    self.xe    = np.vstack([r[0] for r in gathered_results])
+                    self.Q_Hii = np.vstack([r[1] for r in gathered_results])
+                    self.xHI   = np.vstack([r[2] for r in gathered_results])
+                    self.Tk    = np.vstack([r[3] for r in gathered_results])
+                    self.Ts    = np.vstack([r[4] for r in gathered_results])
+                    self.T21   = np.vstack([r[5] for r in gathered_results])
+                    self.tau   = np.concatenate([r[6] for r in gathered_results])
+                    self.UVLF  = np.array([r[7] for r in gathered_results])
 
-                    save_path = self.path + 'echo_output.h5'
-                    with pd.HDFStore(save_path, mode="w") as store:
-
-                        # first layer
-                        store.put("params", param_df)
-
-                        # second layer
-                        store.put("Z", pd.Series(Z_default))
-                        store.put("MAB", pd.Series(MAB_default))
-
-                        # subsequent layers
-                        store.put("T21", pd.DataFrame(T21))
-                        store.put("xHI", pd.DataFrame(xHI))
-                        store.put("tau", pd.Series(tau))
-
-                    with h5py.File(save_path, "a") as f:
-                        f.create_dataset("UVLF", data=UVLF)
-
-                        # failed parameter sets (if any)
-                        if total_failed > 0:
-                            print(f'\n\033[33mWarning: {total_failed}/{self.N_models} models failed (solver did not converge). ' f'{n_succeeded} models saved.\033[00m')
-                            store.put("failed_params", pd.DataFrame(all_failed_params))
+                    save_results(self, total_failed=total_failed, gathered_failed_params=gathered_failed_params, n_succeeded=n_succeeded)                        
 
                     print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
                     

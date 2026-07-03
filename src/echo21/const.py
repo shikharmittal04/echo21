@@ -43,13 +43,13 @@ CX_fid = 2.45e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^
 UVlum_by_SFR = 8.695e20  #W/Hz/(Msun/yr)
 
 #--------------------------------------------------------------------------------------------------
-
+N_da = 2000 #Number of redshift points in dark ages
 Zstar = 60 #redshift of the beginning of star formation
 
 Z_start = 1501
 Z_end = 1
 
-Z_da = np.linspace(Z_start,Zstar,2001)
+Z_da = np.linspace(Z_start,Zstar,N_da+1)
 Z_cd = np.concatenate((1/np.linspace(1/Zstar,1/5.05,200),1/np.linspace(1/5,1/Z_end,100)))
 Z_default = np.concatenate((Z_da[:-1],Z_cd))
 
