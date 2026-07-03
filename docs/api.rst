@@ -3,16 +3,17 @@
 API Reference
 =============
 
-.. automodule:: echo21.echopipeline
+.. automodule:: echo21.pipeline
 .. autoclass:: pipeline
     :members:
 
 
-.. automodule:: echo21.echofuncs
+.. automodule:: echo21.funcs
 .. autoclass:: funcs
     :members:
 
 
-.. automodule:: echo21.misc
+.. automodule:: echo21.utils
 .. autofunction:: save_pipeline
 .. autofunction:: load_pipeline
+.. autofunction:: load_results

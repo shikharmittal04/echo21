@@ -10,7 +10,6 @@ import numpy as np
 from mpi4py import MPI
 from mpi4py.util import pkl5
 import os, sys, time
-from time import localtime, strftime
 from tqdm import tqdm
 
 from .const import *
@@ -195,18 +194,9 @@ class pipeline():
 
         #Create an output folder where all results will be saved.
         self.path=path
-        if self.cpu_ind==0:
-            if os.path.isdir(self.path)==False:
-                print('\nThe requested directory does not exist. Creating ',self.path)
-                os.mkdir(self.path)
+        _create_output_dir(self)
+
             
-            self.timestamp = strftime("%Y%m%d-%H%M%S", localtime())
-            self.path = self.path + 'output_'+self.timestamp+'/'
-            os.mkdir(self.path)
-
-            self.formatted_timestamp = self.timestamp[9:11]+':'+self.timestamp[11:13]+':'+self.timestamp[13:15]+' '+self.timestamp[6:8]+'/'+self.timestamp[4:6]+'/'+ self.timestamp[:4]
-
-            save_pipeline(self,'pipe')
         return None
     
     def run_simulation(self):
@@ -228,10 +218,13 @@ class pipeline():
 
                 #create empty pandas dataframe for consistency with the other cases. 
                 self.param_df = pd.DataFrame([])
-                self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF = result
+                if self.dm_model == 'CDM':
+                    self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF = result
+                else:
+                    self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF, self.Tx, self.v_bx = result
                 save_results(self)
 
-                print('\033[32mYour outputs have been saved into folder:',self.path,'\033[00m')
+                print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
                 
                 et = time.perf_counter()
                 # get the execution time
@@ -242,6 +235,7 @@ class pipeline():
                 #Writing to a summary file
                 myfile = write_summary(self, elapsed_time=elapsed_time)
 
+                save_pipeline(self)
                 #========================================================
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
@@ -323,6 +317,9 @@ class pipeline():
                     self.T21   = np.vstack([r[5] for r in gathered_results])
                     self.tau   = np.concatenate([r[6] for r in gathered_results])
                     self.UVLF  = np.array([r[7] for r in gathered_results])
+                    if self.dm_model == 'IDM':
+                        self.Tx    = np.vstack([r[8] for r in gathered_results])
+                        self.v_bx  = np.vstack([r[9] for r in gathered_results])
 
                     save_results(self, total_failed=total_failed, gathered_failed_params=gathered_failed_params, n_succeeded=n_succeeded)                        
 
@@ -333,17 +330,20 @@ class pipeline():
                     elapsed_time = et - st
                     print('\nProcessing time: %.2f seconds' %elapsed_time)
 
-                    #========================================================
-                    #Writing to a summary file
+                #========================================================
+                #Writing to a summary file
 
-                    myfile = write_summary(self, elapsed_time=elapsed_time)
-                    myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
-                    myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
-                    myfile.write('\n')
-                    myfile.close()
-                    #========================================================
+                myfile = write_summary(self, elapsed_time=elapsed_time)
+                myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
+                myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
+                myfile.write('\n')
+                myfile.close()
 
-                    print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
+
+                save_pipeline(self)
+                #========================================================
+
+                print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
             return None
     
     #End of function run_simulation               

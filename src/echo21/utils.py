@@ -12,6 +12,7 @@ from scipy.interpolate import CubicSpline
 import pandas as pd
 import h5py
 import sys
+from time import localtime, strftime
 try:
     import classy
 except ImportError:
@@ -19,7 +20,7 @@ except ImportError:
 from .const import *
 
 #The following 2 functions will be useful if you want to save and load `pipeline` object.
-def save_pipeline(obj, filename):
+def save_pipeline(obj):
     '''    
     Save the class object :class:`pipeline` for later use. It will save the object in the path where you have all the other outputs from this package.
     
@@ -27,14 +28,11 @@ def save_pipeline(obj, filename):
     ---------
 
     obj : class
-        This should be the class object you want to save.
-        
-    filename : str
-        Give a file name only to your object, not the full path. obj will be saved in the ``obj.path`` directory.
-    
+        This should be the class object you want to save.    
     '''
-    if filename[-4:]!='.pkl': filename=filename+'.pkl'
-    fullpath = obj.path+filename
+    filename = 'pipeline.pkl'
+
+    fullpath = os.path.join(obj.path, filename)
     with open(fullpath, 'wb') as outp:  # Overwrites any existing file.
         pickle.dump(obj, outp, pickle.HIGHEST_PROTOCOL)
     return None
@@ -46,18 +44,38 @@ def load_pipeline(filename):
     ---------
 
     filename : str
-        This should be the name of the file you gave in :func:`save_pipeline()` for saving class object :class:`pipeline`. Important: provide the full path for ``filename`` with the extension ``.pkl``.
+        Full path to the output directory (``output_<YYYYMMDD-HHMMSS>``) which contains the pickle file `pipeline.pkl`.
         
     Returns
     -------
 
     class object    
     '''
-    with open(filename, 'rb') as inp:
+    fullpath = os.path.join(filename, 'pipeline.pkl')
+    with open(fullpath, 'rb') as inp:
         echo21obj = pickle.load(inp)
     print('Loaded the echo21 pipeline class object.\n')
     return echo21obj
 #--------------------------------------------------------------------------------------------
+
+def _create_output_dir(pipe):
+    '''
+    Create an output directory if it does not exist.
+    
+    Arguments
+    ---------
+    pipe : class
+        The pipeline object for which to create the output directory.
+    '''
+    if pipe.cpu_ind==0:
+        if os.path.isdir(pipe.path)==False:
+            print('\nThe requested directory does not exist. Creating ',pipe.path)
+            os.mkdir(pipe.path)
+        
+        pipe.timestamp = strftime("%Y%m%d-%H%M%S", localtime())
+        pipe.path = pipe.path + 'output_'+pipe.timestamp+'/'
+        os.mkdir(pipe.path)
+    return None
 
 def print_banner():
     banner = """\n\033[94m
@@ -161,6 +179,9 @@ def write_summary(pipe, elapsed_time):
     Given the elapsed time of the code execution write the main summary of the run.
     '''
     sumfile = os.path.join(pipe.path, "summary_" + pipe.timestamp + ".txt")
+    formatted_timestamp = pipe.timestamp[9:11]+':'+pipe.timestamp[11:13]+':'+pipe.timestamp[13:15]+' '+pipe.timestamp[6:8]+'/'+pipe.timestamp[4:6]+'/'+ pipe.timestamp[:4]
+
+
     myfile = open(sumfile, "w")
     myfile.write('''\n███████╗ ██████╗██╗  ██╗ ██████╗ ██████╗  ██╗
 ██╔════╝██╔════╝██║  ██║██╔═══██╗╚════██╗███║
@@ -171,7 +192,7 @@ def write_summary(pipe, elapsed_time):
     myfile.write('Shikhar Mittal, 2026\n')
     myfile.write('\nThis is output_'+pipe.timestamp)
     myfile.write('\n------------------------------\n')
-    myfile.write('\nTime stamp: '+pipe.formatted_timestamp)
+    myfile.write('\nTime stamp: '+formatted_timestamp)
     myfile.write('\n\nExecution time: %.2f seconds' %elapsed_time) 
     myfile.write('\n\n')
     myfile.write('Dark matter type: {}\n'.format(pipe.dm_model))
@@ -282,7 +303,10 @@ def save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded=
         f.create_dataset("xHI", data=pipe.xHI)
         f.create_dataset("tau", data=pipe.tau)
         f.create_dataset("UVLF", data=pipe.UVLF)
-
+        if pipe.dm_model == 'idm':
+            f.create_dataset("Tx", data=pipe.Tx)
+            f.create_dataset("v_bx", data=pipe.v_bx)
+            
         # Failed parameter sets (if any)
         if total_failed > 0:
             print(
@@ -303,7 +327,7 @@ def load_results(pipe, Z_eval = None):
     ---------
     
     pipe: class
-        :class:`pipeline` class object from :mod:`echopipeline` module
+        :class:`pipeline` class object from :mod:`pipeline` module
     
     Z_eval: array, optional
         array of :math:`1+z` values; can be in decreasing as well as increasing order. Default = ``None``
@@ -332,6 +356,9 @@ def load_results(pipe, Z_eval = None):
             xHI        = f["xHI"][:]
             tau        = f["tau"][:]
             UVLF       = f["UVLF"][:]   # shape (N_params, nMAB, nZ)
+            if pipe.dm_model == 'idm':
+                Tx     = f["Tx"][:]
+                v_bx   = f["v_bx"][:]
 
         if one_plus_z[0] == Z_start:
             Z_lim, flipped_Z = Z_start, flipped_Z_default
@@ -360,9 +387,16 @@ def load_results(pipe, Z_eval = None):
             UVLF  = CubicSpline(flipped_Z_cd, np.flip(UVLF.transpose(2, 0, 1), axis=0))(Z_eval).transpose(1, 2, 0)
             one_plus_z = Z_eval
 
-        return {'params': params, 'one_plus_z': one_plus_z, 'MAB': MAB,
-                'xe': xe, 'Q_Hii': Q_Hii, 'Tk': Tk, 'Ts': Ts,
-                'T21': T21, 'xHI': xHI, 'tau': tau, 'UVLF': UVLF}
+        if pipe.dm_model == 'idm':
+            Tx    = CubicSpline(flipped_Z, np.flip(Tx.T,                    axis=0))(Z_eval).T
+            v_bx  = CubicSpline(flipped_Z, np.flip(v_bx.T,                  axis=0))(Z_eval).T
+            return {'params': params, 'one_plus_z': one_plus_z, 'MAB': MAB,
+                    'xe': xe, 'Q_Hii': Q_Hii, 'Tk': Tk, 'Ts': Ts,
+                    'T21': T21, 'xHI': xHI, 'tau': tau, 'UVLF': UVLF, 'Tx': Tx, 'v_bx': v_bx}
+        else:
+            return {'params': params, 'one_plus_z': one_plus_z, 'MAB': MAB,
+                    'xe': xe, 'Q_Hii': Q_Hii, 'Tk': Tk, 'Ts': Ts,
+                    'T21': T21, 'xHI': xHI, 'tau': tau, 'UVLF': UVLF}
 
 
 
@@ -370,6 +404,7 @@ __all__ = ['_ensure_array_dict',
            '_split_params',
            '_grid_on_index',
            '_grid_off_index',
+           '_create_output_dir',
            'save_pipeline','load_pipeline','save_results','load_results',
            'print_banner','print_input','write_summary',
            ]
