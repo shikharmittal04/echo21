@@ -1,5 +1,5 @@
 """
-echofuncs
+funcs
 =========
 This module contains class funcs.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,7 +30,7 @@ class funcs():
 
     Function names starting with 'recomb' include recombination-physics-related functions.
 
-    Function names starting with 'heating' include all the heating terms. All the terms are in the form of :math:`-(1+z)\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}z` and hence, in units of temperature.
+    Function names starting with 'heating' include all the heating terms. All the terms are in the form of :math:`-\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}\\ln(1+z)` and hence, in units of temperature.
     
     Function names starting with 'hyfi' include all the functions related to the computation of 21-cm signal. These are
     :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\mathrm{Ly}}, T_{\\mathrm{s}}` and :math:`T_{21}`.

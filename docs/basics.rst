@@ -37,22 +37,22 @@ The following code more or less captures the main functionalities of this packag
 
 .. code:: python
 
-   from echo21 import echopipeline
+   import echo21
 
-   pipe = echopipeline.pipeline()
+   pipe = echo21.pipeline()
    pipe.run_simulation()
 
-Save the above code as (say) ``my_echo_script.py`` and run it as
+Save the above code as (say) ``run_echo21.py`` and run it as
 
 .. code:: bash
 
-    python my_echo_script.py
+    python run_echo21.py
 
-Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains several files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see :ref:`detexp`. To learn about the physics of this package see our `paper <https://doi.org/10.1093/rasti/rzag001>`_. 
+Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains three files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see :ref:`detexp`. To learn about the physics of this package see our `paper <https://doi.org/10.1093/rasti/rzag001>`_. 
 
 Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebook `make_figures.ipynb` in the example folder.
 
-To see what parameters you are running for, you can add ``pipe.print_input()`` to ``my_echo_script.py``.
+To see what parameters you are running for, you can add ``pipe.print_input()`` to ``run_echo21.py``.
 
 License and citation
 --------------------

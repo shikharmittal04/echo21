@@ -7,19 +7,19 @@ In-depth usage
 
 .. _single:
 
-Single realization of 21-cm signal
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Single realization of IGM histories
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There are just two steps to use ``ECHO21``:
 
 -  Give your choice of parameters
 -  Run the solver
 
-Thus, you first set up your cosmological and astrophysical parameters. These have to be supplied as a dictionary. Then specify your star formation rate density (SFRD) model, again as a dictionary. Once this is done, we can move on to creating a :class:`pipeline` object. Finally, the function :py:func:`run_simulation()` in the :class:`pipeline` object runs the code and produces the outputs. The following script (say ``my_echo_script.py``) helps you get started.
+Thus, you first set up your cosmological and astrophysical parameters. These have to be supplied as a dictionary. Then specify your star formation rate density (SFRD) model, again as a dictionary. Once this is done, we can move on to creating a :class:`pipeline` object. Finally, the function :py:func:`run_simulation()` in the :class:`pipeline` object runs the code and produces the outputs. The following script (say ``run_echo21.py``) helps you get started.
 
 .. code:: python
    
-   from echo21 import pipeline
+   import echo21
 
    #Step-1 Set you parameter choices
    cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245}
@@ -29,8 +29,8 @@ Thus, you first set up your cosmological and astrophysical parameters. These hav
    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':1e4}
 
    #Step-2 Create an object and run
-   myobj = pipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd,path='/path/where/you/want/your/outputs/')
-   myobj.run_simulation()
+   pipe = echo21.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd,path='/path/where/you/want/your/outputs/')
+   pipe.run_simulation()
 
    #That's it.
 
@@ -41,14 +41,14 @@ Please see the paper for an understanding of parameters ``fLy``, ``sLy``, etc. I
 .. _multi:
 
 Charting a parameter space of IGM: running `ECHO21` in parallel mode
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Now suppose you want to generate many 21-cm signals, neutral hydrogen fraction, and optical depths for different astrophysical (or cosmological) parameter. For this you simply have to provide your choice of parameters as a dictionary of lists or arrays.
+Now suppose you want to generate many gas temperatures, 21-cm signals, neutral hydrogen fraction, optical depths, etc. for different astrophysical (or cosmological) parameter. For this you simply have to provide your choice of parameters as a dictionary of lists (or arrays).
 
 **Grid or no grid?** there is an additional consideration. You can choose to generate the results for all possible combinations of the parameters (i.e., a grid) or only for the combinations of parameters at the same index in the lists/arrays. For example, if you have two parameters, each with three values, then in the grid case you will have 9 models corresponding to all possible combinations of the parameters, but in the no-grid case you will have only 3 models corresponding to the combinations of parameters at the same index. The choice is yours. By default, ``ECHO21`` generates signals assuming no grid. To generate results for all possible combinations of parameters (i.e., grid) set ``grid_on=True`` when defining your :class:`pipeline` object.
 
 
-The following example shows you how. Replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.01}`` in ``my_echo_script.py`` by
+The following example shows you how to run `ECHO21` for multi-valued parameters in parallel mode. Replace ``astro = {'fLy':1,'sLy':2.64,'fX':1,'wX':1.5,'fesc':0.01}`` in ``run_echo21.py`` by
 
 .. code:: python
 
@@ -62,12 +62,12 @@ For minimum virial temperature you should modify the SFRD dictionary. So now ins
 
    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,5)}
 
-Thus, **the complete script to generate a large space of** :math:`T_{21}`, :math:`x_{\mathrm{HI}}`, :math:`\tau_{\mathrm{e}}`, **and** :math:`\mathrm{d}\Phi/\mathrm{d}M_{\mathrm{UV}}` **with varying astrophysical parameters** now looks like
+Thus, **the complete script to generate a large space of** :math:`T_{21}`, :math:`x_{\mathrm{HI}}`, :math:`\tau_{\mathrm{e}}`, :math:`\mathrm{d}\Phi/\mathrm{d}M_{\mathrm{UV}}` (and more) **with varying astrophysical parameters** now looks like
 
 .. code:: python
    
    import numpy as np
-   from echo21 import pipeline
+   import echo21
 
    #Step-1 Set you parameter choices
    cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245}
@@ -77,19 +77,19 @@ Thus, **the complete script to generate a large space of** :math:`T_{21}`, :math
    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,5)}
 
    #Step-2 Create an object and run
-   myobj = pipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd, grid_on=True, path='/path/where/you/want/your/outputs/')
-   myobj.run_simulation()
+   pipe = echo21.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd, grid_on=True, path='/path/where/you/want/your/outputs/')
+   pipe.run_simulation()
 
 Now a total of :math:`5\times3\times5\times3\times3\times5=3375` models will be generated corresponding to 5 values of :math:`f_{\mathrm{Ly}}`, 3 values of :math:`s_{\mathrm{Ly}}`, 5 values of :math:`f_{\mathrm{X}}`, 3 values of :math:`w_{\mathrm{X}}`, 3 values of :math:`f_{\mathrm{esc}}`, and 5 values of :math:`T_{\mathrm{vir}}`. (In the paper, I have used :math:`s` for ``sLy`` and :math:`w` for ``wX``.)
 
-Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of** :math:`T_{21}`, :math:`x_{\mathrm{HI}}`, **and** :math:`\tau_{\mathrm{e}}` **with varying cosmological parameters**. Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
+Similarly, you can change the ``cosmo`` parameter in the above script to **generate a large space of** :math:`T_{21}`, :math:`x_{\mathrm{HI}}`, :math:`\tau_{\mathrm{e}}`, etc **with varying cosmological parameters**. Further, ``ECHO21`` is not limited to varying either astrophysical or cosmological parameters; both can be simultaneously varied.
 
 In the above example we set `grid_on` to True. If you choose ``grid_on=False``, *then the parameters you wish to vary should have the same number of values*. In this case, the code will generate models for combinations of parameters at the same index in the lists/arrays. As an example
 
 .. code:: python
    
    import numpy as np
-   from echo21 import pipeline
+   import echo21
 
    #Step-1 Set you parameter choices
    cosmo = {'Ho':67.4,'Om_m':0.315,'Om_b':0.049,'sig8':0.811,'ns':0.965,'Tcmbo':2.725,'Yp':0.245}
@@ -99,20 +99,23 @@ In the above example we set `grid_on` to True. If you choose ``grid_on=False``, 
    sfrd = {'type':'phy','hmf':'press74','mdef':'fof','Tmin_vir':np.logspace(2,6,3)}
 
    #Step-2 Create an object and run
-   myobj = pipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd, grid_on=False, path='/path/where/you/want/your/outputs/')
-   myobj.run_simulation()
+   pipe = echo21.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd, grid_on=False, path='/path/where/you/want/your/outputs/')
+   pipe.run_simulation()
 
 The above script will generate 3 models only.
 
 
 
-You can run the above script on your local PC as usual *but with more than one CPU*, as ``ECHO21`` uses a master-worker CPU distribution. Thus, if you provide N CPUs, one CPU will act as the master CPU and remaining N-1 will act as worker CPUs. In general, generating a large number of models on a single CPU can be time consuming. To save time, you should utilize the **parallel** feature of ``ECHO21`` and run the script ``my_echo_script.py`` as (say on four CPUs)
+You can run the above script on your local PC as usual *but with more than one CPU*, as ``ECHO21`` uses a master-worker CPU distribution. Thus, if you provide N CPUs, one CPU will act as the master CPU and remaining N-1 will act as worker CPUs. In general, generating a large number of models on a single CPU can be time consuming. To save time, you should utilize the **parallel** feature of ``ECHO21`` and run the script ``run_echo21.py`` as (say on four CPUs)
 
 .. code:: bash
    
-   mpirun -np 4 python my_echo_script.py
+   mpirun -np 4 python run_echo21.py
 
 Using a similar strategy you can now generate thousands of models in a few minutes with an appropriate choice of HPC resources.
+
+
+For multi-valued parameter run, ``params_df`` is a useful object. It is a dataframe, where each row in ``params_df`` corresponds to a unique model. For the ":math:`r^{\mathrm{th}}`" model, i.e., for the set of parameters at :math:`r^{\mathrm{th}}` row, the corresponding 21-cm signal is at :math:`r^{\mathrm{th}}` row, i.e., ``T21[r,:]`` (similarly for other quantities). This gives you a convenient way to access the outputs for a particular model and hence useful for training.
 
 
 Choosing a different HMF
@@ -130,7 +133,7 @@ Below is an example syntax for SFRD dictionary using Tinker et al. (2008) HMF.
 Choosing a different SFRD model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Until now we have been working with physically-motivated star formation rate density (SFRD) models, which is why we had ``'phy'`` for ``type`` in the SFRD dictionary. ``ECHO21`` offers two additional models of SFRD -- semi-empirical model and an empirically-motivated SFRD model. Let us first look at the semi-empirical model. The dictionary looks mostly the same as for the physically-motivated case, except now we use ``'semi-emp'`` for ``type``. Further, for this case now you also have an additional free parameter, ``tstar`` (default value 0.5). The dictionary now looks like
+Until now we have been working with physically-motivated star formation rate density (SFRD) models, which is why we had ``'phy'`` for ``type`` in the SFRD dictionary. ``ECHO21`` offers two additional models of SFRD -- *semi-empirical* model and an *empirically-motivated* SFRD model. Let us first look at the semi-empirical model. The dictionary looks mostly the same as for the physically-motivated case, except now we use ``'semi-emp'`` for ``type``. Further, for this case now you also have an additional free parameter, ``tstar`` (default value 0.5). The dictionary now looks like
 
 .. code:: python
    
@@ -150,52 +153,48 @@ See section 2.2 from our paper for more details on SFRD.
 Output structure
 ^^^^^^^^^^^^^^^^
 
-When you run ``ECHO21`` for a single parameter the output folder will contain 11 files. These are redshifts (:math:`1+z`, **not** :math:`z`), CMB temperature (Tcmb.npy), gas temperature (Tk.npy), spin temperature (Ts.npy), bulk IGM electron fraction (xe.npy), volume-filling factor (Q.npy), 21-cm signal (T21.npy), a text file ``glob_sig_<timestamp>.txt``, and the class object ``echopipeline.pipeline`` as ``pipe.pkl``. All ``.npy`` files are 1D arrays. They are evaluated at redshifts in the ``.npy`` file ``one_plus_z.npy``. The CMB, gas, and spin temperatures are in units of kelvin and 21-cm signal is in units of milli kelvin (mK).
+Let us first understand the three output files ``ECHO21`` produces. 
 
-The text file contains all the basic information regarding your simulation such as the timestamp, execution time, cosmological & astrophysical parameters you provided. This file mentions the strongest 21-cm signal and the corresponding redshift, and the total CMB optical depth.
+   1. ``pipeline.pkl``: a pickle file which holds the pipeline object (``pipe`` in the above examples). This object has all your inputs and outputs as its attributes. Output inclues gas temperature, spin temperature, bulk IGM electron fraction, volume-filling factor, globally-averaged neutral hydrogen fraction, 21-cm signal, and UV luminosity function. For IDM simulations, DM temperature and baryon-DM relative velocity are also included. The gas and spin temperatures are in units of kelvin and 21-cm signal is in units of milli kelvin (mK).
 
-Simulation with a multi-valued parameters outputs differ slightly. The code will generate a summary file, pipeline object and an HDF5 file. The HDF5 file called, ``echo_output.h5`` contains parameters as a pandas dataframe (``params``), and 1+redshift (``Z``), global signal (``T21``), neutral hydrogen fraction (``xHI``), and CMB optical depth (``tau``) as arrays. If :math:`N_{\mathrm{p}}, N_{z}`, and :math:`N_{\mathrm{mod}}` are the number of parameters that are multi-valued, number of redshift points, and number of models, respectively then ``params`` is a table of shape :math:`N_{\mathrm{mod}} \times N_{\mathrm{p}}`, ``Z`` is 1D numpy array of length :math:`N_{z}`, ``T21`` & ``xHI`` are 2D arrays of shape :math:`N_{\mathrm{mod}} \times N_{z}`, and ``tau`` is a 1D array of length :math:`N_{\mathrm{mod}}`.
+   2. ``summary_<timestamp>.txt``: a text file containing the summary of your simulation. This file contains the timestamp, execution time, and cosmological & astrophysical parameters you provided.
 
-**Read the output:** Use the following lines of code to load the output:
+   3. ``echo21_output.h5``: an HDF5 file containing the simulation results. Same outputs part of the pipeline object are stored in this file also. Additionally, the HDF5 file contains the parameters (only multi-valued ones) as a pandas dataframe, redshifts (:math:`1+z`, **not** :math:`z`) from dark ages to today and cosmic dawn to today, and absolute AB magnitude. If :math:`N_{\mathrm{p}}, N_{z}, N_{\mathrm{mag}}`, and :math:`N_{\mathrm{mod}}` are the number of parameters that are multi-valued, number of redshift points, number of magnitude points, and number of models, respectively then ``params_df`` is a table of shape :math:`N_{\mathrm{mod}} \times N_{\mathrm{p}}`, ``one_plus_z`` is a 1D numpy array of length :math:`N_{z}`, ``xe``, ``Tk``, ``Ts``, ``T21`` & ``xHI`` are 2D arrays of shape :math:`N_{\mathrm{mod}} \times N_{z}`, and ``tau`` is a 1D array of length :math:`N_{\mathrm{mod}}`.
 
-.. code:: python
+      Volume-filling factor and UV luminosity function are 2D and 3D arrays but correspond to redshifts from cosmic dawn to today. So they are of shape :math:`N_{\mathrm{mod}} \times N_{z_{\mathrm{c\,d}}}` and :math:`N_{\mathrm{mod}} \times N_{\mathrm{mag}} \times N_{z_{\mathrm{c\,d}}}`, respectively, where :math:`N_{z_{\mathrm{c\,d}}}` is the number of redshift points from cosmic dawn to today.
 
-   import pandas as pd
-   with pd.HDFStore("echo_output.h5") as store:
-    
-    params = store["params"]
-    one_plus_z = store["Z"].values
-    T21 = store["T21"].values
-    xHI = store["xHI"].values
-    tau = store["tau"].values
-
-Thus, each row in ``params`` table corresponds to a unique model. Corresponding to this model (say at :math:`r^{\mathrm{th}}` row) is the 21-cm signal at :math:`r^{\mathrm{th}}` row, i.e., ``T21[r,:]`` (similarly for neutral hydrogen fraction and CMB optical depth). (Note that single-valued parameters do not appear in the table.)
-
-To see what values you gave, check the summary text file.
+      For IDM simulations, DM temperature and baryon-DM relative velocity are also stored in the HDF5 file as 2D arrays of shape :math:`N_{\mathrm{mod}} \times N_{z}`.
 
 
-Loading the output and evaluating at desired redshifts
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Read the output:**
 
-Before anything I want to clarify that I always work with :math:`1+z` and NOT :math:`z`. So wherever, I write redshift I talk about :math:`1+z`. To avoid confusion I have used the capital letter zed ('Z') to represent :math:`1+z`.
+There are *two* ways to work with outputs. You can access the quantities from the pipeline object after you have run the command ``pipe.run_simulation()``. For example, ``pipe.Tk`` gives the gas temperature. Alternatively, you can use the :py:func:`load_results` function to read the results from an hdf5 file.
+Second method has an extra advantage. It allows you to choose a custom redshift range and evaluate the quantities at those redshifts. The example below shows you how to evaluate the quantities between :math:`1+z=30` and :math:`1+z=10` with 100 evenly spaced values.
 
-from echo21 import utils
-
-Moving on to the main content of this section, when you do not specify the redshift range, the code will evaluate the quantities at default redshifts. This default has 2300 values defined by the array ``Z_default`` given below.
-
-.. code:: python
-   
-   import numpy as np
-   Z_cd = np.concatenate((1/np.linspace(1/60,1/5.05,200),1/np.linspace(1/5,1,100)))
-   Z_default = np.concatenate((np.linspace(1501,60,2001)[:-1],Z_cd))
-
-When you run the code for a single set of parameters or vary cosmological parameters (irrespective of astrophysical ones) then the code will output the signal at redshits defined by ``Z_default`` by default. When you vary only astrophysical parameters then the code will output the signals at cosmic dawn redshifts defined by ``Z_cd``.
-
-**How to give redshift values of your choice?** Simple, just give your choice through the argument ``Z_eval`` when defining the ``pipeline`` object. For example, if you want to generate signal between :math:`1+z=30` and :math:`1+z=10` with 100 evenly spaced values then you should do the following
+Use the following lines of code to load the output:
 
 .. code:: python
 
+   import echo21
+
+   filename = "output_20250226-150000"
+
+   #Method-1: Load the pipeline object
+   pipe = echo21.load_pipeline(filename)
+   one_plus_z = pipe.one_plus_z
+   T21 = pipe.T21
+   #and more such quantities are available as attributes of the pipeline object
+
+   #Method-2: Load the results from the hdf5 file
+   #additionally, you can specify your choice of redshifts at which you want to evaluate the quantities.
    myZs = np.linspace(30,10,100)
-   myobj = echopipeline.pipeline(cosmo=cosmo,astro=astro,sfrd=sfrd,path='/path/where/you/want/your/outputs/',Z_eval=myZs)
+   results_dic = echo21.load_results(filename, Z_eval=myZs)
+   #The results_dic is a dictionary with keys 'one_plus_z', 'params_df', 'Tk', 'Ts', 'xe', 'xHI', 'T21',etc.
+   #Z_eval is optional. If not provided, the quantities will be evaluated at the default redshifts.
 
-Note: you don't have to worry about giving redshifts in decreasing order. Whichever order you give, ``ECHO21`` will always generate outputs for decreasing redshifts. When you are varying the astrophysical parameters only, the highest value of :math:`1+z` should not be above 60. 
+Save it as (say) ``load_echo21.py`` and run it as
+
+.. code:: bash
+
+   python load_echo21.py
+

@@ -19,7 +19,7 @@ class uvlf():
     
     def dLUV_dM(self, Z):
         '''
-        Rate of change of luminosity w.r.t. halo mass.
+        Rate of change of luminosity w.r.t. halo mass. (For our assumed constant star formation efficiency, this is independent of halo mass.)
 
         Arguments
         ---------

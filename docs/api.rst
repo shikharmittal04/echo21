@@ -13,7 +13,11 @@ API Reference
     :members:
 
 
+.. automodule:: echo21.uvlf
+.. autoclass:: uvlf
+    :members:
+
+
 .. automodule:: echo21.utils
-.. autofunction:: save_pipeline
 .. autofunction:: load_pipeline
 .. autofunction:: load_results

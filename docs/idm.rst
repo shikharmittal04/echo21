@@ -21,7 +21,7 @@ IDM requires two additional parameters, namely :math:`m_{\chi}` (mass of Coulomb
 
 A few points to note on which the latest version of IDM implementation of ``ECHO21`` differs from the one described in `Mittal et al (2026) <https://arxiv.org/abs/2605.00991>`_.
 
-   - User-defined value of :math:`\sigma_8` in case of IDM simulation is not used directly. Rather, a corresponding CDM simulation is done to get the primordial spectrum amplitude :math:`A_\mathrm{s}`. This :math:`A_\mathrm{s}` is then used for IDM simulation. Such an approach ensures that CDM and IDM had a common primordial state diverged from there.
+   - User-defined value of :math:`\sigma_8` in case of IDM simulation is not used directly. Rather, a corresponding CDM simulation is done to get the primordial spectrum amplitude :math:`A_\mathrm{s}`. This :math:`A_\mathrm{s}` is then used for IDM simulation. Such an approach ensures that CDM and IDM had a common primordial state.
 
    - We adopt a top-hat filter to smoothen the matter density field for the calculation of variance :math:`\sigma(M)`. Previously, a sharp-k filter was used. (Top-hat makes the simulation a bit faster and is more commonly used in the literature.)
 

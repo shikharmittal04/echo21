@@ -1,5 +1,5 @@
 """
-echopipeline
+pipeline
 ============
 This module contains the class pipeline.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -100,7 +100,7 @@ class pipeline():
             Power law index for the SFRD in the empirical model. Default value ``0.257``. (This is only relevant for the empirical SFRD model.)
         
     grid_on: bool
-        Whether to generate a grid of parameter combinations. Default is True, i.e., then all possible combinations of the parameters will be generated. If False, parameters are varied one at a time. In this case all varied parameters should have the same number of values.
+        Whether to generate a grid of parameter combinations. Default is False, i.e., parameters are varied one at a time. In this case all varied parameters should have the same number of values. If True, then all possible combinations of the parameters will be generated.
     
     Methods
     ~~~~~~~
@@ -195,20 +195,25 @@ class pipeline():
         #Create an output folder where all results will be saved.
         self.path=path
         _create_output_dir(self)
-
+        
+        #--------------------------------------------------------------------------------
+        #Finally, the redshifts and magnitude should also be pipeline attributes.
+        self.one_plus_z = Z_default
+        self.one_plus_z_cd = Z_cd
+        self.MAB = MAB_default
             
         return None
     
     def run_simulation(self):
         '''
-        This function solves the thermal and ionization history for default values of redshifts and then interpolates the quantities at your choice of redshifts. Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
+        This function solves the thermal and ionization history for default values of redshifts. Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
         ''' 
 
         if self.run_type=='single':
         #Cosmological and astrophysical parameters are fixed.
             if self.cpu_ind==0:
 
-                print_banner()
+                _print_banner()
                 print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
                 print('Generating',self.N_models,'model ...')
@@ -222,7 +227,7 @@ class pipeline():
                     self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF = result
                 else:
                     self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF, self.Tx, self.v_bx = result
-                save_results(self)
+                _save_results(self)
 
                 print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
                 
@@ -233,9 +238,9 @@ class pipeline():
 
                 #========================================================
                 #Writing to a summary file
-                myfile = write_summary(self, elapsed_time=elapsed_time)
+                myfile = _write_summary(self, elapsed_time=elapsed_time)
 
-                save_pipeline(self)
+                _save_pipeline(self)
                 #========================================================
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
@@ -249,7 +254,7 @@ class pipeline():
             failed_params = []
             if self.cpu_ind==0:
                 #Master CPU
-                print_banner()
+                _print_banner()
                 print(f'Dark matter type: {self.dm_model}')
                 print('\nSimulation type: ',self.message)
                 print('Grid on = ',self.grid_on)
@@ -321,7 +326,7 @@ class pipeline():
                         self.Tx    = np.vstack([r[8] for r in gathered_results])
                         self.v_bx  = np.vstack([r[9] for r in gathered_results])
 
-                    save_results(self, total_failed=total_failed, gathered_failed_params=gathered_failed_params, n_succeeded=n_succeeded)                        
+                    _save_results(self, total_failed=total_failed, gathered_failed_params=gathered_failed_params, n_succeeded=n_succeeded)                        
 
                     print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
                     
@@ -333,14 +338,14 @@ class pipeline():
                 #========================================================
                 #Writing to a summary file
 
-                myfile = write_summary(self, elapsed_time=elapsed_time)
+                myfile = _write_summary(self, elapsed_time=elapsed_time)
                 myfile.write('\n{} models generated ({} succeeded, {} failed)'.format(self.N_models, n_succeeded, total_failed))
                 myfile.write('\nNumber of CPU(s) = {}'.format(self.n_cpu))
                 myfile.write('\n')
                 myfile.close()
 
 
-                save_pipeline(self)
+                _save_pipeline(self)
                 #========================================================
 
                 print('\n\033[94m================ End of ECHO21 ================\033[00m\n')
