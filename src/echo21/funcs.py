@@ -1,5 +1,5 @@
 """
-funcs
+``funcs``
 =========
 This module contains class funcs.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

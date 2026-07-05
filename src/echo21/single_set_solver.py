@@ -42,10 +42,11 @@ def cosmic_dawn_beyond(params_dict, *initial_conditions, dm_model='CDM'):
     
     tau = funcs_obj.reion_tau(Zstar) #CMB Optical depth
 
-    UVLF = uvlf(funcs_obj).lum_func(MAB_default, Z_cd) #UV LF
+    #UV LF is only meaningful for the semi-empirical SFRD; skip the extra computation otherwise.
+    UVLF = uvlf(funcs_obj).lum_func(MAB_default, Z_cd) if params_dict['type'] == 'semi-emp' else None
 
     results_tuple = (xe, Q_Hii, xHI, Tk, Ts, T21, tau, UVLF)
-    
+
     if dm_model == 'IDM':
         Tx = sol_cd[2]
         v_bx = np.exp(sol_cd[3])
@@ -100,7 +101,8 @@ def dark_ages_to_today(params_dict, *initial_conditions, dm_model='CDM'):
 
     tau = funcs_obj.reion_tau(Zstar) #CMB optical depth
 
-    UVLF = uvlf(funcs_obj).lum_func(MAB_default, Z_cd) #UV LF
+    #UV LF is only meaningful for the semi-empirical SFRD; skip the extra computation otherwise.
+    UVLF = uvlf(funcs_obj).lum_func(MAB_default, Z_cd) if params_dict['type'] == 'semi-emp' else None
 
     results_tuple = (xe, Q_Hii, xHI, Tk, Ts, T21, tau, UVLF)
 

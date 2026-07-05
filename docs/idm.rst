@@ -1,13 +1,13 @@
 
 Beyond standard model cosmologies
----------------------------------
+=================================
 
 :Authors: `Shikhar Mittal <https://sites.google.com/view/shikharmittal/home>`_ and Prakhar Bansal
 :Paper: `Mittal et al (2026) <https://arxiv.org/abs/2605.00991>`_
 
 
 Interacting dark matter model
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------------
 
 ``ECHO21`` can be used to study a special class of interacting dark matter (IDM) model: Coulomb-like DM. We assume that *all DM particles are Coulomb-like* and that they can interact with *all baryons*. The interaction cross-section for such a system is given by :math:`\sigma(v_{\mathrm{b}\chi}) = \sigma_0(v_{\mathrm{b}\chi}/c)^{-4}`, where :math:`v_{\mathrm{b}\chi}` is the baryon-DM relative velocity. In addition to cooling, IDM leads to a suppression and delay in star formation.
 

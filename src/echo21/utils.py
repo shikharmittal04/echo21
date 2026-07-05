@@ -1,6 +1,6 @@
 '''
-utils
-=====
+``utils``
+=========
 This module contains non-physics functions.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -331,7 +331,9 @@ def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded
         f.create_dataset("T21", data=pipe.T21)
         f.create_dataset("xHI", data=pipe.xHI)
         f.create_dataset("tau", data=pipe.tau)
-        f.create_dataset("UVLF", data=pipe.UVLF)
+        #UVLF is only meaningful (and computed) for the semi-empirical SFRD.
+        if pipe.sfrd['type'] == 'semi-emp':
+            f.create_dataset("UVLF", data=pipe.UVLF)
         if pipe.dm_model == 'idm':
             f.create_dataset("Tx", data=pipe.Tx)
             f.create_dataset("v_bx", data=pipe.v_bx)
@@ -387,7 +389,10 @@ def load_results(filename, Z_eval = None):
         fields['v_bx'] = pipe.v_bx
 
     #Q_Hii and UVLF are only ever defined on the cosmic dawn redshift grid, regardless of run type.
-    cd_fields = {'Q_Hii': (pipe.Q_Hii, 1), 'UVLF': (pipe.UVLF, 2)}
+    cd_fields = {'Q_Hii': (pipe.Q_Hii, 1)}
+    #UVLF is only meaningful (and computed) for the semi-empirical SFRD.
+    if pipe.sfrd['type'] == 'semi-emp':
+        cd_fields['UVLF'] = (pipe.UVLF, 2)
 
     if Z_eval is not None:
         Z_eval = np.asarray(Z_eval)

@@ -1,6 +1,6 @@
 '''
-UVLF
-====
+``uvlf``
+========
 This module contains all functions related to the UV LF and the number of galaxies seen by a survey.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 '''

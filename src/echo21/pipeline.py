@@ -1,5 +1,5 @@
 """
-pipeline
+``pipeline``
 ============
 This module contains the class pipeline.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -205,7 +205,7 @@ class pipeline():
     
     def run_simulation(self):
         '''
-        This function solves the thermal and ionization history for default values of redshifts. Then it solves reionization. Finally, it computes the spin temperature and hence the global 21-cm signal. A text file is generated which will contain the basic information about the simulation. 
+        This is the main function which runs the ECHO21 simulation and saves the outputs. 
         ''' 
 
         if self.run_type=='single':
