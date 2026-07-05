@@ -19,7 +19,8 @@ Designed for both precision studies and large-scale parameter inference, ``ECHO2
 - simultaneous variation of astrophysical and cosmological parameters,
 - flexible prescriptions for halo mass functions and star formation models,
 - inclusion of Ly :math:`\alpha` heating and detailed IGM thermal evolution,
-- support for non-standard cosmologies such as interacting dark matter `(Mittal et al 2026) <https://arxiv.org/abs/2605.00991>`_.
+- support for non-standard cosmologies such as interacting dark matter `(Mittal et al 2026) <https://arxiv.org/abs/2605.00991>`_
+- UV luminosity functions
 
 A single realization of the signal can be generated in :math:`\sim 1` second, making the code ideally suited for Bayesian inference, emulator training, and large parameter-space explorations.
 
@@ -44,20 +45,20 @@ The following code more or less captures the main functionalities of this packag
 
 .. code:: python
 
-   from echo21 import echopipeline
+   import echo21
 
-   pipe = echopipeline.pipeline()
+   pipe = echo21.pipeline()
    pipe.run_simulation()
 
-Save the above code as (say) ``my_echo_script.py`` and run it as
+Save the above code as (say) ``run_echo21.py`` and run it as
 
 .. code:: bash
 
-    python my_echo_script.py
+    python run_echo21.py
 
-Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains several files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see the documentation. To learn about the physics of this package see our `paper <https://doi.org/10.1093/rasti/rzag001>`_. 
+Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains three files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see the documentation. To learn about the physics of this package see our `paper <https://doi.org/10.1093/rasti/rzag001>`_. 
 
-Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebook `make_figures.ipynb` in the example folder.
+Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebooks in the example folder.
 
 Documentation
 -------------

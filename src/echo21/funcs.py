@@ -14,7 +14,7 @@ from colossus.lss import peaks
 from colossus.lss import mass_function
 import warnings, os, tempfile
 from .const import *
-from .utils import _get_As_for_sig8
+from .utils import _get_As_for_sig8, _ensure_scalar_dict
 
 try:
     import classy
@@ -48,6 +48,7 @@ class funcs():
         
         '''
         params = {} if params is None else params
+        params = _ensure_scalar_dict(params)
 
         ############################################################################
         self.Ho = params.get('Ho', 67.4)

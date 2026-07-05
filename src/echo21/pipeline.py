@@ -9,7 +9,8 @@ import pandas as pd
 import numpy as np
 from mpi4py import MPI
 from mpi4py.util import pkl5
-import os, sys, time
+import time
+import warnings
 from tqdm import tqdm
 
 from .const import *
@@ -147,8 +148,7 @@ class pipeline():
         else:
             #Before proceeding check if all the arrays of varying parameters have the same length. If not, then terminate and ask user to correct the input.
             if len(set(map(len, self.param_arrays))) > 1:
-                if self.cpu_ind == 0: print('\033[31mWhen grid_on=False, all varying parameters should have the same number of values. Terminating ... \033[00m')
-                sys.exit()
+                raise ValueError('When grid_on=False, all varying parameters should have the same number of values.')
             self.N_models = len(self.param_arrays[0]) if self.param_arrays else 1
 
             self.get_index = _grid_off_index
@@ -188,8 +188,7 @@ class pipeline():
         #---------------------------------------------------------------------------------
 
         if self.run_type!='single' and self.n_cpu==1:
-            print('\033[31mPlease use at least 2 CPUs. Terminating ... \033[00m')
-            sys.exit()
+            raise ValueError('Please use at least 2 CPUs.')
         #---------------------------------------------------------------------------------
 
         #Create an output folder where all results will be saved.
@@ -222,7 +221,7 @@ class pipeline():
                 result = self.simulator(self.fixed_params, *self.initial_conditions, dm_model=self.dm_model)
 
                 #create empty pandas dataframe for consistency with the other cases. 
-                self.param_df = pd.DataFrame([])
+                self.params_df = pd.DataFrame([])
                 if self.dm_model == 'CDM':
                     self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF = result
                 else:
@@ -310,9 +309,9 @@ class pipeline():
                 n_succeeded = len(gathered_results)
 
                 if n_succeeded == 0:
-                    print('\033[31mAll models failed; nothing to save.\033[00m')
+                    warnings.warn('All models failed; nothing to save.')
                 else:
-                    self.param_df = pd.DataFrame(gathered_params)
+                    self.params_df = pd.DataFrame(gathered_params)
                     #If there are more outputs in future, then the unpacking below needs to be changed accordingly.
                     self.xe    = np.vstack([r[0] for r in gathered_results])
                     self.Q_Hii = np.vstack([r[1] for r in gathered_results])

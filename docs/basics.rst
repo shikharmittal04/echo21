@@ -19,7 +19,7 @@ Designed for both precision studies and large-scale parameter inference, ``ECHO2
 - simultaneous variation of astrophysical and cosmological parameters,
 - flexible prescriptions for halo mass functions and star formation models,
 - inclusion of Ly :math:`\alpha` heating and detailed IGM thermal evolution,
-- support for non-standard cosmologies such as interacting dark matter `(Mittal et al 2026) <https://arxiv.org/abs/2605.00991>`_.
+- support for non-standard cosmologies such as interacting dark matter `(Mittal et al 2026) <https://arxiv.org/abs/2605.00991>`_
 - UV luminosity functions
 
 A single realization of the signal can be generated in :math:`\sim 1` second, making the code ideally suited for Bayesian inference, emulator training, and large parameter-space explorations.
@@ -50,7 +50,7 @@ Save the above code as (say) ``run_echo21.py`` and run it as
 
 Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains three files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see :ref:`detexp`. To learn about the physics of this package see our `paper <https://doi.org/10.1093/rasti/rzag001>`_. 
 
-Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebook `make_figures.ipynb` in the example folder.
+Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebooks in the example folder.
 
 To see what parameters you are running for, you can add ``pipe.print_input()`` to ``run_echo21.py``.
 

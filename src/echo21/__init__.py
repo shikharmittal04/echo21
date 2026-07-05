@@ -9,11 +9,13 @@ from .pipeline import pipeline
 from .funcs import funcs
 from .uvlf import uvlf
 from .utils import load_pipeline, load_results
+from . import const
 
 __all__ = [
     'pipeline',
     'funcs',
     'uvlf',
     'load_pipeline',
-    'load_results'
+    'load_results',
+    'const'
 ]

@@ -12,6 +12,19 @@ from .const import *
 class uvlf():
     '''
     Class of functions relevant to galaxy surveys, such as luminosity functions and galaxy count for given limiting magnitude. If you use this module please consider citing `Mittal & Kulkarni (2022) <https://ui.adsabs.harvard.edu/abs/2022MNRAS.515.2901M/abstract>`_
+
+    However, note that there are some differences in the implementation of the UV LF and galaxy count functions in this module and the ones I used previously. The main difference is in the star formation rate. Previously, 
+
+    :math:`\\dot{M}_{\\star} = f_{\\star} \\dot{M}_{\\star0} \\left(\\frac{M}{10^{10}M_{\\odot}}\\right)^{a} \\left(\\frac{1+z}{7}\\right)^{b}` \\,
+
+    whereas in this module, we have used
+
+    :math:`\\dot{M}_{\\star} = f_{\\star} \\frac{\\Omega_b}{\\Omega_m} \\frac{M}{t_{\\star}H(z)^{-1}}`
+
+    *Accordingly, the following calculations are relevant only for semi-empirical star formation models.*
+
+    Methods
+    ~~~~~~~
     '''
     def __init__(self, funcs):
         self.funcs = funcs

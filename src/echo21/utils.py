@@ -6,12 +6,11 @@ This module contains non-physics functions.
 
 '''
 import os
+import warnings
 import numpy as np
 import pickle
 from scipy.interpolate import CubicSpline
-import pandas as pd
 import h5py
-import sys
 from time import localtime, strftime
 try:
     import classy
@@ -49,12 +48,13 @@ def load_pipeline(filename):
     Returns
     -------
 
-    class object    
+    class
+        echo21.pipeline    
     '''
     fullpath = os.path.join(filename, 'pipeline.pkl')
     with open(fullpath, 'rb') as inp:
         echo21obj = pickle.load(inp)
-    print('Loaded the echo21 pipeline class object.\n')
+
     return echo21obj
 #--------------------------------------------------------------------------------------------
 
@@ -116,6 +116,35 @@ def _ensure_array_dict(d, ignore_keys=None):
             out[k] = v
         else:
             out[k] = np.atleast_1d(v)
+    return out
+
+def _ensure_scalar_dict(d):
+    '''
+    Coerce every value in the dictionary to a plain Python scalar, so that user-supplied
+    parameters (which may come in as e.g. ``np.array([67.0])``) behave like the pure numbers
+    the rest of the code expects. Strings are left untouched.
+
+    Arguments
+    ---------
+    d: dict
+        Dictionary of parameters.
+
+    Returns
+    -------
+    dict
+        Same dictionary with all non-string values converted to scalars.
+    '''
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, str):
+            out[k] = v
+            continue
+
+        arr = np.atleast_1d(v)
+        if arr.size != 1:
+            raise ValueError(f"Parameter '{k}' must be a scalar or a size-1 array; got an array of size {arr.size}.")
+        out[k] = arr.item()
+
     return out
 
 def _split_params(d):
@@ -283,10 +312,10 @@ def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded
     with h5py.File(save_path, "w") as f:
 
         # Parameter table (skip when there are no varying parameters to record)
-        if not pipe.param_df.empty:
+        if not pipe.params_df.empty:
             f.create_dataset(
                 "params_df",
-                data=pipe.param_df.to_records(index=False)
+                data=pipe.params_df.to_records(index=False)
             )
 
         # Redshift and magnitude grids
@@ -309,9 +338,9 @@ def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded
             
         # Failed parameter sets (if any)
         if total_failed > 0:
-            print(
-                f"\n\033[33mWarning: {total_failed}/{pipe.N_models} models failed "
-                f"(solver did not converge). {n_succeeded} models saved.\033[00m"
+            warnings.warn(
+                f"{total_failed}/{pipe.N_models} models failed "
+                f"(solver did not converge). {n_succeeded} models saved."
             )
             f.create_dataset(
                 "failed_params",
@@ -319,97 +348,73 @@ def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded
             )
     return None
 
+def _interp_over_z(flipped_Z, Z_eval, arr, z_axis):
+    '''
+    Cubic-spline interpolate `arr` onto `Z_eval` along `z_axis` (`flipped_Z` must be increasing).
+    '''
+    moved = np.flip(np.moveaxis(arr, z_axis, 0), axis=0)
+    return np.moveaxis(CubicSpline(flipped_Z, moved)(Z_eval), 0, z_axis)
+
 def load_results(filename, Z_eval = None):
     '''
-    Read the output and return a dictionary of parameters, redshifts, global signal, etc. If you do not provide any redshift, the quantities are returned at their default redshift.
+    Read the output and return a dictionary of parameters, redshifts, global signal, etc. If you do not provide any redshift, the quantities are returned at their default redshift(s).
 
     Arguments
     ---------
-    
+
     filename : str
         Full path to the output directory (``output_<YYYYMMDD-HHMMSS>``) which contains the HDF5 file ``echo21_output.h5``.
 
     Z_eval: array, optional
         array of :math:`1+z` values; can be in decreasing as well as increasing order. Default = ``None``
-    
+
     Return
     ------
-    
-    dict
-        params (pandas dataframe), one_plus_z (numpy array), MAB (numpy array), xe (numpy array), Q_Hii (numpy array), Tk (numpy array), Ts (numpy array), T21 (numpy array), xHI (numpy array), tau (numpy array), UVLF (numpy array)
-    '''
-    
-    h5file = os.path.join(filename, 'echo21_output.h5')
-    with h5py.File(h5file, "r") as f:
-        try:
-            params_df     = pd.DataFrame(f["params_df"][:])
-        except KeyError:
-            params_df = pd.DataFrame()
-        one_plus_z = f["one_plus_z"][:]
-        one_plus_z_cd = f["one_plus_z_cd"][:]
-        MAB        = f["MAB"][:]
-        xe         = f["xe"][:]
-        Q_Hii      = f["Q_Hii"][:]
-        Tk         = f["Tk"][:]
-        Ts         = f["Ts"][:]
-        T21        = f["T21"][:]
-        xHI        = f["xHI"][:]
-        tau        = f["tau"][:]
-        UVLF       = f["UVLF"][:]   # shape (N_params, nMAB, nZ)
-        try:
-            Tx     = f["Tx"][:]
-            v_bx   = f["v_bx"][:]
-            dm_model = 'idm'
-        except KeyError:
-            pass
 
-    if len(xe[0,:]) == 2300: #case of dark ages to today
-        Z_lim, flipped_Z = Z_start, flipped_Z_default
-    elif len(xe[0,:]) == 300: #case of cosmic dawn to today
-        Z_lim, flipped_Z = Zstar, flipped_Z_cd
+    dict
+        params (pandas dataframe), MAB (numpy array), xe (numpy array), Q_Hii (numpy array), Tk (numpy array), Ts (numpy array), T21 (numpy array), xHI (numpy array), tau (numpy array), UVLF (numpy array).
+        Also one_plus_z_cd (numpy array), and one_plus_z (numpy array) too if the run is not astro-only. Neither is included if `Z_eval` is given, since you already have those redshifts.
+    '''
+    pipe = load_pipeline(filename)
+    is_astro = pipe.run_type == 'astro' #case of cosmic dawn to today, as opposed to dark ages to today
+
+    main_flipped_Z = flipped_Z_cd if is_astro else flipped_Z_default
+    Z_lim = Zstar if is_astro else Z_start
+
+    fields = {'xe': pipe.xe, 'Tk': pipe.Tk, 'Ts': pipe.Ts, 'xHI': pipe.xHI, 'T21': pipe.T21}
+    if pipe.dm_model == 'idm':
+        fields['Tx'] = pipe.Tx
+        fields['v_bx'] = pipe.v_bx
+
+    #Q_Hii and UVLF are only ever defined on the cosmic dawn redshift grid, regardless of run type.
+    cd_fields = {'Q_Hii': (pipe.Q_Hii, 1), 'UVLF': (pipe.UVLF, 2)}
 
     if Z_eval is not None:
-        if Z_eval[0] > Z_lim or Z_eval[-1] < Z_end:
-            print(f'\033[31mYour requested redshift values should satisfy {Z_lim} > 1+z > {Z_end}')
-            print('Terminating ...\033[00m')
-            sys.exit()
-
         Z_eval = np.asarray(Z_eval)
         if Z_eval[1] > Z_eval[0]:
             Z_eval = Z_eval[::-1]
 
-        # Z must be on axis 0 for CubicSpline; transpose so Z leads, flip, interpolate, restore.
-        xe    = CubicSpline(flipped_Z, np.flip(xe.T,                    axis=0))(Z_eval).T
-        Tk    = CubicSpline(flipped_Z, np.flip(Tk.T,                    axis=0))(Z_eval).T
-        Ts    = CubicSpline(flipped_Z, np.flip(Ts.T,                    axis=0))(Z_eval).T
-        xHI   = CubicSpline(flipped_Z, np.flip(xHI.T,                   axis=0))(Z_eval).T
-        T21   = CubicSpline(flipped_Z, np.flip(T21.T,                   axis=0))(Z_eval).T
-        
-        #Q_Hii = CubicSpline(flipped_Z_cd, np.flip(Q_Hii.T,              axis=0))(Z_eval).T
-        #UVLF  = CubicSpline(flipped_Z_cd, np.flip(UVLF.transpose(2, 0, 1), axis=0))(Z_eval).transpose(1, 2, 0)
-        one_plus_z = Z_eval
+        if Z_eval[0] > Z_lim or Z_eval[-1] < Z_end:
+            raise ValueError(f'Your requested redshift values should satisfy {Z_lim} > 1+z > {Z_end}')
 
+        fields = {k: _interp_over_z(main_flipped_Z, Z_eval, v, 1) for k, v in fields.items()}
+        cd_fields = {k: _interp_over_z(flipped_Z_cd, Z_eval, v, ax) for k, (v, ax) in cd_fields.items()}
+        z_dict = {} #user already has Z_eval, no point handing it back
+    else:
+        cd_fields = {k: v for k, (v, ax) in cd_fields.items()}
+        z_dict = {'one_plus_z_cd': Z_cd} if is_astro else {'one_plus_z': Z_default, 'one_plus_z_cd': Z_cd}
 
-    return_dic = {'params_df': params_df, 'one_plus_z': one_plus_z, 'MAB': MAB,
-                'xe': xe, 'Q_Hii': Q_Hii, 'Tk': Tk, 'Ts': Ts,
-                'T21': T21, 'xHI': xHI, 'tau': tau, 'UVLF': UVLF}
-    
-    if dm_model == 'idm':
-        if Z_eval is not None:
-            Tx    = CubicSpline(flipped_Z, np.flip(Tx.T,                    axis=0))(Z_eval).T
-            v_bx  = CubicSpline(flipped_Z, np.flip(v_bx.T,                  axis=0))(Z_eval).T
-        return_dic['Tx'] = Tx
-        return_dic['v_bx'] = v_bx
-
-    return return_dic
+    return {'params_df': pipe.params_df, 'MAB': pipe.MAB, 'tau': pipe.tau,
+            **z_dict, **fields, **cd_fields}
 
 
 
 __all__ = ['_ensure_array_dict',
+           '_ensure_scalar_dict',
            '_split_params',
            '_grid_on_index',
            '_grid_off_index',
            '_create_output_dir',
-           '_save_pipeline','load_pipeline','_save_results','load_results',
+           '_save_pipeline','load_pipeline','_save_results','load_results','_interp_over_z',
            '_print_banner','print_input','_write_summary',
            ]
