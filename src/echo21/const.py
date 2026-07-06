@@ -54,18 +54,25 @@ nMUV_default = 51
 MUV_default = np.linspace(-30,-15,nMUV_default)
 
 #--------------------------------------------------------------------------------------------------
-N_da = 2000 #Number of redshift points in dark ages
-Zstar = 60 #redshift of the beginning of star formation
+# Grid endpoints, with Z = 1 + z  (so a = 1/Z is the scale factor)
+Z_START = 1501.0   # z = 1500: start of integration, deep in the dark ages
+Z_STAR  = 60.0     # z = 59:   star-formation onset, DA -> CD/EoR handoff
+Z_END   = 1.0      # z = 0:    today
 
-Z_start = 1501
-Z_end = 1
+N_DA = 700         # dark-ages points
+N_CD = 450         # cosmic-dawn / EoR points
 
-Z_da = np.linspace(Z_start,Zstar,N_da+1)
-Z_cd = np.concatenate((1/np.linspace(1/Zstar,1/5.05,200),1/np.linspace(1/5,1/Z_end,100)))
-Z_default = np.concatenate((Z_da[:-1],Z_cd))
+# Dark ages: log-spaced in (1+z). Ends exactly at Z_STAR.
+Z_DA = np.geomspace(Z_START, Z_STAR, N_DA)
+
+# Cosmic dawn / EoR: uniform in the scale factor a = 1/Z.
+Z_CD = 1.0 / np.linspace(1.0 / Z_STAR, 1.0 / Z_END, N_CD)
+
+# Full grid: drop the shared handoff point (Z_STAR) so it appears once.
+Z_default = np.concatenate((Z_DA[:-1], Z_CD))
 
 flipped_Z_default = np.flip(Z_default)
-flipped_Z_cd = np.flip(Z_cd)
+flipped_Z_CD = np.flip(Z_CD)
 #-----------------------------------------------------------------------
 
 #Recombination related
