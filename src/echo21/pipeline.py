@@ -167,10 +167,10 @@ class pipeline():
             obj_dark_ages = funcs(self.fixed_params, dm_model=self.dm_model)
             ic_da = obj_dark_ages.initial_conditions()
 
-            sol_da = obj_dark_ages.igm_solver(Z_da, *ic_da, eqns_func=obj_dark_ages.igm_eqns_da)
+            sol_da = obj_dark_ages.igm_solver(Z_DA, *ic_da, eqns_func=obj_dark_ages.igm_eqns_da)
 
             #in dark ages we solver for the transformed gas temperature. So we need to convert to physical temperature
-            sol_da[1] = obj_dark_ages._logratio_to_temp(Z_da, sol_da[1])
+            sol_da[1] = obj_dark_ages._logratio_to_temp(Z_DA, sol_da[1])
 
             #initial conditions for cosmic dawn solver
             self.initial_conditions = tuple(x[-1] for x in sol_da)
@@ -198,7 +198,7 @@ class pipeline():
         #--------------------------------------------------------------------------------
         #Finally, the redshifts and magnitude should also be pipeline attributes.
         self.one_plus_z = Z_default
-        self.one_plus_z_cd = Z_cd
+        self.one_plus_z_cd = Z_CD
         self.MUV = MUV_default
             
         return None

@@ -320,7 +320,7 @@ def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded
 
         # Redshift and magnitude grids
         f.create_dataset("one_plus_z", data=Z_default)
-        f.create_dataset("one_plus_z_cd", data=Z_cd)
+        f.create_dataset("one_plus_z_cd", data=Z_CD)
         f.create_dataset("MUV", data=MUV_default)
 
         # Evolution histories
@@ -374,14 +374,14 @@ def load_results(filename, Z_eval = None):
     ------
 
     dict
-        params (pandas dataframe), MAB (numpy array), xe (numpy array), Q_Hii (numpy array), Tk (numpy array), Ts (numpy array), T21 (numpy array), xHI (numpy array), tau (numpy array), UVLF (numpy array).
+        params (pandas dataframe), MUV (numpy array), xe (numpy array), Q_Hii (numpy array), Tk (numpy array), Ts (numpy array), T21 (numpy array), xHI (numpy array), tau (numpy array), UVLF (numpy array).
         Also one_plus_z_cd (numpy array), and one_plus_z (numpy array) too if the run is not astro-only. Neither is included if `Z_eval` is given, since you already have those redshifts.
     '''
     pipe = load_pipeline(filename)
     is_astro = pipe.run_type == 'astro' #case of cosmic dawn to today, as opposed to dark ages to today
 
-    main_flipped_Z = flipped_Z_cd if is_astro else flipped_Z_default
-    Z_lim = Zstar if is_astro else Z_start
+    main_flipped_Z = flipped_Z_CD if is_astro else flipped_Z_default
+    Z_lim = Z_STAR if is_astro else Z_START
 
     fields = {'xe': pipe.xe, 'Tk': pipe.Tk, 'Ts': pipe.Ts, 'xHI': pipe.xHI, 'T21': pipe.T21}
     if pipe.dm_model == 'idm':
@@ -399,17 +399,17 @@ def load_results(filename, Z_eval = None):
         if Z_eval[1] > Z_eval[0]:
             Z_eval = Z_eval[::-1]
 
-        if Z_eval[0] > Z_lim or Z_eval[-1] < Z_end:
-            raise ValueError(f'Your requested redshift values should satisfy {Z_lim} > 1+z > {Z_end}')
+        if Z_eval[0] > Z_lim or Z_eval[-1] < Z_END:
+            raise ValueError(f'Your requested redshift values should satisfy {Z_lim} > 1+z > {Z_END}')
 
         fields = {k: _interp_over_z(main_flipped_Z, Z_eval, v, 1) for k, v in fields.items()}
-        cd_fields = {k: _interp_over_z(flipped_Z_cd, Z_eval, v, ax) for k, (v, ax) in cd_fields.items()}
+        cd_fields = {k: _interp_over_z(flipped_Z_CD, Z_eval, v, ax) for k, (v, ax) in cd_fields.items()}
         z_dict = {} #user already has Z_eval, no point handing it back
     else:
         cd_fields = {k: v for k, (v, ax) in cd_fields.items()}
-        z_dict = {'one_plus_z_cd': Z_cd} if is_astro else {'one_plus_z': Z_default, 'one_plus_z_cd': Z_cd}
+        z_dict = {'one_plus_z_cd': Z_CD} if is_astro else {'one_plus_z': Z_default, 'one_plus_z_cd': Z_CD}
 
-    return {'params_df': pipe.params_df, 'MAB': pipe.MAB, 'tau': pipe.tau,
+    return {'params_df': pipe.params_df, 'MUV': pipe.MUV, 'tau': pipe.tau,
             **z_dict, **fields, **cd_fields}
 
 

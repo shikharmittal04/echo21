@@ -437,7 +437,7 @@ class funcs():
         '''
         scalar = np.isscalar(Z)
         Z = np.atleast_1d(np.asarray(Z, dtype=float))
-        result = np.where(Z <= Zstar, np.maximum(self._f_coll_spline(Z), 0.0), 0.0)
+        result = np.where(Z <= Z_STAR, np.maximum(self._f_coll_spline(Z), 0.0), 0.0)
         return float(result[0]) if scalar else result
     
     def _build_cdm_fcoll_spline(self, n_points=60):
@@ -457,9 +457,9 @@ class funcs():
         Returns
         -------
         CubicSpline
-            Spline of f_coll(Z) over Z in [1, Zstar], with Z = 1+z.
+            Spline of f_coll(Z) over Z in [1, Z_STAR], with Z = 1+z.
         '''
-        Z_grid = np.linspace(1, Zstar, n_points)
+        Z_grid = np.linspace(1, Z_STAR, n_points)
         f_grid = np.zeros(n_points)
         norm = Msolar_by_Mpc3_to_kg_by_m3 / (self.Om_m * self.basic_cosmo_rho_crit())
         for i, Zv in enumerate(Z_grid):
@@ -481,9 +481,9 @@ class funcs():
         Returns
         -------
         CubicSpline
-            Spline of f_coll(Z) over Z in [1, Zstar], with `Z` :math:`= 1+z`.
+            Spline of f_coll(Z) over Z in [1, Z_STAR], with `Z` :math:`= 1+z`.
         '''
-        Z_grid = np.linspace(1, Zstar, n_points)
+        Z_grid = np.linspace(1, Z_STAR, n_points)
         f_grid = np.zeros(n_points)
         k = np.logspace(-6,3,50) #in h/Mpc
 
@@ -704,7 +704,7 @@ class funcs():
         Z = np.atleast_1d(Z).astype(float)
         J = np.zeros((len(Z), 2))  # [continuum, injected]
         
-        valid = Z <= Zstar
+        valid = Z <= Z_STAR
         Z_valid = Z[valid]
 
         for i, z in enumerate(Z_valid):
@@ -1085,7 +1085,7 @@ class funcs():
         xHe = self.basic_cosmo_xHe()
         
         QHii = self.QHii
-        spl = CubicSpline(flipped_Z_cd, np.flip(QHii))
+        spl = CubicSpline(flipped_Z_CD, np.flip(QHii))
 
         def dtaudz(Z):
             he_factor = (1 + np.where(Z < 5, 2 * xHe, xHe))
@@ -1139,8 +1139,8 @@ class funcs():
         tuple
             Initial conditions. For CDM, the tuple is (xe_init, yT_init). For IDM, the tuple is (xe_init, yT_init, Tx_init, ln_vbx_init).
         '''
-        Tgamma_init = self.basic_cosmo_Tcmb(Z_start)
-        xe_init = self.recomb_Saha_xe(Z_start,Tgamma_init)
+        Tgamma_init = self.basic_cosmo_Tcmb(Z_START)
+        xe_init = self.recomb_Saha_xe(Z_START,Tgamma_init)
         yT_init = 0.0
         Tx_init = 0.0
         ln_vbx_init = np.log(43500)
@@ -1248,7 +1248,7 @@ class funcs():
         Arguments
         ---------
         Z_solver: array
-            Redshift array (decreasing) over which to solve. Use Z_da for dark ages, Z_cd for cosmic dawn, or Z_default for the full range.
+            Redshift array (decreasing) over which to solve. Use Z_DA for dark ages, Z_CD for cosmic dawn, or Z_default for the full range.
 
         initial_conditions: tuple
             Initial conditions for the ODE solver. For CDM, the tuple is (xe_init, yT_init). For IDM, the tuple is (xe_init, yT_init, Tx_init, ln_vbx_init). For DA the second variable is yT but for CD-EoR it is Tk. Use :func:`initial_conditions()` to get the initial conditions when the starting redshift is :math:`z=1500`.
@@ -1261,12 +1261,12 @@ class funcs():
         array
             :math:`x_{\\mathrm{e}}`, :math:`y=\\ln(T_{\\mathrm{k}}/T_{\\gamma})` or :math:`T_{\\mathrm{k}}`, :math:`T_{\\chi}`, :math:`\\ln v_{\\mathrm{b}\\chi}`
         '''
-        Z_start = Z_solver[0]
-        Z_end   = Z_solver[-1]
+        local_Z_START = Z_solver[0]
+        local_Z_END   = Z_solver[-1]
 
         Sol = scint.solve_ivp(
             lambda a, Var: -eqns_func(1/a, Var) / a,
-            [1 / Z_start, 1 / Z_end],
+            [1 / local_Z_START, 1 / local_Z_END],
             list(initial_conditions),
             method='Radau',
             t_eval=1 / Z_solver,
@@ -1313,9 +1313,9 @@ class funcs():
         -------
 
         float array
-            QHii for the cosmic dawn redshifts, ``Z_cd``. The redshifts can be access from the module ``const``. 
+            QHii for the cosmic dawn redshifts, ``Z_CD``. The redshifts can be access from the module ``const``. 
         '''
-        Sol = scint.solve_ivp(lambda a, Var: -self.reion_eqn(1/a,Var)/a, [1/Zstar, 1/Z_end],[0],method='Radau',t_eval=1/Z_cd)
+        Sol = scint.solve_ivp(lambda a, Var: -self.reion_eqn(1/a,Var)/a, [1/Z_STAR, 1/Z_END],[0],method='Radau',t_eval=1/Z_CD)
         QHii = Sol.y[0]
         return QHii
     
