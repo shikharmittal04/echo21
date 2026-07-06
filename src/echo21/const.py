@@ -50,6 +50,9 @@ CX_fid = 2.45e32/Msolar_by_year_to_kg_by_sec #Lx-SFR relation in units of m^2/s^
 
 UVlum_by_SFR = 8.695e20  #W/Hz/(Msun/yr)
 
+nMUV_default = 51
+MUV_default = np.linspace(-30,-15,nMUV_default)
+
 #--------------------------------------------------------------------------------------------------
 N_da = 2000 #Number of redshift points in dark ages
 Zstar = 60 #redshift of the beginning of star formation
@@ -93,8 +96,6 @@ semi_emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8':
 
 emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.811, 'ns': 0.965,'Tcmbo': 2.725, 'Yp': 0.245, 'fLy': 1.0, 'sLy': 2.64, 'fX': 1.0, 'wX': 1.5, 'fesc': 0.01, 'type':'emp','a':0.257,'b':4}
 
-nMAB_default = 51
-MAB_default = np.linspace(-30,-15,nMAB_default)
 #------------------------------------------------------------------------------
 #Interacting dark matter related
 

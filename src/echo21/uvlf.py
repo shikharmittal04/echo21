@@ -42,7 +42,7 @@ class uvlf():
         Return
         ------
         float
-            :math:`\\left(\\frac{\\mathrm{d}L}{\\mathrm{d}M}\\right)_{z}` in units of :math:`\\mathrm{W Hz^{-1}M_{\\odot}^{-1}}`
+            :math:`\\left(\\frac{\\partial L}{\\partial M}\\right)_{z}` in units of :math:`\\mathrm{W Hz^{-1}M_{\\odot}^{-1}}`
         '''
         return year * fstar * (self.funcs.Om_b/self.funcs.Om_m) * self.funcs.basic_cosmo_H(Z)*UVlum_by_SFR/self.funcs.tstar
 
@@ -88,14 +88,14 @@ class uvlf():
         '''
         return -2.5*np.log10(self.luminosity(M,Z)/(4*np.pi*d10**2))-56.1
 
-    def absmag_to_halomass(self, MAB,Z):
+    def absmag_to_halomass(self, MUV,Z):
         '''
         Compute the halo mass which produces the given absolute magnitude at the given redshift.
 
         Arguments
         ---------
         
-        MAB : float
+        MUV : float
             Absolute AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_
         
         Z : float
@@ -107,17 +107,17 @@ class uvlf():
         float
             Halo mass in units of solar mass.
         '''
-        lum = 4*np.pi*d10**2 * 10**(-0.4*(MAB+56.1)) #in units of W/Hz
+        lum = 4*np.pi*d10**2 * 10**(-0.4*(MUV+56.1)) #in units of W/Hz
         return lum/self.dLUV_dM(Z)
 
-    def appmag_to_halomass(self, mAB,Z):
+    def appmag_to_halomass(self, mUV,Z):
         '''
         Compute the halo mass which produces the given apparent magnitude at the given redshift.
 
         Arguments
         ---------
         
-        mAB : float
+        mUV : float
             Apparent AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_
         
         Z : float
@@ -130,17 +130,17 @@ class uvlf():
             Halo mass in units of solar mass.
         '''
         d_L = Mpc2km*1e3 * self.funcs.my_cosmo.luminosityDistance(Z-1)/self.funcs.h100 #luminosity distance in meters.
-        lum = 4*np.pi*d_L**2 * 10**(-0.4*(mAB+56.1)) #in units of W/Hz
+        lum = 4*np.pi*d_L**2 * 10**(-0.4*(mUV+56.1)) #in units of W/Hz
         return lum/self.dLUV_dM(Z)
     
-    def lum_func(self, MAB, Z):
+    def lum_func(self, MUV, Z):
         '''
-        For given absolute magnitude and redshift, get UV luminosity function (LF). LF is defined as :math:`\\mathrm{d}\phi/\\mathrm{d}M_{\\mathrm{UV}}`, which represents number density (comoving) per unit absolute AB magnitude. Important note: valid only when star formation efficiency is a constant.
+        For given absolute magnitude and redshift, get UV luminosity function (LF). LF is defined as :math:`\\mathrm{d}\Phi/\\mathrm{d}M_{\\mathrm{UV}}`, which represents number density (comoving) per unit absolute AB magnitude. Important note: valid only when star formation efficiency is a constant.
 
         Arguments
         ---------
 
-        MAB : float or array_like
+        MUV : float or array_like
             Absolute AB magnitude.
 
         Z : float or array_like
@@ -151,42 +151,42 @@ class uvlf():
 
         float or ndarray
             Luminosity function in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving mega parsec.
-            Shape is ``(len(MAB), len(Z))`` when both inputs are arrays; 1-D when one is scalar; scalar when both are scalar.
+            Shape is ``(len(MUV), len(Z))`` when both inputs are arrays; 1-D when one is scalar; scalar when both are scalar.
         '''
-        MAB = np.asarray(MAB)
+        MUV = np.asarray(MUV)
         Z = np.asarray(Z)
-        scalar_MAB = MAB.ndim == 0
+        scalar_MUV = MUV.ndim == 0
         scalar_Z = Z.ndim == 0
-        MAB = np.atleast_1d(MAB)
+        MUV = np.atleast_1d(MUV)
         Z = np.atleast_1d(Z)
 
-        result = np.empty((len(MAB), len(Z)))
+        result = np.empty((len(MUV), len(Z)))
 
         for j, Zj in enumerate(Z):
-            M_halo = self.absmag_to_halomass(MAB, Zj)                          # shape (nMAB,)
-            dLUV_dMAB = 0.4 * np.log(10) * self.luminosity(M_halo, Zj)       # shape (nMAB,)
-            result[:, j] = self.funcs.dndM(M_halo, Zj) * dLUV_dMAB / self.dLUV_dM(Zj)
+            M_halo = self.absmag_to_halomass(MUV, Zj)                          # shape (nMUV,)
+            dLUV_dMUV = 0.4 * np.log(10) * self.luminosity(M_halo, Zj)       # shape (nMUV,)
+            result[:, j] = self.funcs.dndM(M_halo, Zj) * dLUV_dMUV / self.dLUV_dM(Zj)
 
-        if scalar_MAB and scalar_Z:
+        if scalar_MUV and scalar_Z:
             return result[0, 0]
-        elif scalar_MAB:
+        elif scalar_MUV:
             return result[0, :]
         elif scalar_Z:
             return result[:, 0]
         return result
     
-    def dNdz(self, mAB, Z, area = 1.0):
+    def dNdz(self, mUV, Z, area = 1.0):
         '''
         Gradient of the number of galaxies seen at a given redshift and a limiting apparent magnitude of the survey and the survey area.
 
         Arguments
         ---------
 
-        mAB : float
+        mUV : float
             Apparent AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_ for for the faintest object the survey can see.
 
         Z : float
-            :math:`1+z`; this can be an array as well
+            :math:`1+z` (>1); this can be an array as well
 
         area : float, optional
             Survey area in sq. deg.; default is 1.0.
@@ -205,8 +205,8 @@ class uvlf():
         result = np.empty(Z.shape)
 
         for i, Zi in enumerate(Z.flat):
-            Mh_lim = self.appmag_to_halomass(mAB, Zi)
-            halo_masses = np.logspace(np.log10(Mh_lim), 16, 200)
+            Mh_lim = self.appmag_to_halomass(mUV, Zi)
+            halo_masses = np.logspace(np.log10(Mh_lim), 16, 200) #in solar masses
             integral = scint.simpson(self.funcs.dndM(halo_masses, Zi), x=halo_masses)    #number per unit cMpc^3
             d_L = self.funcs.my_cosmo.luminosityDistance(Zi - 1) / self.funcs.h100      #luminosity distance in Mpc
             result.flat[i] = (1/(1e3*Mpc2km) * cE / self.funcs.basic_cosmo_H(Zi)
@@ -214,18 +214,21 @@ class uvlf():
 
         return result.squeeze() if scalar_input else result
     
-    def num_gal(self, mAB, Z, area=1.0):
+    def num_gal(self, mUV, Z1, Z2, area=1.0):
         '''
-        Cumulative number of galaxies brighter than the limiting apparent magnitude from today to given redshift.
+        Cumulative number of galaxies brighter than the limiting apparent magnitude between a redshift range.
 
         Arguments
         ---------
 
-        mAB : float
+        mUV : float
             Apparent AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_ for for the faintest object the survey can see.
         
-        Z : float
-            :math:`1+z`; this can be an array as well
+        Z1 : float
+            :math:`1+z_1`, lower value defining the redshift range (>1)
+
+        Z2 : float
+            :math:`1+z_2`, upper value defining the redshift range (>Z1)
 
         area : float, optional
             Survey area in sq. deg.; default is 1.0.
@@ -234,9 +237,9 @@ class uvlf():
         -------
 
         float
-            :math:`\\int_0^{z} \\left(\\frac{\\mathrm{d}N}{\\mathrm{d}z}\\right)_{z'} \\mathrm{d}z'`; dimensionless
+            :math:`\\int_{z1}^{z2} \\left(\\frac{\\mathrm{d}N}{\\mathrm{d}z}\\right)_{z'} \\mathrm{d}z'`; dimensionless
         '''
-        Z_int = np.linspace(1,Z,10*int(Z-1))
-        num_gal_upto_Z = scint.simpson(self.dNdz(mAB, Z_int, area), x=Z_int)
+        Z_int = np.linspace(Z1,Z2,1+10*int(Z2-Z1))
+        num_gal_upto_Z = scint.simpson(self.dNdz(mUV, Z_int, area), x=Z_int)
         
         return num_gal_upto_Z

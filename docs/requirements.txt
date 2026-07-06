@@ -8,4 +8,5 @@ numpydoc
 sphinx-autoapi
 tqdm
 pandas
-tables
+h5py
+classy

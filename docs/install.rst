@@ -17,7 +17,7 @@ I have tested the code on Python==3.10.20. Other special packages required:
 - `tqdm <https://pypi.org/project/tqdm/>`_ (tested for 4.68.1)
 - `colossus <https://pypi.org/project/colossus/>`_ (tested for 1.4.0)
 - `pandas <https://pypi.org/project/pandas/>`_ (tested for 2.3.3)
-- `tables <https://pypi.org/project/tables/>`_ (tested for 3.10.1)
+- `h5py <https://pypi.org/project/h5py/>`_ (tested for 3.16.0)
 
 The following two additional packages are required for simulation of the interacting dark matter (IDM) model. Because ``CLASS`` requires an older version of ``Cython``, I recommend creating a dedicated environment (such as conda) to avoid conflicts with your existing packages.
 
