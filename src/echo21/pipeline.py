@@ -199,7 +199,7 @@ class pipeline():
         #Finally, the redshifts and magnitude should also be pipeline attributes.
         self.one_plus_z = Z_default
         self.one_plus_z_cd = Z_cd
-        self.MAB = MAB_default
+        self.MUV = MUV_default
             
         return None
     

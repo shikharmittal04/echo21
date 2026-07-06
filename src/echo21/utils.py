@@ -321,7 +321,7 @@ def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded
         # Redshift and magnitude grids
         f.create_dataset("one_plus_z", data=Z_default)
         f.create_dataset("one_plus_z_cd", data=Z_cd)
-        f.create_dataset("MAB", data=MAB_default)
+        f.create_dataset("MUV", data=MUV_default)
 
         # Evolution histories
         f.create_dataset("xe", data=pipe.xe)
