@@ -1157,7 +1157,7 @@ class funcs():
 
         Tgamma = self.basic_cosmo_Tcmb(Z)
         xe = np.clip(xe, 0.0, 1.0)  # Ensure xe stays within physical bounds
-        
+
         eq1 = 1/self.basic_cosmo_H(Z)*self.recomb_Peebles_C(Z,xe,Tgamma)*(xe**2*self.basic_cosmo_nH(Z)*self.recomb_alpha(Tk)-self.recomb_beta(Tgamma)*(1-xe)*np.exp(-Ea/(kB*Tgamma)))
 
         eq2 = 1 - eq1/(1+self.basic_cosmo_xHe()+xe) - 1/Tk*self.heating_Ecomp(Z,xe,Tk)
@@ -1265,11 +1265,11 @@ class funcs():
         local_Z_END   = Z_solver[-1]
 
         Sol = scint.solve_ivp(
-            lambda a, Var: -eqns_func(1/a, Var) / a,
-            [1 / local_Z_START, 1 / local_Z_END],
+            lambda lna, Var: -eqns_func(np.exp(-lna), Var),
+            [-np.log(local_Z_START), -np.log(local_Z_END)],
             list(initial_conditions),
             method='Radau',
-            t_eval=1 / Z_solver,
+            t_eval= -np.log(Z_solver),
             rtol=1e-4, atol=1e-7
         )
         
@@ -1279,12 +1279,12 @@ class funcs():
     
     def reion_eqn(self,Z,QHii):
         '''
-        The RHS of the differential equation governing the evolution of QHii. Equation is (1+z)dQ/dz; eq.(17) from Madau & Fragos (2017).
+        Analytical equation of reionization `(Madau et al 1999) <https://iopscience.iop.org/article/10.1086/306975>`_.
 
         Arguments
         ---------
         Z : float
-            1+z.
+            :math:`1+z`
 
         QHii : float
             The volume filling factor of the ionized regions.
@@ -1292,7 +1292,7 @@ class funcs():
         Returns
         -------
         float
-            (1+z)dQ/dz
+            :math:`\mathrm{d}Q/\mathrm{d}\ln(a)`
         '''
 
         if QHii<0.999:
@@ -1313,9 +1313,9 @@ class funcs():
         -------
 
         float array
-            QHii for the cosmic dawn redshifts, ``Z_CD``. The redshifts can be access from the module ``const``. 
+            QHii for the cosmic dawn redshifts, ``Z_CD``. 
         '''
-        Sol = scint.solve_ivp(lambda a, Var: -self.reion_eqn(1/a,Var)/a, [1/Z_STAR, 1/Z_END],[0],method='Radau',t_eval=1/Z_CD)
+        Sol = scint.solve_ivp(lambda lna, Var: -self.reion_eqn(np.exp(-lna),Var), [-np.log(Z_STAR), -np.log(Z_END)],[0],method='Radau',t_eval=-np.log(Z_CD))
         QHii = Sol.y[0]
         return QHii
     

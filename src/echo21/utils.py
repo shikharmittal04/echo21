@@ -334,9 +334,9 @@ def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded
         #UVLF is only meaningful (and computed) for the semi-empirical SFRD.
         if pipe.sfrd['type'] == 'semi-emp':
             f.create_dataset("UVLF", data=pipe.UVLF)
-        if pipe.dm_model == 'idm':
-            f.create_dataset("Tx", data=pipe.Tx)
-            f.create_dataset("v_bx", data=pipe.v_bx)
+        #IDM appends extra fields; the slice is empty for CDM.
+        for name in pipe.output_names[len(BASE_OUTPUTS):]:
+            f.create_dataset(name, data=getattr(pipe, name))
             
         # Failed parameter sets (if any)
         if total_failed > 0:
@@ -384,9 +384,9 @@ def load_results(filename, Z_eval = None):
     Z_lim = Z_STAR if is_astro else Z_START
 
     fields = {'xe': pipe.xe, 'Tk': pipe.Tk, 'Ts': pipe.Ts, 'xHI': pipe.xHI, 'T21': pipe.T21}
-    if pipe.dm_model == 'idm':
-        fields['Tx'] = pipe.Tx
-        fields['v_bx'] = pipe.v_bx
+    #IDM appends extra fields; the slice is empty for CDM.
+    for name in pipe.output_names[len(BASE_OUTPUTS):]:
+        fields[name] = getattr(pipe, name)
 
     #Q_Hii and UVLF are only ever defined on the cosmic dawn redshift grid, regardless of run type.
     cd_fields = {'Q_Hii': (pipe.Q_Hii, 1)}

@@ -59,7 +59,7 @@ Z_START = 1501.0   # z = 1500: start of integration, deep in the dark ages
 Z_STAR  = 60.0     # z = 59:   star-formation onset, DA -> CD/EoR handoff
 Z_END   = 1.0      # z = 0:    today
 
-N_DA = 700         # dark-ages points
+N_DA = 550         # dark-ages points
 N_CD = 450         # cosmic-dawn / EoR points
 
 # Dark ages: log-spaced in (1+z). Ends exactly at Z_STAR.
@@ -108,5 +108,13 @@ emp_sfrd_default_model = {'Ho': 67.4, 'Om_m': 0.315, 'Om_b': 0.049, 'sig8': 0.81
 
 sig_ten45m2 = 1e-45 #m^2
 GeV2kg = 1.77e-27 # 1 GeV is this much kg
+
+#------------------------------------------------------------------------------
+#Single source of truth for the simulator output tuple. The simulators return
+#the BASE_OUTPUTS in this order, followed by IDM_OUTPUTS for the IDM model. Every
+#place that unpacks, stacks, saves or loads results is driven by these names so
+#that adding an output only requires editing this list (and its computation).
+BASE_OUTPUTS = ('xe', 'Q_Hii', 'xHI', 'Tk', 'Ts', 'T21', 'tau', 'UVLF')
+IDM_OUTPUTS = ('Tx', 'v_bx')
 
 #------------------------------------------------------------------------------

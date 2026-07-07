@@ -122,6 +122,9 @@ class pipeline():
         self.n_cpu = self.comm.Get_size()
 
         self.dm_model = 'IDM' if {'mx_gev', 'sigma45'} & cosmo.keys() else 'CDM'
+        #The one place IDM vs CDM is resolved into an output schema; everything
+        #downstream (unpack, stack, save, load) iterates over this list instead.
+        self.output_names = BASE_OUTPUTS + IDM_OUTPUTS if self.dm_model == 'IDM' else BASE_OUTPUTS
 
         self.cosmo = _ensure_array_dict(cosmo)
         self.astro = _ensure_array_dict(astro)
@@ -222,10 +225,8 @@ class pipeline():
 
                 #create empty pandas dataframe for consistency with the other cases. 
                 self.params_df = pd.DataFrame([])
-                if self.dm_model == 'CDM':
-                    self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF = result
-                else:
-                    self.xe, self.Q_Hii, self.xHI, self.Tk, self.Ts, self.T21, self.tau, self.UVLF, self.Tx, self.v_bx = result
+                for name, value in zip(self.output_names, result):
+                    setattr(self, name, value)
                 _save_results(self)
 
                 print('\033[32m\nOutputs saved into folder:',self.path,'\033[00m')
@@ -321,9 +322,9 @@ class pipeline():
                     self.T21   = np.vstack([r[5] for r in gathered_results])
                     self.tau   = np.concatenate([r[6] for r in gathered_results])
                     self.UVLF  = np.array([r[7] for r in gathered_results])
-                    if self.dm_model == 'IDM':
-                        self.Tx    = np.vstack([r[8] for r in gathered_results])
-                        self.v_bx  = np.vstack([r[9] for r in gathered_results])
+                    #IDM appends extra vstack-able fields; the range is empty for CDM.
+                    for i in range(len(BASE_OUTPUTS), len(self.output_names)):
+                        setattr(self, self.output_names[i], np.vstack([r[i] for r in gathered_results]))
 
                     _save_results(self, total_failed=total_failed, gathered_failed_params=gathered_failed_params, n_succeeded=n_succeeded)                        
 
