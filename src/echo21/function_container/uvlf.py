@@ -7,7 +7,7 @@ This module contains all functions related to the UV LF and the number of galaxi
 
 import numpy as np
 import scipy.integrate as scint
-from .const import *
+from ..const import *
 
 class uvlf():
     '''
@@ -26,8 +26,10 @@ class uvlf():
     Methods
     ~~~~~~~
     '''
-    def __init__(self, funcs):
-        self.funcs = funcs
+    def __init__(self, config, basic, halo):
+        self.config = config
+        self.basic = basic
+        self.halo = halo
         return None
     
     def dLUV_dM(self, Z):
@@ -44,7 +46,7 @@ class uvlf():
         float
             :math:`\\left(\\frac{\\partial L}{\\partial M}\\right)_{z}` in units of :math:`\\mathrm{W Hz^{-1}M_{\\odot}^{-1}}`
         '''
-        return year * fstar * (self.funcs.Om_b/self.funcs.Om_m) * self.funcs.basic_cosmo_H(Z)*UVlum_by_SFR/self.funcs.tstar
+        return year * fstar * (self.config.Om_b/self.config.Om_m) * self.basic.Hubble(Z)*UVlum_by_SFR/self.config.tstar
 
     def luminosity(self, M,Z):
         '''
@@ -129,7 +131,7 @@ class uvlf():
         float
             Halo mass in units of solar mass.
         '''
-        d_L = Mpc2km*1e3 * self.funcs.my_cosmo.luminosityDistance(Z-1)/self.funcs.h100 #luminosity distance in meters.
+        d_L = Mpc2km*1e3 * self.config.my_cosmo.luminosityDistance(Z-1)/self.config.h100 #luminosity distance in meters.
         lum = 4*np.pi*d_L**2 * 10**(-0.4*(mUV+56.1)) #in units of W/Hz
         return lum/self.dLUV_dM(Z)
     
@@ -165,7 +167,7 @@ class uvlf():
         for j, Zj in enumerate(Z):
             M_halo = self.absmag_to_halomass(MUV, Zj)                          # shape (nMUV,)
             dLUV_dMUV = 0.4 * np.log(10) * self.luminosity(M_halo, Zj)       # shape (nMUV,)
-            result[:, j] = self.funcs.dndM(M_halo, Zj) * dLUV_dMUV / self.dLUV_dM(Zj)
+            result[:, j] = self.halo.dndM(M_halo, Zj) * dLUV_dMUV / self.dLUV_dM(Zj)
 
         if scalar_MUV and scalar_Z:
             return result[0, 0]
@@ -207,9 +209,9 @@ class uvlf():
         for i, Zi in enumerate(Z.flat):
             Mh_lim = self.appmag_to_halomass(mUV, Zi)
             halo_masses = np.logspace(np.log10(Mh_lim), 16, 200) #in solar masses
-            integral = scint.simpson(self.funcs.dndM(halo_masses, Zi), x=halo_masses)    #number per unit cMpc^3
-            d_L = self.funcs.my_cosmo.luminosityDistance(Zi - 1) / self.funcs.h100      #luminosity distance in Mpc
-            result.flat[i] = (1/(1e3*Mpc2km) * cE / self.funcs.basic_cosmo_H(Zi)
+            integral = scint.simpson(self.halo.dndM(halo_masses, Zi), x=halo_masses)    #number per unit cMpc^3
+            d_L = self.config.my_cosmo.luminosityDistance(Zi - 1) / self.config.h100      #luminosity distance in Mpc
+            result.flat[i] = (1/(1e3*Mpc2km) * cE / self.basic.Hubble(Zi)
                               * (d_L/Zi)**2 * integral * area_sr)
 
         return result.squeeze() if scalar_input else result

@@ -12,10 +12,7 @@ import pickle
 from scipy.interpolate import CubicSpline
 import h5py
 from time import localtime, strftime
-try:
-    import classy
-except ImportError:
-    print("")
+
 from .const import *
 
 #The following 2 functions will be useful if you want to save and load `pipeline` object.
@@ -255,33 +252,6 @@ def print_input(pipe):
     print('\033[00m\n')
 
     return None
-
-def _get_As_for_sig8(class_set):
-    '''
-    For the given cosmological parameters (including sigma8), compute the primordial power spectrum amplitude.
-
-    Arguments
-    ---------
-    class_set: dict
-        A dictionary of cosmological parameters including user provided sigma8
-    
-    Returns
-    -------
-    
-    float
-        A_s
-
-    '''
-    class_obj = classy.Class()
-    class_obj.set(class_set)
-    class_obj.compute()
-
-    A_s = class_obj.get_current_derived_parameters(['A_s'])['A_s']
-    class_obj.struct_cleanup()
-    class_obj.empty()
-
-    return A_s
-
 
 def _save_results(pipe, total_failed=0, gathered_failed_params=None, n_succeeded=None):
     '''
