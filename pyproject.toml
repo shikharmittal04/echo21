@@ -10,10 +10,10 @@ dependencies = [
   "scipy",
   "colossus",
   "mpi4py",
+  "h5py",
   "pandas",
-  "tables",
   "tqdm",
-  "requests"
+  "classy"
 ]
 requires-python = ">=3.8"
 authors = [{name = "Shikhar Mittal", email = "shikhar.mittal4@gmail.com"}]

@@ -58,7 +58,7 @@ Save the above code as (say) ``run_echo21.py`` and run it as
 
 Running the above will generate an output folder with the name `output_<YYYYMMDD-hhmmss>` which contains three files. To learn how to set the astrophysical or cosmological parameters, halo mass function, star formation model, redshifts at which to evaluate the global signal, and structure of the output files see the documentation. To learn about the physics of this package see our `paper <https://doi.org/10.1093/rasti/rzag001>`_. 
 
-Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebooks in the example folder.
+Once you have an understanding of the structure of output files, you can write your own scripts to create figures. To help you get started, see the jupyter notebooks in the 'examples' folder.
 
 Documentation
 -------------
