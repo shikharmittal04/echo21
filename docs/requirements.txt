@@ -1,4 +1,4 @@
-pi4py
+mpi4py
 colossus
 numpy
 scipy
