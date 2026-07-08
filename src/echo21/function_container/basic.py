@@ -2,6 +2,12 @@ import numpy as np
 from ..const import *
 
 class basic():
+    '''
+    Class of all the basic :math:`\\Lambda` CDM-cosmology-related functions, such as Hubble function, CMB temperature, etc.
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config):
         self.config = config
         return None
@@ -49,7 +55,7 @@ class basic():
         ---------
 
         Z : float
-            1+z
+            :math:`1+z`
 
         Returns
         -------
@@ -84,7 +90,7 @@ class basic():
         ---------
         
         Z : float
-            1+z
+            :math:`1+z`
         
         Returns
         -------
@@ -102,7 +108,7 @@ class basic():
         ---------
         
         Z : float
-            1+z
+            :math:`1+z`
         
         Returns
         -------

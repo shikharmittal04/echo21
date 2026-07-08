@@ -1,8 +1,8 @@
 """
 ``config``
 ==========
-This module contains class config.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This module contains class :class:`config`.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 """
 from colossus.cosmology import cosmology
@@ -14,27 +14,18 @@ warnings.filterwarnings('ignore')
 
 class config():
     '''
-    Function names starting with 'basic_cosmo' include the basic :math:`\\Lambda` CDM-cosmology-related functions, such as Hubble function, CMB temperature, etc.
-
-    Function names starting with 'recomb' include recombination-physics-related functions.
-
-    Function names starting with 'heating' include all the heating terms. All the terms are in the form of :math:`\\mathrm{d}T_{\\mathrm{k}}/\\mathrm{d}\\ln(a)` and hence, in units of temperature. (:math:`a` is the scale factor.)
-    
-    Function names starting with 'hyfi' include all the functions related to the computation of 21-cm signal. These are
-    :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\mathrm{Ly}}, T_{\\mathrm{s}}` and :math:`T_{21}`.
+    A configuration object for a particular model which gives access to all the model parameters, such as :math:`H_0`.
 
     Arguments
-    ~~~~~~~~~
+    ---------
     params: dict
         A dictionary containing all the cosmological and astrophysical parameters.
     
-    Methods
-    ~~~~~~~
+    dm_model : str
+        DM type - `'CDM'` (default) or `'IDM'`
+
     '''
     def __init__(self,params=None, dm_model='CDM'):
-        '''
-        
-        '''
         params = {} if params is None else params
         params = _ensure_scalar_dict(params)
 

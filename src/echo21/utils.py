@@ -340,8 +340,8 @@ def load_results(filename, Z_eval = None):
     Z_eval: array, optional
         array of :math:`1+z` values; can be in decreasing as well as increasing order. Default = ``None``
 
-    Return
-    ------
+    Returns
+    -------
 
     dict
         params (pandas dataframe), MUV (numpy array), xe (numpy array), Q_Hii (numpy array), Tk (numpy array), Ts (numpy array), T21 (numpy array), xHI (numpy array), tau (numpy array), UVLF (numpy array).

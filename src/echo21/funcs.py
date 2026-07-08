@@ -1,6 +1,22 @@
+"""
+``funcs``
+=========
+This module contains class :class:`funcs`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+"""
 from . import function_container as fc
 
 class funcs():
+    '''
+    ``funcs`` is a wrapper around the function_container and thus, provides a common point of access to all the functions in the container.
+
+    Arguments
+    ---------
+    config : :class:`config`
+        A configuration object for a particular model which gives access to all the model parameters, such as :math:`H_0`.
+    
+    '''
     def __init__(self, config):
         #level 1
         self.basic = fc.basic(config)
@@ -21,5 +37,3 @@ class funcs():
 
         #level 5
         self.ivp = fc.ivp(config, self.basic, self.recomb, self.halo, self.idm, self.heating)
-
-    

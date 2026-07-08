@@ -1,17 +1,10 @@
-'''
-``uvlf``
-========
-This module contains all functions related to the UV LF and the number of galaxies seen by a survey.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-'''
-
 import numpy as np
 import scipy.integrate as scint
 from ..const import *
 
 class uvlf():
     '''
-    Class of functions relevant to galaxy surveys, such as luminosity functions and galaxy count for given limiting magnitude. If you use this module please consider citing `Mittal & Kulkarni (2022) <https://ui.adsabs.harvard.edu/abs/2022MNRAS.515.2901M/abstract>`_
+    Class of all the functions relevant to galaxy surveys, such as luminosity functions and galaxy count for given limiting magnitude. If you use this module please consider citing `Mittal & Kulkarni (2022) <https://ui.adsabs.harvard.edu/abs/2022MNRAS.515.2901M/abstract>`_
 
     However, note that there are some differences in the implementation of the UV LF and galaxy count functions in this module and the ones I used previously. The main difference is in the star formation rate. Previously, 
 
@@ -24,7 +17,7 @@ class uvlf():
     *Accordingly, the following calculations are relevant only for semi-empirical star formation models.*
 
     Methods
-    ~~~~~~~
+    ^^^^^^^
     '''
     def __init__(self, config, basic, halo):
         self.config = config
@@ -41,8 +34,8 @@ class uvlf():
         Z : float
             :math:`1+z`
         
-        Return
-        ------
+        Returns
+        -------
         float
             :math:`\\left(\\frac{\\partial L}{\\partial M}\\right)_{z}` in units of :math:`\\mathrm{W Hz^{-1}M_{\\odot}^{-1}}`
         '''
@@ -59,10 +52,10 @@ class uvlf():
             The desired halo mass at which you want to evaluate absolute magnitude. Input ``M`` in units of solar mass.
         
         Z : float
-            1 + redshift, dimensionless.
+            :math:`1+z`
         
-        Return
-        ------
+        Returns
+        -------
 
         float
             UV luminosity in units of W/Hz.
@@ -80,10 +73,10 @@ class uvlf():
             The desired halo mass at which you want to evaluate absolute magnitude. Input ``M`` in units of solar mass.
         
         Z : float
-            1 + redshift, dimensionless.
+            :math:`1+z`
         
-        Return
-        ------
+        Returns
+        -------
 
         float
             Absolute AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_
@@ -101,10 +94,10 @@ class uvlf():
             Absolute AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_
         
         Z : float
-            1 + redshift, dimensionless.
+            :math:`1+z`
         
-        Return
-        ------
+        Returns
+        -------
 
         float
             Halo mass in units of solar mass.
@@ -120,13 +113,13 @@ class uvlf():
         ---------
         
         mUV : float
-            Apparent AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_
+            Apparent AB magnitude (`Oke 1974 <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_)
         
         Z : float
-            1 + redshift, dimensionless.
+            :math:`1+z`
         
-        Return
-        ------
+        Returns
+        -------
 
         float
             Halo mass in units of solar mass.
@@ -146,10 +139,10 @@ class uvlf():
             Absolute AB magnitude.
 
         Z : float or array_like
-            1 + redshift, dimensionless.
+            :math:`1+z`
 
-        Return
-        ------
+        Returns
+        -------
 
         float or ndarray
             Luminosity function in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving mega parsec.
@@ -185,7 +178,7 @@ class uvlf():
         ---------
 
         mUV : float
-            Apparent AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_ for for the faintest object the survey can see.
+            Apparent AB magnitude (`Oke 1974 <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_) for for the faintest object the survey can see.
 
         Z : float
             :math:`1+z` (>1); this can be an array as well
@@ -224,7 +217,7 @@ class uvlf():
         ---------
 
         mUV : float
-            Apparent AB magnitude `(Oke 1974) <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_ for for the faintest object the survey can see.
+            Apparent AB magnitude (`Oke 1974 <https://ui.adsabs.harvard.edu/abs/10.1086/190287>`_) for for the faintest object the survey can see.
         
         Z1 : float
             :math:`1+z_1`, lower value defining the redshift range (>1)

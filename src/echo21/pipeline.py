@@ -1,8 +1,8 @@
 """
 ``pipeline``
 ============
-This module contains the class pipeline.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This module contains the class :class:`pipeline`.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 """
 import pandas as pd
@@ -22,7 +22,9 @@ from .utils import *
 
 class pipeline():
     '''
-    This class runs the cosmic history solver and produces the global signal, globally-averaged nuetral hydrogen fraction, optical depth and the corresponding redshifts. There are three inputs required for a complete specification -- cosmological parameters, astrophysical parameter, and star formation related parameters. They are supplied through arguments, ``cosmo``, ``astro``, and ``sfrd``, respectively. The notation for the parameters is as follows. All of these need to be dictionaries. For example:
+    This is the main class you would first interact with. It brings together all the functionalities of the code. 
+     
+    To run a simulation you need to specify three inputs -- cosmological parameters, astrophysical parameter, and star formation related parameters. They are supplied through arguments, ``cosmo``, ``astro``, and ``sfrd``, respectively. The notation for the parameters is as follows. All of these need to be dictionaries. For example:
 
     .. code:: python
         
@@ -105,7 +107,7 @@ class pipeline():
         Whether to generate a grid of parameter combinations. Default is False, i.e., parameters are varied one at a time. In this case all varied parameters should have the same number of values. If True, then all possible combinations of the parameters will be generated.
     
     Methods
-    ~~~~~~~
+    ^^^^^^^
     '''
     def __init__(self,cosmo=None,astro= None, sfrd=None, grid_on=False, path='echo21_outputs/'):
 
@@ -210,7 +212,7 @@ class pipeline():
     
     def run_simulation(self):
         '''
-        This is the main function which runs the ECHO21 simulation and saves the outputs. 
+        This is the main function which runs the ``ECHO21`` simulation and saves the outputs. 
         ''' 
 
         if self.run_type=='single':

@@ -39,6 +39,12 @@ def _get_As_for_sig8(class_set):
     return A_s
 
 class halo():
+    '''
+    Class of all the functions related to star formation -  HMF, minimum halo mass, collapse fraction, and SFRD.
+
+    Methods
+    ^^^^^^^  
+    '''
     def __init__(self, config, basic):
         self.config = config
         self.basic = basic
@@ -97,7 +103,7 @@ class halo():
             The desired halo mass at which you want to evaluate HMF. Input M in units of solar mass (:math:`\\mathrm{M}_{\\odot}`).
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         Returns
         -------
@@ -117,7 +123,7 @@ class halo():
         ---------
         
         Z : float
-            1 + z, dimensionless. It can be a single number or an array.
+            :math:`1+z`, dimensionless. It can be a single number or an array.
         
         Returns
         -------
@@ -240,7 +246,7 @@ class halo():
         ---------
         
         Z : float
-            1 + z, dimensionless. Can be a single quantity or an array.
+            :math:`1+z`, dimensionless. Can be a single quantity or an array.
         
         Returns
         -------
@@ -287,7 +293,7 @@ class halo():
         ---------
         
         Z : float
-            1 + z, dimensionless. Can be a single quantity or an array.
+            :math:`1+z`, dimensionless. Can be a single quantity or an array.
         
         Returns
         -------

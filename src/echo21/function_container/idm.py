@@ -3,6 +3,12 @@ import scipy.special as scsp
 from ..const import *
 
 class idm():
+    '''
+    A class of all the functions related to interacting dark matter model. 
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config, basic):
         self.config = config
         self.basic = basic

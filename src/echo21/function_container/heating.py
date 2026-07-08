@@ -11,6 +11,18 @@ def _fXion(xe):
 
 
 class heating():
+    '''
+    Class of all the *standard* heating terms (Compton, Ly-:math:`\\alpha`, X-ray). Exotic heating terms, such as those for IDM live, in their own module. Also, note that the return value is in the form of
+     
+    :math:`\\frac{2q}{3n_{\\mathrm{b}}k_{\\mathrm{B}}H}`,
+    
+    where :math:`q, n_{\\mathrm{b}}, k_{\\mathrm{B}}`, and :math:`H` are the volumetric heating rate, baryon number density, Boltzman constant, and Hubble factor, respectively.
+
+    Within this class I have also included the ionization rate due to X-ray photons.
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config, basic, halo, lya):
         self.config = config
         self.basic = basic
@@ -26,7 +38,7 @@ class heating():
         ---------
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xe : float
             Electron fraction.
@@ -47,13 +59,13 @@ class heating():
 
     def Elya(self,Z,xe,Tk):
         '''
-        Ly :math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__ or the ECHO21 paper `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`__
+        Ly-:math:`\\alpha` heating rate. For details see `Mittal & Kulkarni (2021) <https://ui.adsabs.harvard.edu/abs/2021MNRAS.503.4264M/abstract>`__ or the ``ECHO21`` paper `Mittal et al (2025) <https://arxiv.org/abs/2503.11762>`__
         
         Arguments
         ---------
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xe : float
             Electron fraction.
@@ -89,7 +101,7 @@ class heating():
         ---------
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xe : float
             Electron fraction.
@@ -112,7 +124,7 @@ class heating():
         Ionization (of bulk IGM) rate due to X-ray photons.
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xe : float
             Electron fraction.

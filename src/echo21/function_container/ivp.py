@@ -4,6 +4,12 @@ import scipy.integrate as scint
 from ..const import *
 
 class ivp():
+    '''
+    Class of all the functions required to solve the initial value problem of bulk of IGM. EoR related functions are in the class :class:`eor`.
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config, basic, recomb, halo, idm, heating):
         self.config = config
         self.basic = basic

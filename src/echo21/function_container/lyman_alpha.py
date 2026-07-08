@@ -3,6 +3,12 @@ import scipy.integrate as scint
 from ..const import *
 
 class lyman_alpha():
+    '''
+    Class of all the functions required to construct the specific intensity of the Ly-:math:`\\alpha` photons.
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config, basic, halo):
         self.config = config
         self.basic = basic
@@ -94,12 +100,12 @@ class lyman_alpha():
     
     def lya_spec_inten(self,Z):
         '''
-        Specific intensity of Ly :math:`\\alpha` photons, :math:`J_{\\mathrm{Ly}}`, due to continuum and injected photons.
+        Specific intensity of Ly-:math:`\\alpha` photons, :math:`J_{\\mathrm{Ly}}`, due to continuum and injected photons.
         
         Arguments
         ---------
         Z : float
-            1 + z, dimensionless. Can be array.
+            :math:`1 + z`, dimensionless. Can be array.
         
         Returns
         -------

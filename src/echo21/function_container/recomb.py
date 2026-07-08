@@ -2,6 +2,12 @@ import numpy as np
 from ..const import *
 
 class recomb():
+    '''
+    Class of all the recombination-physics-related functions.
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config, basic):
         self.config = config
         self.basic = basic

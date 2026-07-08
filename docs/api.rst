@@ -7,6 +7,9 @@ API Reference
 .. autoclass:: pipeline
     :members:
 
+.. automodule:: echo21.config
+.. autoclass:: config
+    :members:
 
 .. automodule:: echo21.funcs
 .. autoclass:: funcs

@@ -2,6 +2,13 @@ import numpy as np
 from ..const import *
 
 class hyfi():
+    '''
+    Class of all the functions related to the computation of 21-cm signal. These are
+    :math:`\\kappa_{\\mathrm{HH}}, \\kappa_{\\mathrm{eH}}, x_{\\mathrm{k}}, x_{\\mathrm{Ly}}, T_{\\mathrm{s}}` and :math:`T_{21}`.
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config, basic, lyman_alpha):
         self.config = config
         self.basic = basic
@@ -71,7 +78,7 @@ class hyfi():
         ---------
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xe : float
             Electron fraction.
@@ -89,13 +96,13 @@ class hyfi():
 
     def lya_coup(self,Z,xe,Tk):
         '''
-        Ly :math:`\\alpha` coupling or the Wouthuysen--Field coupling.
+        Ly-:math:`\\alpha` coupling or the Wouthuysen--Field coupling.
         
         Arguments
         ---------
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xe : float
             Electron fraction.
@@ -123,7 +130,7 @@ class hyfi():
         ---------
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xe : float
             Electron fraction.
@@ -151,13 +158,13 @@ class hyfi():
         ---------
         
         Z : float
-            1 + z, dimensionless.
+            :math:`1+z`, dimensionless.
         
         xHI : float
             Two-zone-model-averaged neutral hydrogen fraction.
         
         Ts : float
-            Spin temperature.
+            Spin temperature (K).
         
         Returns
         -------

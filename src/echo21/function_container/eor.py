@@ -5,6 +5,12 @@ from scipy.interpolate import CubicSpline
 from ..const import *
 
 class eor():
+    '''
+    Class of all the functions related to reionization - clumping factor, CMB optical depth, analytical equation that governs the reionization, and the ODE solver.
+
+    Methods
+    ^^^^^^^
+    '''
     def __init__(self, config, basic, halo):
         self.config = config
         self.basic = basic
@@ -16,17 +22,22 @@ class eor():
     def clumping_factor(self,Z):
         '''
         Clumping factor for the ionization of hydrogen. From `Shull et al. (2012) <https://iopscience.iop.org/article/10.1088/0004-637X/747/2/100>`__.
+
+        Arguments
+        ---------
+        Z : float
+            :math:`1+z`
         '''
         return 20.81*Z**-1.1
 
     def cmb_tau(self,Z):
         '''
-        Compute the Thomson-scattering optical depth up to a 1+redshift=Z.
+        Compute the Thomson-scattering optical depth up to a given redshift.
 
         Arguments
         ---------
         Z : float
-            1+z to which you want to calculate :math:`\\tau_{\\mathrm{e}}`.
+            :math:`1+z` to which you want to calculate :math:`\\tau_{\\mathrm{e}}`.
         
         Returns
         -------
@@ -51,7 +62,7 @@ class eor():
     
     def dQdlna(self,Z,QHii):
         '''
-        Analytical equation of reionization `(Madau et al 1999) <https://iopscience.iop.org/article/10.1086/306975>`_.
+        Analytical equation of reionization (`Madau et al 1999 <https://iopscience.iop.org/article/10.1086/306975>`_).
 
         Arguments
         ---------
@@ -83,10 +94,6 @@ class eor():
     def solve_dQdlna(self):
         '''
         Solves the reionization equation.
-
-        Arguments
-        ---------
-        None
 
         Returns
         -------
