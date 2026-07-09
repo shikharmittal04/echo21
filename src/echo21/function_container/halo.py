@@ -62,15 +62,60 @@ class halo():
         # The 'emp' SFRD does not use f_coll at all, so guard on sfrd_type.
         if config.sfrd_type in ('phy', 'semi-emp'):
             if config.dm_model == 'IDM':
-                self._f_coll_spline = self._build_idm_fcoll_spline()
+                self._dndlnM = self._dndlnM_idm
                 self._f_coll = self._f_coll_not_cdm_press74
             elif config.hmf == 'press74':
+                self._dndlnM = self._dndlnM_cdm
                 self._f_coll = self._f_coll_cdm_press74
             else:
-                self._f_coll_spline = self._build_cdm_fcoll_spline()
+                self._dndlnM = self._dndlnM_cdm
                 self._f_coll = self._f_coll_not_cdm_press74
 
-    def dndlnM(self, M,Z):
+    def _dndlnM_idm(self, M,Z):
+
+        k = np.logspace(-6,3,50) #in h/Mpc
+
+        #---------------------------------------------------------------------------------
+        #First get As for the given cosmological parameters assuming CDM
+        class_set_cdm = {'h':self.config.h100, 'Omega_b':self.config.Om_b, 'Omega_cdm':self.config.Om_m-self.config.Om_b, 'Omega_dmeff':0.0, 'YHe':self.config.Yp, 'n_s':self.config.ns, 'sigma8': self.config.sig8, 'output':'mPk','P_k_max_1/Mpc':1, 'z_max_pk':0.1}
+
+        class_set_idm = {'h':self.config.h100, 'Omega_b':self.config.Om_b, 'Omega_cdm':0.0, 'Omega_dmeff':self.config.Om_m-self.config.Om_b, 'YHe':self.config.Yp, 'n_s':self.config.ns, 'm_dmeff': self.config.mx_gev, 'N_dmeff': 1, 'sigma_dmeff': 1e4*self.config.sigma0, 'npow_dmeff':-4, 'dmeff_target':'baryon', 'Vrel_dmeff': 30, 'output':'mPk','P_k_max_1/Mpc':k.max(), 'z_max_pk':0.1}
+
+        class_set = class_set_idm | {'A_s':_get_As_for_sig8(class_set_cdm)}
+
+        #Initialize CLASS for IDM power spectrum generation.
+        class_obj = classy.Class()
+        class_obj.set(class_set)
+        class_obj.compute()
+        
+        #Now run CLASS and generate matter power spectrum. This will be fed to COLOSSUS.
+        Pk_0 = np.array([self.config.h100**3*class_obj.pk(self.config.h100*kk,0.0) for kk in k]) #in (Mpc/h)**3
+
+        fd, pk_path = tempfile.mkstemp(prefix='Pk_idm_', suffix='.txt')   # unique per process
+        os.close(fd)
+        np.savetxt(pk_path, np.vstack((np.log10(k),np.log10(Pk_0))).T)
+        
+        #CLASS's job is done.
+        #---------------------------------------------------------------------------------
+        #Now compute the collapse fraction by feeding CLASS's matter power spectrum into COLOSSUS.
+        ps_idm_dict = dict(model = f'idm_m{self.config.mx_gev:.4e}_s{self.config.sigma0:.4e}', path = pk_path)
+
+        M_by_h = M*self.config.h100 #M is in solar mass units and M_by_h is in units of solar mass/h.
+
+        dn_dlnM = self.config.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M',
+            q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf, ps_args = ps_idm_dict)
+        
+        # cleanup
+        os.remove(pk_path)
+        return dn_dlnM
+    
+    def _dndlnM_cdm(self, M,Z):
+        M_by_h = M*self.config.h100 #M is in solar mass units and M_by_h is in units of solar mass/h.
+        dn_dlnM =  self.config.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf)
+
+        return dn_dlnM
+
+    def dndlnM(self,M,Z):
         '''
         The halo mass function (HMF) in the form of :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M`. Note the natural logarithm.
         
@@ -89,9 +134,8 @@ class halo():
         float
             HMF, :math:`\\mathrm{d}n/\\mathrm{d\\,ln}M=M\\mathrm{d}n/\\mathrm{d}M`, in units of :math:`\\mathrm{cMpc}^{-3}`, where 'cMpc' represents comoving mega parsec.
         '''
-        M_by_h = M*self.config.h100 #M is in solar mass units and M_by_h is in units of solar mass/h.
-        return self.config.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf)
-
+        return self._dndlnM(M, Z)
+    
     def dndM(self,M,Z):
         '''
         The halo mass function (HMF) in a different form, i.e., :math:`\\mathrm{d}n/\\mathrm{d}M`.
@@ -146,10 +190,10 @@ class halo():
         '''
         scalar = np.isscalar(Z)
         Z = np.atleast_1d(np.asarray(Z, dtype=float))
-        result = np.where(Z <= Z_STAR, np.maximum(self._f_coll_spline(Z), 0.0), 0.0)
+        result = np.where(Z <= Z_STAR, np.maximum(self._build_fcoll_spline()(Z), 0.0), 0.0)
         return float(result[0]) if scalar else result
     
-    def _build_cdm_fcoll_spline(self, n_points=60):
+    def _build_fcoll_spline(self, n_points=60):
         '''
         Precompute the collapse fraction on a redshift grid and return a CubicSpline.
         Called once per funcs() instantiation for non-press74 HMFs, replacing the
@@ -175,65 +219,6 @@ class halo():
             M_space = np.logspace(np.log10(self.m_min(Zv) / self.config.h100), 16, 200)
             f_grid[i] = scint.simpson(self.dndlnM(M=M_space, Z=Zv), x=M_space)
         f_grid *= norm
-
-        return CubicSpline(Z_grid, f_grid)
-
-    def _build_idm_fcoll_spline(self, n_points=60):
-        '''
-        Collapse fraction for Coulomb-like IDM HMFs.
-
-        Arguments
-        ---------
-        n_points : int
-            Number of redshift grid points. Default 60.
-
-        Returns
-        -------
-        CubicSpline
-            Spline of f_coll(Z) over Z in [1, Z_STAR], with `Z` :math:`= 1+z`.
-        '''
-        Z_grid = np.linspace(1, Z_STAR, n_points)
-        f_grid = np.zeros(n_points)
-        k = np.logspace(-6,3,50) #in h/Mpc
-
-        #---------------------------------------------------------------------------------
-        #First get As for the given cosmological parameters assuming CDM
-        class_set_cdm = {'h':self.config.h100, 'Omega_b':self.config.Om_b, 'Omega_cdm':self.config.Om_m-self.config.Om_b, 'Omega_dmeff':0.0, 'YHe':self.config.Yp, 'n_s':self.config.ns, 'sigma8': self.config.sig8, 'output':'mPk','P_k_max_1/Mpc':1, 'z_max_pk':0.1}
-
-        class_set_idm = {'h':self.config.h100, 'Omega_b':self.config.Om_b, 'Omega_cdm':0.0, 'Omega_dmeff':self.config.Om_m-self.config.Om_b, 'YHe':self.config.Yp, 'n_s':self.config.ns, 'm_dmeff': self.config.mx_gev, 'N_dmeff': 1, 'sigma_dmeff': 1e4*self.config.sigma0, 'npow_dmeff':-4, 'dmeff_target':'baryon', 'Vrel_dmeff': 30, 'output':'mPk','P_k_max_1/Mpc':k.max(), 'z_max_pk':0.1}
-
-        class_set = class_set_idm | {'A_s':_get_As_for_sig8(class_set_cdm)}
-
-        #Initialize CLASS for IDM power spectrum generation.
-        class_obj = classy.Class()
-        class_obj.set(class_set)
-        class_obj.compute()
-        
-        #Now run CLASS and generate matter power spectrum. This will be fed to COLOSSUS.
-        Pk_0 = np.array([self.config.h100**3*class_obj.pk(self.config.h100*kk,0.0) for kk in k]) #in (Mpc/h)**3
-
-        fd, pk_path = tempfile.mkstemp(prefix='Pk_idm_', suffix='.txt')   # unique per process
-        os.close(fd)
-        np.savetxt(pk_path, np.vstack((np.log10(k),np.log10(Pk_0))).T)
-        
-        #CLASS's job is done.
-        #---------------------------------------------------------------------------------
-        #Now compute the collapse fraction by feeding CLASS's matter power spectrum into COLOSSUS.
-        ps_idm_dict = dict(model = f'idm_m{self.config.mx_gev:.4e}_s{self.config.sigma0:.4e}', path = pk_path)
-
-
-        norm = Msolar_by_Mpc3_to_kg_by_m3 / (self.config.Om_m * self.basic.rho_crit())
-
-        for i, Zv in enumerate(Z_grid):
-            M_space = np.logspace(np.log10(self.m_min(Zv) / self.config.h100), 16, 200) #solar mass units
-            dn_dlnM = self.config.h100**3*mass_function.massFunction(self.config.h100*M_space, Zv-1, q_in='M',
-            q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf, ps_args = ps_idm_dict)
-            f_grid[i] = scint.simpson(dn_dlnM, x=M_space)
-
-        f_grid *= norm
-
-        # cleanup
-        os.remove(pk_path)
 
         return CubicSpline(Z_grid, f_grid)
 
