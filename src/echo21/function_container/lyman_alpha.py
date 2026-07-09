@@ -13,6 +13,11 @@ class lyman_alpha():
         self.config = config
         self.basic = basic
         self.halo = halo
+        
+        if self.config.sLy!=0:
+            self._phi_Ly = self._phi_Ly_non0_sLy
+        else:
+            self._phi_Ly = self._phi_Ly_0_sLy
 
     def _recoil(self, Tk):
         '''
@@ -53,7 +58,12 @@ class lyman_alpha():
         '''
         return np.exp(-1.69*self._zeta(Z,xe,Tk)**0.667)
 
-    
+    def _phi_Ly_non0_sLy(self,E):
+        return self.config.fLy*hP/eC*1/13.6*self.config.sLy*N_alpha_infty/(1.33**self.config.sLy-1)*(E/13.6)**(-self.config.sLy-1)
+
+    def _phi_Ly_0_sLy(self,E):
+        return self.config.fLy*hP/eC*N_alpha_infty/np.log(4/3)*E**-1
+        
     def phi_Ly(self,E):
         '''
         Spectral energy distribution (SED) of Lyman series photons in units of number of photons per unit frequency per stellar baryon.
@@ -70,10 +80,7 @@ class lyman_alpha():
         float
             SED in dimensions :math:`\\mathrm{Hz^{-1}}`. 
         '''
-        if self.config.sLy!=0:
-            return self.config.fLy*hP/eC*1/13.6*self.config.sLy*N_alpha_infty/(1.33**self.config.sLy-1)*(E/13.6)**(-self.config.sLy-1)
-        else:
-            return self.config.fLy*hP/eC*N_alpha_infty/np.log(4/3)*E**-1
+        return self._phi_Ly(E)
 
     def eps_Ly(self,Z,E):
         '''

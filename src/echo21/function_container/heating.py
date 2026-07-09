@@ -29,6 +29,9 @@ class heating():
         self.halo = halo
         self.lya = lya
 
+        if self.config.wX!=1: self._CX_modifier = self._wX_not_1
+        else: self._CX_modifier = self._wX_is_1
+
     def Ecomp(self,Z,xe,Tk):
         '''
         See Eq.(2.32) from Mittal et al (2022), JCAP.
@@ -93,6 +96,17 @@ class heating():
 
         return heat
 
+    def _wX_not_1(self):
+        CX_modifier = (tilda_E1**(1-self.config.wX)-tilda_E0**(1-self.config.wX))/(E1**(1-self.config.wX)-E0**(1-self.config.wX))
+        return CX_modifier
+    
+    def _wX_is_1(self):
+        CX_modifier= np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
+        return CX_modifier
+    
+    def CX_modifier(self):
+        return self._CX_modifier()
+    
     def Ex(self,Z,xe):
         '''
         We use the parametric approach for X-ray heating as in `Furlanetto (2006) <https://academic.oup.com/mnras/article/371/2/867/1033021>`__. We adopt the :math:`L_{\\mathrm{X}}/\\mathrm{SFR}` relation from `Lehmer et al. (2024) <https://iopscience.iop.org/article/10.3847/1538-4357/ad8de7>`__.
@@ -113,11 +127,8 @@ class heating():
             Net heating by the X-ray photons. Units kelvin.
            
         '''
-
-        if self.config.wX!=1: CX_modifier=(tilda_E1**(1-self.config.wX)-tilda_E0**(1-self.config.wX))/(E1**(1-self.config.wX)-E0**(1-self.config.wX))
-        else: CX_modifier= np.log(tilda_E1/tilda_E0)/np.log(E1/E0)
         prefactor = 2/(3*self.basic.nH(1)*(1+self.basic.xHe()+xe)*kB*self.basic.Hubble(Z))
-        return prefactor*self.config.fX*_fXh(xe)*self.halo.sfrd(Z)*CX_fid*CX_modifier
+        return prefactor*self.config.fX*_fXh(xe)*self.halo.sfrd(Z)*CX_fid*self.CX_modifier()
 
     def Gamma_x(self,Z,xe):
         '''
