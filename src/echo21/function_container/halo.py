@@ -62,17 +62,19 @@ class halo():
         # The 'emp' SFRD does not use f_coll at all, so guard on sfrd_type.
         if config.sfrd_type in ('phy', 'semi-emp'):
             if config.dm_model == 'IDM':
+                self.ps_idm_dict = self.Pk0()
                 self._dndlnM = self._dndlnM_idm
+                self._f_coll_spline = self._build_fcoll_spline()
                 self._f_coll = self._f_coll_not_cdm_press74
             elif config.hmf == 'press74':
                 self._dndlnM = self._dndlnM_cdm
                 self._f_coll = self._f_coll_cdm_press74
             else:
                 self._dndlnM = self._dndlnM_cdm
+                self._f_coll_spline = self._build_fcoll_spline()
                 self._f_coll = self._f_coll_not_cdm_press74
 
-    def _dndlnM_idm(self, M,Z):
-
+    def Pk0(self):
         k = np.logspace(-6,3,50) #in h/Mpc
 
         #---------------------------------------------------------------------------------
@@ -91,27 +93,30 @@ class halo():
         #Now run CLASS and generate matter power spectrum. This will be fed to COLOSSUS.
         Pk_0 = np.array([self.config.h100**3*class_obj.pk(self.config.h100*kk,0.0) for kk in k]) #in (Mpc/h)**3
 
-        fd, pk_path = tempfile.mkstemp(prefix='Pk_idm_', suffix='.txt')   # unique per process
+        fd, self.pk_path = tempfile.mkstemp(prefix='Pk_idm_', suffix='.txt')   # unique per process
         os.close(fd)
-        np.savetxt(pk_path, np.vstack((np.log10(k),np.log10(Pk_0))).T)
+        np.savetxt(self.pk_path, np.vstack((np.log10(k),np.log10(Pk_0))).T)
         
         #CLASS's job is done.
         #---------------------------------------------------------------------------------
         #Now compute the collapse fraction by feeding CLASS's matter power spectrum into COLOSSUS.
-        ps_idm_dict = dict(model = f'idm_m{self.config.mx_gev:.4e}_s{self.config.sigma0:.4e}', path = pk_path)
-
+        ps_idm_dict = dict(model = f'idm_m{self.config.mx_gev:.4e}_s{self.config.sigma0:.4e}', path = self.pk_path)
+        
+        return ps_idm_dict
+    
+    def _dndlnM_idm(self, M,Z):
         M_by_h = M*self.config.h100 #M is in solar mass units and M_by_h is in units of solar mass/h.
 
         dn_dlnM = self.config.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M',
-            q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf, ps_args = ps_idm_dict)
+            q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf, ps_args = self.ps_idm_dict)
         
-        # cleanup
-        os.remove(pk_path)
         return dn_dlnM
     
     def _dndlnM_cdm(self, M,Z):
         M_by_h = M*self.config.h100 #M is in solar mass units and M_by_h is in units of solar mass/h.
-        dn_dlnM =  self.config.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M', q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf)
+        
+        dn_dlnM =  self.config.h100**3*mass_function.massFunction(M_by_h, Z-1, q_in='M',
+            q_out='dndlnM', mdef = self.config.mdef, model = self.config.hmf)
 
         return dn_dlnM
 
@@ -190,7 +195,7 @@ class halo():
         '''
         scalar = np.isscalar(Z)
         Z = np.atleast_1d(np.asarray(Z, dtype=float))
-        result = np.where(Z <= Z_STAR, np.maximum(self._build_fcoll_spline()(Z), 0.0), 0.0)
+        result = np.where(Z <= Z_STAR, np.maximum(self._f_coll_spline(Z), 0.0), 0.0)
         return float(result[0]) if scalar else result
     
     def _build_fcoll_spline(self, n_points=60):
@@ -220,6 +225,11 @@ class halo():
             f_grid[i] = scint.simpson(self.dndlnM(M=M_space, Z=Zv), x=M_space)
         f_grid *= norm
 
+        try:
+            # cleanup
+            os.remove(self.pk_path)
+        except:
+            pass
         return CubicSpline(Z_grid, f_grid)
 
     def f_coll(self,Z):
