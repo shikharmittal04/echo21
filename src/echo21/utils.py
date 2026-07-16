@@ -335,7 +335,7 @@ def load_results(filename, Z_eval = None):
     ---------
 
     filename : str
-        Full path to the output directory (``output_<YYYYMMDD-HHMMSS>``) which contains the HDF5 file ``echo21_output.h5``.
+        Full path to the output directory (``output_<YYYYMMDD-HHMMSS>``) which contains the ``pipeline.pkl`` file and HDF5 file ``echo21_output.h5``.
 
     Z_eval: array, optional
         array of :math:`1+z` values; can be in decreasing as well as increasing order. Default = ``None``

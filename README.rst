@@ -18,7 +18,7 @@ Designed for both precision studies and large-scale parameter inference, ``ECHO2
 
 - simultaneous variation of astrophysical and cosmological parameters,
 - flexible prescriptions for halo mass functions and star formation models,
-- inclusion of Ly :math:`\alpha` heating and detailed IGM thermal evolution,
+- inclusion of Ly-:math:`\alpha` heating and detailed IGM thermal evolution,
 - support for non-standard cosmologies such as interacting dark matter `(Mittal et al 2026) <https://arxiv.org/abs/2605.00991>`_
 - UV luminosity functions
 

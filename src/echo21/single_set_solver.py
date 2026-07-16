@@ -29,7 +29,7 @@ def cosmic_dawn_beyond(params_dict, *initial_conditions, dm_model='CDM'):
     configuration = config(params_dict, dm_model=dm_model)
     funcs_obj = funcs(configuration)
     
-    sol_cd = funcs_obj.ivp(Z_CD, *initial_conditions, eqns_func = funcs_obj.ivp.igm_eqns_cd)
+    sol_cd = funcs_obj.ivp.igm_solver(Z_CD, *initial_conditions, eqns_func = funcs_obj.ivp.igm_eqns_cd)
     
     xe = sol_cd[0]
     Tk = sol_cd[1]

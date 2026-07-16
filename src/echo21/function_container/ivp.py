@@ -78,8 +78,8 @@ class ivp():
     def _igm_eqns_cdm_da(self, Z, V):
         '''
         Differential equations for the IGM in the CDM model during the dark ages phase.
-        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
         '''
+        #The thermal state variable is y = ln(Tk/Tgamma); eq2 returns -d(y)/dln(a).
         xe, yT = V
         Tk = self._logratio_to_temp(Z, yT)
 
@@ -95,8 +95,8 @@ class ivp():
     def _igm_eqns_cdm_cd(self, Z, V):
         '''
         Differential equations for the IGM in the CDM model during the cosmic dawn phase.
-        For cosmic dawn we keep the original variable, Tk.
         '''
+        #For cosmic dawn we keep the original variable, Tk.
         xe, Tk = V
 
         Tgamma = self.basic.Tcmb(Z)
@@ -114,8 +114,8 @@ class ivp():
     def _igm_eqns_idm_da(self, Z, V):
         '''
         Differential equations for the IGM in the IDM model during the dark ages phase.
-        The thermal state variable is y = ln(Tk/Tgamma); eq2 returns d(y)/dlnZ.
         '''
+        #The thermal state variable is y = ln(Tk/Tgamma); eq2 returns -d(y)/dln(a).
         xe, yT, Tx, ln_v_bx = V
         Tk = self._logratio_to_temp(Z, yT)
 
@@ -141,6 +141,7 @@ class ivp():
         '''
         Differential equations for the IGM in the IDM model during the cosmic dawn phase.
         '''
+        #For cosmic dawn we keep the original variable, Tk.
         xe, Tk, Tx, ln_v_bx = V
         
         v_bx = np.exp(np.clip(ln_v_bx, -30, None))
@@ -163,15 +164,14 @@ class ivp():
         
         return np.array([eq1,eq2,eq3,eq4])
 
+    #Note the following two points:
+    #1. For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`. Recover the temperature with :meth:`_logratio_to_temp`, i.e. :math:`T_{\\mathrm{k}} = e^{y}\\,T_{\\gamma}`.
 
+    #2. In case of IDM, the last value of the solution array is :math:`\\ln v_{\\mathrm{b}\\chi}` and not :math:`v_{\\mathrm{b}\\chi}` itself.
+    
     def igm_solver(self, Z_solver, *initial_conditions, eqns_func):
         '''
         This function solves the coupled IGM differential equations. In case of CDM it is just electron fraction and gas temperature. When IDM is involed DM temperature and relative DM-baryon velocity is also solved.
-        Note the following two points:
-        
-            1. For thermal evolution, I don't solve for :math:`T_{\\mathrm{k}}` but rather :math:`y = \\ln(T_{\\mathrm{k}}/T_{\\gamma})`. Recover the temperature with :meth:`_logratio_to_temp`, i.e. :math:`T_{\\mathrm{k}} = e^{y}\\,T_{\\gamma}`.
-        
-            2. In case of IDM, the last value of the solution array is :math:`\\ln v_{\\mathrm{b}\\chi}` and not :math:`v_{\\mathrm{b}\\chi}` itself.
 
         Arguments
         ---------

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "echo21"
-version = "4.3.1"
+version = "4.3.2"
 dependencies = [
   "numpy",
   "scipy",
@@ -33,3 +33,7 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/shikharmittal04/echo21.git"
+Documentation = "https://echo21.readthedocs.io/en/latest/index.html"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/echo21"]
